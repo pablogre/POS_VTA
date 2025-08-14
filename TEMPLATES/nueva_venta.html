@@ -1,0 +1,1263 @@
+<!-- templates/nueva_venta.html - VERSIÓN CON IMPRESIÓN TÉRMICA -->
+{% extends "base.html" %}
+
+{% block title %}Nueva Venta - POS Argentina{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-cash-register"></i> Nueva Venta</h1>
+    <div>
+        <button class="btn btn-secondary" onclick="limpiarVenta()">
+            <i class="fas fa-trash"></i> Limpiar Todo
+        </button>
+        <a href="{{ url_for('facturas') }}" class="btn btn-info">
+            <i class="fas fa-file-invoice"></i> Ver Facturas
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- Búsqueda de productos MEJORADA -->
+        <div class="card mb-3">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-search"></i> Agregar Productos</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="buscar_producto" class="form-label">Buscar por código o nombre</label>
+                        <div class="position-relative">
+                            <input type="text" class="form-control" id="buscar_producto" 
+                                   placeholder="Ej: PROD001, emplo 1, servicio..." 
+                                   autocomplete="off" autofocus>
+                            <div id="sugerencias" class="position-absolute w-100 bg-white border rounded shadow-sm" 
+                                 style="top: 100%; z-index: 1000; max-height: 300px; overflow-y: auto; display: none;">
+                            </div>
+                        </div>
+                        <small class="form-text text-muted">
+                            <i class="fas fa-lightbulb"></i> Busca por código completo o parte del nombre
+                        </small>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="cantidad" class="form-label">Cantidad</label>
+                        <input type="number" class="form-control" id="cantidad" value="1" min="1">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="button" class="btn btn-success w-100" onclick="agregarProducto()">
+                            <i class="fas fa-plus"></i> Agregar
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Productos de acceso rápido -->
+                <div class="mt-3">
+                    <h6><i class="fas fa-bolt"></i> Acceso Rápido:</h6>
+                    <div class="row">
+                        {% for producto in productos[:8] %}
+                        <div class="col-md-3 col-sm-6 mb-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm w-100 text-start" 
+                                    onclick="seleccionarProductoPorId({{ producto.id }})">
+                                <div><strong>{{ producto.codigo }}</strong></div>
+                                <div><small>{{ producto.nombre[:20] }}{% if producto.nombre|length > 20 %}...{% endif %}</small></div>
+                                <div><strong>${{ "%.2f"|format(producto.precio) }}</strong></div>
+                                <div><small class="text-muted">Stock: {{ producto.stock }}</small></div>
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detalle de la venta -->
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5><i class="fas fa-shopping-cart"></i> Detalle de la Venta</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped" id="tabla_venta">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Código</th>
+                                <th>Producto</th>
+                                <th>Cantidad</th>
+                                <th>Precio Unit.</th>
+                                <th>Subtotal</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="items_venta">
+                            <!-- Los items se agregarán dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="mensaje_vacio" class="text-center text-muted py-5">
+                    <i class="fas fa-shopping-cart fa-3x mb-3 opacity-50"></i>
+                    <h5>No hay productos agregados a la venta</h5>
+                    <p>Usa el buscador de arriba para agregar productos</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Información del cliente -->
+        <div class="card mb-3">
+            <div class="card-header bg-info text-white">
+                <h5><i class="fas fa-user"></i> Cliente</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="cliente_select" class="form-label">Seleccionar Cliente</label>
+                    <select class="form-select" id="cliente_select" onchange="actualizarTipoComprobante()">
+                        <option value="1" data-condicion="CONSUMIDOR_FINAL">Consumidor Final</option>
+                        {% for cliente in clientes %}
+                        <option value="{{ cliente.id }}" data-condicion="{{ cliente.condicion_iva }}" data-documento="{{ cliente.documento or '' }}">
+                            {{ cliente.nombre }}
+                            {% if cliente.documento %} - {{ cliente.documento }}{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="tipo_comprobante" class="form-label">Tipo de Comprobante</label>
+                    <select class="form-select" id="tipo_comprobante">
+                        <option value="11">Factura C - Consumidor Final</option>
+                        <option value="06">Factura B - Monotributista</option>
+                        <option value="01">Factura A - Responsable Inscripto</option>
+                    </select>
+                    <small class="form-text text-muted">Se selecciona automáticamente según el cliente</small>
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Cliente seleccionado:</strong>
+                    <div id="info_cliente">Consumidor Final</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Totales -->
+        <div class="card mb-3">
+            <div class="card-header bg-warning text-dark">
+                <h5><i class="fas fa-calculator"></i> Totales</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-2">
+                    <div class="col">Subtotal:</div>
+                    <div class="col text-end" id="subtotal_display">$0.00</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col">IVA (21%):</div>
+                    <div class="col text-end" id="iva_display">$0.00</div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col"><h5>Total:</h5></div>
+                    <div class="col text-end"><h5 id="total_display" class="text-success">$0.00</h5></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Finalizar venta - *** MODIFICADO: Solo se agregó checkbox *** -->
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5><i class="fas fa-check"></i> Finalizar Venta</h5>
+            </div>
+            <div class="card-body">
+                <!-- *** NUEVO: Solo este checkbox *** -->
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="imprimir_automatico" checked>
+                    <label class="form-check-label" for="imprimir_automatico">
+                        <i class="fas fa-print"></i> Imprimir automáticamente
+                    </label>
+                </div>
+                <!-- *** FIN NUEVO *** -->
+                
+                <button type="button" class="btn btn-success btn-lg w-100 mb-3" onclick="procesarVenta()" id="btn_procesar">
+                    <i class="fas fa-check-circle"></i> Procesar Venta
+                </button>
+                
+                <div class="row">
+                    <div class="col-4">
+                        <button type="button" class="btn btn-secondary w-100" onclick="limpiarVenta()">
+                            <i class="fas fa-trash"></i> Limpiar
+                        </button>
+                    </div>
+                    <div class="col-4">
+                        <button type="button" class="btn btn-info w-100" onclick="guardarBorrador()">
+                            <i class="fas fa-save"></i> Borrador
+                        </button>
+                    </div>
+                    <!-- *** NUEVO: Solo este botón *** -->
+                    <div class="col-4">
+                        <button type="button" class="btn btn-warning w-100" onclick="testImpresion()" title="Probar impresora">
+                            <i class="fas fa-print"></i> Test
+                        </button>
+                    </div>
+                    <!-- *** FIN NUEVO *** -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Información del sistema - *** MODIFICADO: Solo se agregó botón *** -->
+        <div class="card mt-3">
+            <div class="card-body text-center">
+                <small class="text-muted">
+                    <i class="fas fa-info-circle"></i> Sistema POS Argentina<br>
+                    Ambiente: <span class="badge bg-warning">PRODUCCIÓN</span><br>
+                    Usuario: {{ session.nombre }}<br>
+                    <!-- *** NUEVO: Solo este botón *** -->
+                    <button type="button" class="btn btn-link btn-sm p-0 mt-1" onclick="verificarEstadoImpresora()">
+                        <i class="fas fa-printer"></i> <small>Estado Impresora</small>
+                    </button>
+                    <!-- *** FIN NUEVO *** -->
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmación - *** MODIFICADO: Solo los botones del footer *** -->
+<div class="modal fade" id="modalConfirmacion" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-check-circle"></i> Venta Procesada
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="resultado_venta"></div>
+            </div>
+            <!-- *** MODIFICADO: Solo este footer *** -->
+            <!-- REEMPLAZAR el modal-footer del modalConfirmacion en nueva_venta.html con este: -->
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+                
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-info dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fas fa-qrcode"></i> QR AFIP
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" onclick="mostrarQRFactura()">
+                            <i class="fas fa-qrcode"></i> Mostrar QR
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="validarQRFactura()">
+                            <i class="fas fa-check-circle"></i> Validar QR
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="abrirQREnAFIP()">
+                            <i class="fas fa-external-link-alt"></i> Abrir en AFIP
+                        </a></li>
+                    </ul>
+                </div>
+                
+                <button type="button" class="btn btn-warning" onclick="verificarEstadoImpresora()">
+                    <i class="fas fa-printer"></i> Estado
+                </button>
+                
+                <button type="button" class="btn btn-primary" onclick="imprimirFactura()">
+                    <i class="fas fa-print"></i> Imprimir Ticket
+                </button>
+                
+                <button type="button" class="btn btn-success" onclick="nuevaVenta()">
+                    <i class="fas fa-plus"></i> Nueva Venta
+                </button>
+            </div>
+            <!-- *** FIN MODIFICADO *** -->
+        </div>
+    </div>
+</div>
+
+<!-- Modal de error -->
+<div class="modal fade" id="modalError" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i> Error
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="mensaje_error"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- *** NUEVO: Solo este modal *** -->
+<div class="modal fade" id="modalInfo" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle"></i> Información del Sistema
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="mensaje_info"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-warning" onclick="testImpresion()">
+                    <i class="fas fa-print"></i> Test de Impresión
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- *** FIN NUEVO *** -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+let itemsVenta = [];
+let contadorItems = 0;
+let timeoutBusqueda = null;
+let productoSeleccionado = null;
+
+// ===========================================
+// FUNCIONES DE BÚSQUEDA MEJORADA
+// ===========================================
+
+function buscarProductos(termino) {
+    if (termino.length < 2) {
+        ocultarSugerencias();
+        return;
+    }
+    
+    fetch(`/api/buscar_productos/${encodeURIComponent(termino)}`)
+        .then(response => response.json())
+        .then(productos => {
+            mostrarSugerencias(productos);
+        })
+        .catch(error => {
+            console.error('Error en búsqueda:', error);
+            ocultarSugerencias();
+        });
+}
+
+function mostrarSugerencias(productos) {
+    const contenedor = document.getElementById('sugerencias');
+    
+    if (productos.length === 0) {
+        contenedor.innerHTML = '<div class="p-2 text-muted"><i class="fas fa-search"></i> No se encontraron productos</div>';
+        contenedor.style.display = 'block';
+        return;
+    }
+    
+    const html = productos.map((producto, index) => {
+        const stockClass = producto.stock <= 0 ? 'text-danger' : producto.stock < 10 ? 'text-warning' : 'text-success';
+        const stockIcon = producto.stock <= 0 ? 'fa-times-circle' : producto.stock < 10 ? 'fa-exclamation-triangle' : 'fa-check-circle';
+        
+        let matchBadge = '';
+        switch(producto.match_tipo) {
+            case 'codigo_exacto':
+                matchBadge = '<span class="badge bg-success">Código exacto</span>';
+                break;
+            case 'codigo':
+                matchBadge = '<span class="badge bg-primary">Código</span>';
+                break;
+            case 'nombre_inicio':
+                matchBadge = '<span class="badge bg-info">Nombre</span>';
+                break;
+            default:
+                matchBadge = '<span class="badge bg-secondary">Descripción</span>';
+        }
+        
+        return `
+            <div class="sugerencia-item p-2 border-bottom cursor-pointer" 
+                 onclick="seleccionarProductoSugerencia(${producto.id})" 
+                 onmouseover="this.style.backgroundColor='#f8f9fa'" 
+                 onmouseout="this.style.backgroundColor='white'"
+                 data-index="${index}">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="flex-grow-1">
+                        <div><strong>${producto.codigo}</strong> - ${producto.nombre}</div>
+                        <div class="small text-muted">${producto.descripcion || 'Sin descripción'}</div>
+                        <div class="small">
+                            <span class="text-primary"><strong>$${producto.precio.toFixed(2)}</strong></span> | 
+                            <span class="${stockClass}">
+                                <i class="fas ${stockIcon}"></i> Stock: ${producto.stock}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        ${matchBadge}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    contenedor.innerHTML = html;
+    contenedor.style.display = 'block';
+}
+
+function ocultarSugerencias() {
+    document.getElementById('sugerencias').style.display = 'none';
+}
+
+function seleccionarProductoSugerencia(productoId) {
+    fetch(`/api/producto_por_id/${productoId}`)
+        .then(response => response.json())
+        .then(producto => {
+            if (producto.error) {
+                mostrarError('Error al cargar el producto');
+                return;
+            }
+            
+            productoSeleccionado = producto;
+            document.getElementById('buscar_producto').value = producto.codigo;
+            ocultarSugerencias();
+            
+            // Auto-agregar si hay cantidad válida
+            const cantidad = parseInt(document.getElementById('cantidad').value) || 1;
+            if (cantidad > 0) {
+                agregarProductoSeleccionado(producto, cantidad);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarError('Error al cargar el producto');
+        });
+}
+
+function seleccionarProductoPorId(productoId) {
+    seleccionarProductoSugerencia(productoId);
+}
+
+function agregarProductoSeleccionado(producto, cantidad) {
+    if (producto.stock < cantidad) {
+        mostrarError(`Stock insuficiente. Disponible: ${producto.stock}`);
+        return;
+    }
+    
+    // Verificar si el producto ya está en la venta
+    const existente = itemsVenta.find(item => item.producto_id === producto.id);
+    if (existente) {
+        existente.cantidad += cantidad;
+        existente.subtotal = existente.cantidad * existente.precio_unitario;
+        mostrarMensajeExito(`Cantidad aumentada: ${existente.cantidad} unidades de ${producto.nombre}`);
+    } else {
+        const item = {
+            id: contadorItems++,
+            producto_id: producto.id,
+            codigo: producto.codigo,
+            nombre: producto.nombre,
+            cantidad: cantidad,
+            precio_unitario: producto.precio,
+            subtotal: cantidad * producto.precio,
+            iva: producto.iva
+        };
+        itemsVenta.push(item);
+        mostrarMensajeExito(`Producto agregado: ${cantidad} x ${producto.nombre}`);
+    }
+    
+    actualizarTablaVenta();
+    calcularTotales();
+    
+    // Limpiar y preparar para siguiente producto
+    document.getElementById('buscar_producto').value = '';
+    document.getElementById('cantidad').value = '1';
+    document.getElementById('buscar_producto').focus();
+    productoSeleccionado = null;
+}
+
+function agregarProducto() {
+    const codigo = document.getElementById('buscar_producto').value.trim();
+    const cantidad = parseInt(document.getElementById('cantidad').value) || 1;
+    
+    if (!codigo) {
+        mostrarError('Ingrese un código de producto o seleccione de las sugerencias');
+        return;
+    }
+    
+    // Si hay un producto seleccionado de las sugerencias, usar ese
+    if (productoSeleccionado && productoSeleccionado.codigo === codigo) {
+        agregarProductoSeleccionado(productoSeleccionado, cantidad);
+        return;
+    }
+    
+    // Buscar producto por código exacto
+    fetch(`/api/producto/${codigo}`)
+        .then(response => response.json())
+        .then(producto => {
+            if (producto.error) {
+                // Si no se encuentra por código exacto, buscar sugerencias
+                fetch(`/api/buscar_productos/${encodeURIComponent(codigo)}`)
+                    .then(response => response.json())
+                    .then(productos => {
+                        if (productos.length === 1) {
+                            // Si solo hay una sugerencia, usar esa
+                            agregarProductoSeleccionado(productos[0], cantidad);
+                        } else if (productos.length > 1) {
+                            mostrarError(`Se encontraron ${productos.length} productos. Seleccione uno de las sugerencias.`);
+                            mostrarSugerencias(productos);
+                        } else {
+                            mostrarError('Producto no encontrado');
+                        }
+                    });
+                return;
+            }
+            
+            agregarProductoSeleccionado(producto, cantidad);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarError('Error al buscar el producto');
+        });
+}
+
+function actualizarTablaVenta() {
+    const tbody = document.getElementById('items_venta');
+    const mensajeVacio = document.getElementById('mensaje_vacio');
+    
+    if (itemsVenta.length === 0) {
+        tbody.innerHTML = '';
+        mensajeVacio.style.display = 'block';
+        return;
+    }
+    
+    mensajeVacio.style.display = 'none';
+    
+    tbody.innerHTML = itemsVenta.map(item => `
+        <tr>
+            <td><code>${item.codigo}</code></td>
+            <td>${item.nombre}</td>
+            <td>
+                <div class="input-group input-group-sm" style="width: 120px;">
+                    <button class="btn btn-outline-secondary" type="button" onclick="cambiarCantidad(${item.id}, -1)">-</button>
+                    <input type="number" class="form-control text-center" value="${item.cantidad}" 
+                           min="1" onchange="actualizarCantidad(${item.id}, this.value)">
+                    <button class="btn btn-outline-secondary" type="button" onclick="cambiarCantidad(${item.id}, 1)">+</button>
+                </div>
+            </td>
+            <td class="text-end">$${item.precio_unitario.toFixed(2)}</td>
+            <td class="text-end"><strong>$${item.subtotal.toFixed(2)}</strong></td>
+            <td>
+                <button type="button" class="btn btn-danger btn-sm" onclick="eliminarItem(${item.id})" title="Eliminar">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function cambiarCantidad(itemId, cambio) {
+    const item = itemsVenta.find(i => i.id === itemId);
+    if (item) {
+        item.cantidad = Math.max(1, item.cantidad + cambio);
+        item.subtotal = item.cantidad * item.precio_unitario;
+        actualizarTablaVenta();
+        calcularTotales();
+    }
+}
+
+function actualizarCantidad(itemId, nuevaCantidad) {
+    const item = itemsVenta.find(i => i.id === itemId);
+    if (item) {
+        item.cantidad = Math.max(1, parseInt(nuevaCantidad) || 1);
+        item.subtotal = item.cantidad * item.precio_unitario;
+        actualizarTablaVenta();
+        calcularTotales();
+    }
+}
+
+function eliminarItem(itemId) {
+    if (confirm('¿Eliminar este producto de la venta?')) {
+        itemsVenta = itemsVenta.filter(item => item.id !== itemId);
+        actualizarTablaVenta();
+        calcularTotales();
+    }
+}
+
+function calcularTotales() {
+    const subtotal = itemsVenta.reduce((sum, item) => sum + item.subtotal, 0);
+    const iva = itemsVenta.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0);
+    const total = subtotal + iva;
+    
+    document.getElementById('subtotal_display').textContent = `$${subtotal.toFixed(2)}`;
+    document.getElementById('iva_display').textContent = `$${iva.toFixed(2)}`;
+    document.getElementById('total_display').textContent = `$${total.toFixed(2)}`;
+}
+
+function actualizarTipoComprobante() {
+    const clienteSelect = document.getElementById('cliente_select');
+    const tipoComprobante = document.getElementById('tipo_comprobante');
+    const infoCliente = document.getElementById('info_cliente');
+    
+    const selectedOption = clienteSelect.selectedOptions[0];
+    const condicionIva = selectedOption.getAttribute('data-condicion');
+    const nombreCliente = selectedOption.text;
+    
+    // Actualizar información del cliente
+    infoCliente.innerHTML = `${nombreCliente}<br><small class="text-muted">Condición: ${condicionIva.replace('_', ' ')}</small>`;
+    
+    // Lógica para determinar tipo de comprobante según condición IVA
+    if (condicionIva === 'IVA_RESPONSABLE_INSCRIPTO') {
+        tipoComprobante.value = '01'; // Factura A
+    } else if (condicionIva === 'MONOTRIBUTISTA') {
+        tipoComprobante.value = '06'; // Factura B
+    } else {
+        tipoComprobante.value = '11'; // Factura C
+    }
+}
+
+// *** FUNCIÓN MODIFICADA: Solo se agregó imprimir_automatico ***
+function procesarVenta() {
+    if (itemsVenta.length === 0) {
+        mostrarError('Debe agregar al menos un producto a la venta');
+        return;
+    }
+    
+    const clienteId = document.getElementById('cliente_select').value;
+    const tipoComprobante = document.getElementById('tipo_comprobante').value;
+    
+    const subtotal = itemsVenta.reduce((sum, item) => sum + item.subtotal, 0);
+    const iva = itemsVenta.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0);
+    const total = subtotal + iva;
+    
+    // *** NUEVO: Solo esta línea ***
+    const imprimirAuto = document.getElementById('imprimir_automatico');
+    // *** FIN NUEVO ***
+    
+    const ventaData = {
+        cliente_id: parseInt(clienteId),
+        tipo_comprobante: tipoComprobante,
+        items: itemsVenta.map(item => ({
+            producto_id: item.producto_id,
+            cantidad: item.cantidad,
+            precio_unitario: item.precio_unitario,
+            subtotal: item.subtotal
+        })),
+        subtotal: subtotal,
+        iva: iva,
+        total: total,
+        // *** NUEVO: Solo esta línea ***
+        imprimir_automatico: imprimirAuto ? imprimirAuto.checked : true
+        // *** FIN NUEVO ***
+    };
+    
+    // Deshabilitar botón y mostrar loading
+    const btnProcesar = document.getElementById('btn_procesar');
+    btnProcesar.disabled = true;
+    btnProcesar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+    
+    fetch('/procesar_venta', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(ventaData)
+    })
+    .then(response => response.json())
+    .then(result => {
+        btnProcesar.disabled = false;
+        btnProcesar.innerHTML = '<i class="fas fa-check-circle"></i> Procesar Venta';
+        
+        if (result.success) {
+            mostrarResultadoVenta(result);
+        } else {
+            mostrarError('Error al procesar la venta: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        btnProcesar.disabled = false;
+        btnProcesar.innerHTML = '<i class="fas fa-check-circle"></i> Procesar Venta';
+        mostrarError('Error al procesar la venta');
+    });
+}
+
+function mostrarResultadoVenta(resultado) {
+    const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
+    const contenido = document.getElementById('resultado_venta');
+    
+    let estadoHtml = '';
+    
+    if (resultado.estado === 'autorizada') {
+        estadoHtml = `<div class="alert alert-success">
+            <i class="fas fa-check-circle"></i> <strong>¡Factura autorizada por AFIP!</strong>
+            <br><strong>CAE:</strong> ${resultado.cae}
+            <br><small class="text-success">✅ Código QR AFIP disponible</small>
+        </div>`;
+    } else if (resultado.estado === 'error_afip') {
+        estadoHtml = `<div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i> <strong>Venta procesada localmente</strong>
+            <br>Error de conexión con AFIP - La factura se guardó localmente
+            <br><small class="text-warning">⚠️ QR AFIP no disponible</small>
+        </div>`;
+    } else {
+        estadoHtml = `<div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> <strong>Venta procesada</strong>
+        </div>`;
+    }
+    
+    const subtotalFinal = itemsVenta.reduce((sum, item) => sum + item.subtotal, 0);
+    const ivaFinal = itemsVenta.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0);
+    const totalFinal = subtotalFinal + ivaFinal;
+    
+    contenido.innerHTML = `
+        ${estadoHtml}
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>Número de Factura:</strong><br><code>${resultado.numero}</code></p>
+                <p><strong>Cliente:</strong><br>${document.getElementById('cliente_select').selectedOptions[0].text}</p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>Subtotal:</strong> $${subtotalFinal.toFixed(2)}</p>
+                <p><strong>IVA:</strong> $${ivaFinal.toFixed(2)}</p>
+                <p><strong>Total:</strong> <span class="h5 text-success">$${totalFinal.toFixed(2)}</span></p>
+            </div>
+        </div>
+    `;
+    
+    // Guardar ID de factura para imprimir y QR
+    window.ultimaFacturaId = resultado.factura_id;
+    
+    modal.show();
+}
+
+// *** FUNCIÓN MODIFICADA: Para impresión térmica ***
+function imprimirFactura() {
+    if (!window.ultimaFacturaId) {
+        mostrarError('No hay factura para imprimir');
+        return;
+    }
+    
+    // Deshabilitar botón mientras imprime
+    const btnImprimir = event.target;
+    const textoOriginal = btnImprimir.innerHTML;
+    btnImprimir.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Imprimiendo...';
+    btnImprimir.disabled = true;
+    
+    fetch(`/imprimir_factura/${window.ultimaFacturaId}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            mostrarMensajeExito('✅ ' + data.mensaje);
+        } else {
+            mostrarError('❌ Error al imprimir: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarError('❌ Error de conexión al imprimir: ' + error.message);
+    })
+    .finally(() => {
+        // Restaurar botón
+        btnImprimir.innerHTML = textoOriginal;
+        btnImprimir.disabled = false;
+    });
+}
+
+
+// *** NUEVAS FUNCIONES DE IMPRESIÓN ***
+function testImpresion() {
+    const btn = event.target;
+    const textoOriginal = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+    btn.disabled = true;
+    
+    fetch('/test_impresion', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            mostrarMensajeExito('✅ ' + data.mensaje);
+        } else {
+            mostrarError('❌ Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarError('❌ Error de conexión: ' + error.message);
+    })
+    .finally(() => {
+        btn.innerHTML = textoOriginal;
+        btn.disabled = false;
+    });
+}
+
+
+
+
+// REEMPLAZA la función verificarEstadoImpresora en el JavaScript de nueva_venta.html:
+
+function verificarEstadoImpresora() {
+    fetch('/estado_impresora')
+    .then(response => response.json())
+    .then(data => {
+        let mensaje = '';
+        if (data.disponible) {
+            mensaje = `
+                <div class="alert alert-success">
+                    <i class="fas fa-printer"></i> <strong>Sistema de impresión disponible</strong><br>
+                    <small>
+                        Impresora: ${data.nombre || 'No detectada'}<br>
+                        Formato: ${data.ancho_mm}mm (${data.caracteres_linea} caracteres)<br>
+                        Estado: ${data.estado || 'Desconocido'}
+                    </small>
+                </div>
+            `;
+        } else {
+            mensaje = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i> <strong>Sistema de impresión no disponible</strong><br>
+                    <small>Error: ${data.error || 'Sistema no disponible'}</small><br>
+                    <small class="text-muted">Para Windows: pip install pywin32</small>
+                </div>
+            `;
+        }
+        
+        // Mostrar en modal
+        const modal = new bootstrap.Modal(document.getElementById('modalInfo'));
+        document.getElementById('mensaje_info').innerHTML = mensaje;
+        modal.show();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        
+        const mensaje = `
+            <div class="alert alert-danger">
+                <i class="fas fa-times-circle"></i> <strong>Error de conexión</strong><br>
+                <small>No se pudo verificar el estado de la impresora</small><br>
+                <small class="text-muted">Error: ${error.message}</small>
+            </div>
+        `;
+        
+        const modal = new bootstrap.Modal(document.getElementById('modalInfo'));
+        document.getElementById('mensaje_info').innerHTML = mensaje;
+        modal.show();
+    });
+}
+
+function mostrarError(mensaje) {
+    const modal = new bootstrap.Modal(document.getElementById('modalError'));
+    const contenido = document.getElementById('mensaje_error');
+    contenido.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${mensaje}</div>`;
+    modal.show();
+}
+
+function mostrarMensajeExito(mensaje) {
+    // Crear toast de éxito temporal
+    const toast = document.createElement('div');
+    toast.className = 'position-fixed top-0 end-0 m-3 alert alert-success alert-dismissible fade show';
+    toast.style.zIndex = '9999';
+    toast.innerHTML = `
+        <i class="fas fa-check-circle"></i> ${mensaje}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(toast);
+    
+    // Auto-remover después de 3 segundos
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+        }
+    }, 3000);
+}
+
+function nuevaVenta() {
+    limpiarVenta();
+    const modal = bootstrap.Modal.getInstance(document.getElementById('modalConfirmacion'));
+    modal.hide();
+}
+
+function limpiarVenta() {
+    if (itemsVenta.length > 0) {
+        if (!confirm('¿Está seguro de limpiar toda la venta?')) {
+            return;
+        }
+    }
+    
+    itemsVenta = [];
+    contadorItems = 0;
+    productoSeleccionado = null;
+    actualizarTablaVenta();
+    calcularTotales();
+    document.getElementById('cliente_select').value = '1';
+    document.getElementById('tipo_comprobante').value = '11';
+    document.getElementById('buscar_producto').value = '';
+    document.getElementById('cantidad').value = '1';
+    actualizarTipoComprobante();
+    ocultarSugerencias();
+    document.getElementById('buscar_producto').focus();
+}
+
+function guardarBorrador() {
+    if (itemsVenta.length === 0) {
+        mostrarError('No hay productos en la venta para guardar');
+        return;
+    }
+    
+    // Implementar guardado de borrador
+    alert('Función guardarBorrador en desarrollo');
+}
+
+// Función para compatibilidad hacia atrás
+function seleccionarProducto(codigo, nombre, precio, id, stock) {
+    seleccionarProductoPorId(id);
+}
+
+// ===========================================
+// EVENT LISTENERS Y INICIALIZACIÓN
+// ===========================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    const inputBuscar = document.getElementById('buscar_producto');
+    
+    // Búsqueda en tiempo real
+    inputBuscar.addEventListener('input', function() {
+        clearTimeout(timeoutBusqueda);
+        const termino = this.value.trim();
+        
+        if (termino.length < 2) {
+            ocultarSugerencias();
+            productoSeleccionado = null;
+            return;
+        }
+        
+        timeoutBusqueda = setTimeout(() => {
+            buscarProductos(termino);
+        }, 300); // Esperar 300ms después de que el usuario deje de escribir
+    });
+    
+    // Navegación con teclado
+    inputBuscar.addEventListener('keydown', function(e) {
+        const sugerencias = document.querySelectorAll('.sugerencia-item');
+        const sugerenciasVisibles = document.getElementById('sugerencias').style.display !== 'none';
+        
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            
+            if (sugerenciasVisibles && sugerencias.length > 0) {
+                // Si hay sugerencias visibles, seleccionar la primera
+                const primeraSugerencia = sugerencias[0];
+                const productoId = primeraSugerencia.getAttribute('onclick').match(/\d+/)[0];
+                seleccionarProductoSugerencia(parseInt(productoId));
+            } else {
+                // Si no hay sugerencias, agregar por código
+                agregarProducto();
+            }
+        } else if (e.key === 'Escape') {
+            ocultarSugerencias();
+            productoSeleccionado = null;
+        } else if (e.key === 'ArrowDown' && sugerenciasVisibles && sugerencias.length > 0) {
+            e.preventDefault();
+            // Enfocar primera sugerencia
+            sugerencias[0].style.backgroundColor = '#e9ecef';
+        } else if (e.key === 'ArrowUp' && sugerenciasVisibles && sugerencias.length > 0) {
+            e.preventDefault();
+            // Enfocar última sugerencia
+            sugerencias[sugerencias.length - 1].style.backgroundColor = '#e9ecef';
+        }
+    });
+    
+    // Ocultar sugerencias al hacer clic fuera
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#buscar_producto') && !e.target.closest('#sugerencias')) {
+            ocultarSugerencias();
+        }
+    });
+    
+    // Eventos para cantidad
+    const inputCantidad = document.getElementById('cantidad');
+    inputCantidad.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            agregarProducto();
+        }
+    });
+    
+    // Shortcuts de teclado
+    document.addEventListener('keydown', function(e) {
+        // F2 para nueva venta
+        if (e.key === 'F2') {
+            e.preventDefault();
+            limpiarVenta();
+        }
+        
+        // F9 para procesar venta
+        if (e.key === 'F9') {
+            e.preventDefault();
+            if (itemsVenta.length > 0) {
+                procesarVenta();
+            }
+        }
+        
+        // Escape para cancelar
+        if (e.key === 'Escape') {
+            ocultarSugerencias();
+            
+            // Si no hay productos, enfocar búsqueda
+            if (itemsVenta.length === 0) {
+                document.getElementById('buscar_producto').focus();
+            }
+        }
+    });
+    
+    // Inicializar
+    actualizarTablaVenta();
+    calcularTotales();
+    actualizarTipoComprobante();
+    
+    // Focus inicial
+    document.getElementById('buscar_producto').focus();
+    
+    console.log('🚀 Sistema POS cargado correctamente');
+    console.log('💡 Shortcuts: F2=Nueva Venta, F9=Procesar, Escape=Cancelar');
+});
+
+// ===========================================
+// FUNCIONES DE UTILIDAD
+// ===========================================
+
+// Formatear números como moneda
+function formatearMoneda(valor) {
+    return new Intl.NumberFormat('es-AR', {
+        style: 'currency',
+        currency: 'ARS'
+    }).format(valor);
+}
+
+// Validar stock antes de agregar
+function validarStock(productoId, cantidadSolicitada) {
+    // Esta función podría hacer una consulta al servidor para verificar stock actual
+    return true; // Por ahora, siempre devolver true
+}
+
+// Debug: mostrar estado actual
+function debugEstado() {
+    console.log('Items en venta:', itemsVenta);
+    console.log('Producto seleccionado:', productoSeleccionado);
+    console.log('Total items:', itemsVenta.length);
+}
+
+// Función para exportar venta (futuro)
+function exportarVenta() {
+    if (itemsVenta.length === 0) {
+        mostrarError('No hay productos para exportar');
+        return;
+    }
+    
+    const datosVenta = {
+        cliente: document.getElementById('cliente_select').selectedOptions[0].text,
+        fecha: new Date().toLocaleString(),
+        items: itemsVenta,
+        totales: {
+            subtotal: itemsVenta.reduce((sum, item) => sum + item.subtotal, 0),
+            iva: itemsVenta.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0),
+            total: itemsVenta.reduce((sum, item) => sum + item.subtotal, 0) + itemsVenta.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0)
+        }
+    };
+    
+    // Crear archivo JSON para descargar
+    const dataStr = JSON.stringify(datosVenta, null, 2);
+    const dataBlob = new Blob([dataStr], {type: 'application/json'});
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `venta_${new Date().getTime()}.json`;
+    link.click();
+}
+
+function mostrarQRFactura() {
+    if (!window.ultimaFacturaId) {
+        mostrarError('No hay factura para mostrar QR');
+        return;
+    }
+    
+    // Abrir QR en nueva ventana
+    window.open(`/mostrar_qr/${window.ultimaFacturaId}`, '_blank', 'width=600,height=800');
+}
+
+function validarQRFactura() {
+    if (!window.ultimaFacturaId) {
+        mostrarError('No hay factura para validar');
+        return;
+    }
+    
+    fetch(`/validar_qr/${window.ultimaFacturaId}`)
+    .then(response => response.json())
+    .then(data => {
+        let mensaje = '';
+        
+        if (data.qr_valido) {
+            mensaje = `
+                <div class="alert alert-success">
+                    <h5><i class="fas fa-check-circle"></i> QR AFIP Válido</h5>
+                    <p><strong>Factura:</strong> ${data.numero}</p>
+                    <p><strong>Estado:</strong> ${data.mensaje}</p>
+                    <small><strong>URL QR:</strong><br>
+                    <code style="font-size: 0.8em; word-break: break-all;">${data.qr_url}</code></small>
+                </div>
+            `;
+        } else {
+            mensaje = `
+                <div class="alert alert-warning">
+                    <h5><i class="fas fa-exclamation-triangle"></i> QR No Disponible</h5>
+                    <p><strong>Motivo:</strong> ${data.mensaje}</p>
+                    ${data.errores && data.errores.length > 0 ? 
+                        '<p><strong>Errores:</strong><br>' + data.errores.join('<br>') + '</p>' 
+                        : ''}
+                </div>
+            `;
+        }
+        
+        // Mostrar en modal
+        const modal = new bootstrap.Modal(document.getElementById('modalInfo'));
+        document.getElementById('mensaje_info').innerHTML = mensaje;
+        modal.show();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarError('Error al validar QR: ' + error.message);
+    });
+}
+
+function abrirQREnAFIP() {
+    if (!window.ultimaFacturaId) {
+        mostrarError('No hay factura disponible');
+        return;
+    }
+    
+    // Primero obtener la URL del QR
+    fetch(`/validar_qr/${window.ultimaFacturaId}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.qr_valido && data.qr_url) {
+            // Abrir directamente en AFIP
+            window.open(data.qr_url, '_blank');
+        } else {
+            mostrarError('QR no disponible: ' + data.mensaje);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarError('Error al abrir QR: ' + error.message);
+    });
+}
+</script>
+
+<style>
+/* Estilos para la búsqueda mejorada */
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.sugerencia-item:hover {
+    background-color: #f8f9fa !important;
+}
+
+#sugerencias {
+    border: 1px solid #dee2e6;
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+}
+
+.sugerencia-item:last-child {
+    border-bottom: none !important;
+}
+
+.sugerencia-item {
+    transition: background-color 0.2s ease;
+}
+
+/* Estilos para mejor UX */
+.table th {
+    background-color: #343a40 !important;
+    color: white;
+    border-color: #454d55 !important;
+}
+
+.btn-group .btn {
+    border-radius: 0;
+}
+
+.btn-group .btn:first-child {
+    border-radius: 0.375rem 0 0 0.375rem;
+}
+
+.btn-group .btn:last-child {
+    border-radius: 0 0.375rem 0.375rem 0;
+}
+
+/* Animaciones suaves */
+.alert {
+    animation: slideInRight 0.3s ease;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* *** NUEVOS: Estilos para impresión *** */
+.form-check-input:checked {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.fa-spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+/* *** FIN NUEVOS *** */
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .btn-group {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .btn-group .btn {
+        border-radius: 0.375rem !important;
+        margin-bottom: 0.25rem;
+    }
+    
+    #sugerencias {
+        max-height: 200px;
+    }
+}
+</style>
+{% endblock %}

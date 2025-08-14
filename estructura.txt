@@ -1,0 +1,19 @@
+📁 pos-argentina/
+├── 📄 app.py
+├── 📄 requirements.txt
+├── 📄 config.py
+├── 📄 setup_database.sql
+├── 📄 install.py
+├── 📄 README.md
+├── 📁 templates/
+│   ├── 📄 base.html
+│   ├── 📄 login.html
+│   ├── 📄 dashboard.html
+│   ├── 📄 nueva_venta.html
+│   ├── 📄 facturas.html
+│   ├── 📄 productos.html
+│   ├── 📄 clientes.html
+│   └── 📄 factura_detalle.html
+├── 📁 certificados/ (vacía por ahora)
+├── 📁 cache/ (vacía)
+└── 📁 logs/ (vacía)
