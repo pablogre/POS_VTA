@@ -86,7 +86,7 @@ class ImpresoraTermica:
         return texto[:max_chars-3] + "..."
 
     def formatear_factura_termica(self, factura):
-        """Formatear factura para impresión térmica de 80mm con QR AFIP"""
+        """Formatear factura para impresión térmica de 80mm - QR COMENTADO"""
         lineas = []
         
         print("🔍 DEBUG - Iniciando formateo de factura")
@@ -195,7 +195,7 @@ class ImpresoraTermica:
             
             lineas.append(self.linea_separadora())
             
-            # INFORMACIÓN AFIP CON QR
+            # INFORMACIÓN AFIP CON CAE (SIN QR)
             cae = getattr(factura, 'cae', None)
             if cae:
                 lineas.append("")
@@ -222,47 +222,52 @@ class ImpresoraTermica:
                         print(f"⚠️ Error formateando fecha CAE: {e}")
                         lineas.append(f"Vto CAE: {vto_cae}")
                 
-                # *** CÓDIGO QR AFIP ***
-                try:
-                    # Intentar importar el módulo QR
-                    from qr_afip import crear_generador_qr
-                    generador_qr = crear_generador_qr()
-                    info_qr = generador_qr.obtener_info_qr(factura)
-                    
-                    if info_qr['valido']:
-                        lineas.append("")
-                        lineas.append(self.centrar_texto("--- CODIGO QR AFIP ---"))
-                        
-                        # Generar QR en ASCII
-                        qr_ascii = generador_qr.generar_qr_ascii(factura)
-                        if qr_ascii:
-                            # Dividir QR en líneas y centrar
-                            lineas_qr = qr_ascii.split('\n')
-                            for linea_qr in lineas_qr:
-                                # Truncar si es muy ancho para la impresora
-                                if len(linea_qr) > self.ancho:
-                                    linea_qr = linea_qr[:self.ancho]
-                                lineas.append(linea_qr)
-                        else:
-                            # Fallback: mostrar URL
-                            lineas.append(self.centrar_texto("QR: Ver en factura web"))
-                        
-                        lineas.append("")
-                        lineas.append(self.centrar_texto("Escanear para verificar"))
-                        lineas.append(self.centrar_texto("en www.afip.gob.ar"))
-                    else:
-                        lineas.append("")
-                        lineas.append(self.centrar_texto("QR no disponible"))
-                        lineas.append(self.centrar_texto(info_qr['mensaje']))
-                except ImportError:
-                    # Si no está disponible el módulo QR, continuar sin QR
-                    lineas.append("")
-                    lineas.append(self.centrar_texto("QR: Modulo no disponible"))
-                    print("⚠️ Módulo QR no disponible")
-                except Exception as e:
-                    print(f"⚠️ Error generando QR: {e}")
-                    lineas.append("")
-                    lineas.append(self.centrar_texto("QR: Error al generar"))
+                # *** CÓDIGO QR AFIP - COMENTADO ***
+                # try:
+                #     # Intentar importar el módulo QR
+                #     from qr_arca import crear_generador_qr
+                #     generador_qr = crear_generador_qr()
+                #     info_qr = generador_qr.obtener_info_qr(factura)
+                #     
+                #     if info_qr['valido']:
+                #         lineas.append("")
+                #         lineas.append(self.centrar_texto("--- CODIGO QR AFIP ---"))
+                #         
+                #         # Generar QR en ASCII
+                #         qr_ascii = generador_qr.generar_qr_ascii(factura)
+                #         if qr_ascii:
+                #             # Dividir QR en líneas y centrar
+                #             lineas_qr = qr_ascii.split('\n')
+                #             for linea_qr in lineas_qr:
+                #                 # Truncar si es muy ancho para la impresora
+                #                 if len(linea_qr) > self.ancho:
+                #                     linea_qr = linea_qr[:self.ancho]
+                #                 lineas.append(linea_qr)
+                #         else:
+                #             # Fallback: mostrar URL
+                #             lineas.append(self.centrar_texto("QR: Ver en factura web"))
+                #         
+                #         lineas.append("")
+                #         lineas.append(self.centrar_texto("Escanear para verificar"))
+                #         lineas.append(self.centrar_texto("en www.arca.gob.ar"))
+                #     else:
+                #         lineas.append("")
+                #         lineas.append(self.centrar_texto("QR no disponible"))
+                #         lineas.append(self.centrar_texto(info_qr['mensaje']))
+                # except ImportError:
+                #     # Si no está disponible el módulo QR, continuar sin QR
+                #     lineas.append("")
+                #     lineas.append(self.centrar_texto("QR: Modulo no disponible"))
+                #     print("⚠️ Módulo QR no disponible")
+                # except Exception as e:
+                #     print(f"⚠️ Error generando QR: {e}")
+                #     lineas.append("")
+                #     lineas.append(self.centrar_texto("QR: Error al generar"))
+                
+                # *** MENSAJE OPCIONAL PARA VERIFICACIÓN WEB ***
+                lineas.append("")
+                lineas.append(self.centrar_texto("Verificar en:"))
+                lineas.append(self.centrar_texto("www.arca.gob.ar"))
                 
             else:
                 lineas.append("")
@@ -274,7 +279,15 @@ class ImpresoraTermica:
             lineas.append(self.centrar_texto("Gracias por su compra"))
             lineas.append("")
             lineas.append("")
-            lineas.append("")  # Espacio para cortar
+            lineas.append("")
+            lineas.append("")
+            lineas.append("")  # Más espacios antes del corte
+            lineas.append("")
+            
+            # COMANDO DE CORTE DE PAPEL (ESC/POS)
+            # ESC i = Corte completo (0x1B + 0x69)
+            # GS V = Corte con alimentación (0x1D + 0x56 + 0x00)
+            lineas.append("\x1B\x69")  # Comando ESC i - Corte completo
             
         except Exception as e:
             print(f"❌ Error en formatear_factura_termica: {e}")
@@ -309,13 +322,16 @@ class ImpresoraTermica:
             # Imprimir factura normal
             resultado_impresion = self.imprimir_factura(factura)
             
-            # Generar info del QR para mostrar en web
-            try:
-                from qr_afip import crear_generador_qr
-                generador_qr = crear_generador_qr()
-                info_qr = generador_qr.obtener_info_qr(factura)
-            except ImportError:
-                info_qr = {'valido': False, 'mensaje': 'Módulo QR no disponible'}
+            # Generar info del QR para mostrar en web (COMENTADO)
+            # try:
+            #     from qr_arca import crear_generador_qr
+            #     generador_qr = crear_generador_qr()
+            #     info_qr = generador_qr.obtener_info_qr(factura)
+            # except ImportError:
+            #     info_qr = {'valido': False, 'mensaje': 'Módulo QR no disponible'}
+            
+            # Info QR deshabilitada
+            info_qr = {'valido': False, 'mensaje': 'QR deshabilitado en impresión'}
             
             return {
                 'impresion_exitosa': resultado_impresion,
@@ -340,7 +356,7 @@ class ImpresoraTermica:
         }
         return tipos.get(str(tipo), f'CBTE {tipo}')
 
-        
+
     
     def imprimir_factura(self, factura):
         """Imprimir factura - MÉTODO SÚPER SIMPLE"""
@@ -447,7 +463,7 @@ class ImpresoraTermica:
 
 
 
-    """
+""" + "\x1B\x69"  # Agregar comando de corte al test
             
             print(f"📝 Contenido creado: {len(contenido_test)} caracteres")
             
