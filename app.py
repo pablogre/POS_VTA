@@ -225,6 +225,7 @@ class ARCAClient:
         self.config = ARCA_CONFIG
         self.token = None
         self.sign = None
+        self.cuit = self.config.CUIT
         self.openssl_path = self._buscar_openssl()
         
         print(f"🔧 AFIP Client inicializado")
@@ -339,15 +340,6 @@ class ARCAClient:
             print(f"❌ Error firmando TRA: {e}")
             raise Exception(f"Error firmando TRA: {e}")
     
-    # REEMPLAZA el método get_ticket_access en tu clase ARCAClient en app.py
-
-    # BUSCA esta línea en tu archivo app.py (alrededor de la línea 390):
-    # REEMPLAZA el método get_ticket_access en tu clase ARCAClient en app.py
-
-
-
-    # Y REEMPLÁZALA COMPLETAMENTE con este método corregido:
-
     def get_ticket_access(self):
         """Obtener ticket de acceso de WSAA con cache inteligente"""
         try:
@@ -457,17 +449,9 @@ class ARCAClient:
             print(f"❌ Error obteniendo ticket: {e}")
             return False
 
-    # TAMBIÉN AGREGA este método después del método get_ticket_access:
-
     def autorizar_comprobante(self, datos_comprobante):
         """
-        Autorizar comprobante en AFIP usando WSFEv1
-        
-        Args:
-            datos_comprobante: dict con datos del comprobante
-            
-        Returns:
-            dict: Respuesta de AFIP con CAE y datos de autorización
+        Autorizar comprobante en AFIP usando WSFEv1 - VERSIÓN CORREGIDA
         """
         try:
             print("🎫 Verificando ticket de acceso...")
@@ -478,49 +462,90 @@ class ARCAClient:
             
             print("🌐 Conectando con WSFEv1...")
             
-            # URL del WSFEv1
-            wsfev1_url = self.config.WSFEv1_URL + '?wsdl' if not self.config.WSFEv1_URL.endswith('?wsdl') else self.config.WSFEv1_URL
+            # IMPORTANTE: URL limpia y configuración correcta
+            wsfev1_url = 'https://servicios1.afip.gov.ar/wsfev1/service.asmx?WSDL'
             
-            # Crear cliente SOAP con sesión personalizada
+            # Crear cliente SOAP con configuración específica
             session = crear_session_afip()
             from zeep.transports import Transport
-            transport = Transport(session=session, timeout=60)
-            client = Client(wsfev1_url, transport=transport)
+            from zeep import Settings
             
-            # Preparar Auth
+            # Configuración específica para AFIP
+            settings = Settings(strict=False, xml_huge_tree=True)
+            transport = Transport(session=session, timeout=60, operation_timeout=60)
+            
+            try:
+                from zeep import Client
+                client = Client(wsfev1_url, transport=transport, settings=settings)
+                print("✅ Cliente WSFEv1 creado correctamente")
+            except Exception as e:
+                error_str = str(e).lower()
+                if any(keyword in error_str for keyword in ['invalid xml', 'mismatch', 'html', 'br line', 'span']):
+                    raise Exception("WSFEv1 devolviendo HTML en lugar de XML - Servicio en mantenimiento")
+                else:
+                    raise Exception(f"Error creando cliente SOAP: {str(e)}")
+            
+            # Preparar autenticación
             auth = {
                 'Token': self.token,
                 'Sign': self.sign,
-                'Cuit': self.config.CUIT
+                'Cuit': self.cuit
             }
             
             print("📋 Preparando datos del comprobante...")
             
-            # Obtener punto de venta y próximo número
+            # Obtener configuración
             pto_vta = datos_comprobante.get('punto_venta', self.config.PUNTO_VENTA)
             tipo_cbte = datos_comprobante.get('tipo_comprobante', 11)  # 11 = Factura C
             
+            # Test rápido con FEDummy para verificar que el servicio funciona
+            try:
+                print("🧪 Verificando servicio con FEDummy...")
+                dummy_response = client.service.FEDummy()
+                print(f"✅ FEDummy OK: {dummy_response}")
+            except Exception as e:
+                error_str = str(e).lower()
+                if any(keyword in error_str for keyword in ['invalid xml', 'mismatch', 'html']):
+                    raise Exception("FEDummy devolviendo HTML - WSFEv1 en mantenimiento")
+                else:
+                    print(f"⚠️ Warning en FEDummy: {e}")
+            
             # Obtener último comprobante autorizado
             try:
+                print("📊 Consultando último comprobante autorizado...")
                 ultimo_cbte_response = client.service.FECompUltimoAutorizado(
                     Auth=auth,
                     PtoVta=pto_vta,
                     CbteTipo=tipo_cbte
                 )
                 
+                # Verificar errores en la respuesta
                 if hasattr(ultimo_cbte_response, 'Errors') and ultimo_cbte_response.Errors:
-                    print(f"⚠️ Warning al obtener último comprobante: {ultimo_cbte_response.Errors}")
+                    print(f"⚠️ Advertencias al obtener último comprobante:")
+                    if hasattr(ultimo_cbte_response.Errors, 'Err'):
+                        errors = ultimo_cbte_response.Errors.Err
+                        if isinstance(errors, list):
+                            for error in errors:
+                                print(f"   [{error.Code}] {error.Msg}")
+                        else:
+                            print(f"   [{errors.Code}] {errors.Msg}")
                 
                 ultimo_nro = getattr(ultimo_cbte_response, 'CbteNro', 0)
                 proximo_nro = ultimo_nro + 1
                 
+                print(f"📊 Último comprobante AFIP: {ultimo_nro}")
+                print(f"📊 Próximo número: {proximo_nro}")
+                
             except Exception as e:
-                print(f"⚠️ Error al obtener último comprobante, usando número 1: {e}")
-                proximo_nro = 1
+                error_str = str(e).lower()
+                if any(keyword in error_str for keyword in ['invalid xml', 'mismatch', 'html']):
+                    raise Exception("FECompUltimoAutorizado devolviendo HTML")
+                else:
+                    print(f"⚠️ Error obteniendo último comprobante: {e}")
+                    print("🔄 Usando número secuencial local...")
+                    proximo_nro = 1
             
-            print(f"📊 Próximo número de comprobante: {proximo_nro:08d}")
-            
-            # Preparar comprobante
+            # Preparar datos del comprobante
             fecha_hoy = datetime.now().strftime('%Y%m%d')
             
             # Calcular importes
@@ -528,35 +553,37 @@ class ARCAClient:
             importe_iva = float(datos_comprobante.get('importe_iva', 0))
             importe_total = importe_neto + importe_iva
             
+            print(f"💰 Importes: Neto=${importe_neto:.2f}, IVA=${importe_iva:.2f}, Total=${importe_total:.2f}")
+            
+            # Estructura del comprobante según especificación AFIP
             comprobante = {
-                'CbteTipo': tipo_cbte,
-                'PtoVta': pto_vta,
-                'Concepto': 1,  # 1 = Productos, 2 = Servicios, 3 = Productos y Servicios
+                'Concepto': 1,  # 1 = Productos
                 'DocTipo': datos_comprobante.get('doc_tipo', 99),  # 99 = Sin identificar
                 'DocNro': datos_comprobante.get('doc_nro', 0),
                 'CbteDesde': proximo_nro,
                 'CbteHasta': proximo_nro,
                 'CbteFch': fecha_hoy,
                 'ImpTotal': round(importe_total, 2),
-                'ImpTotConc': 0,  # Importe neto no gravado
+                'ImpTotConc': 0.00,  # Importe neto no gravado
                 'ImpNeto': round(importe_neto, 2),  # Importe neto gravado
-                'ImpOpEx': 0,  # Importe exento
-                'ImpTrib': 0,  # Otros tributos
+                'ImpOpEx': 0.00,  # Importe exento
+                'ImpTrib': 0.00,  # Otros tributos
                 'ImpIVA': round(importe_iva, 2),  # Importe de IVA
                 'MonId': 'PES',  # Pesos argentinos
-                'MonCotiz': 1,  # Cotización = 1 para pesos
+                'MonCotiz': 1.00,  # Cotización = 1 para pesos
             }
             
-            # Agregar IVA si corresponde
-            iva_array = []
+            # Agregar detalle de IVA solo si hay IVA
             if importe_iva > 0:
-                iva_array.append({
-                    'Id': 5,  # IVA 21%
-                    'BaseImp': round(importe_neto, 2),
-                    'Importe': round(importe_iva, 2)
-                })
+                comprobante['Iva'] = {
+                    'AlicIva': [{
+                        'Id': 5,  # 5 = IVA 21%
+                        'BaseImp': round(importe_neto, 2),
+                        'Importe': round(importe_iva, 2)
+                    }]
+                }
             
-            # Crear request
+            # Crear request completo
             fe_request = {
                 'FeCabReq': {
                     'CantReg': 1,
@@ -568,59 +595,83 @@ class ARCAClient:
                 }
             }
             
-            # Agregar IVA si hay
-            if iva_array:
-                fe_request['FeDetReq']['FECAEDetRequest'][0]['Iva'] = {
-                    'AlicIva': iva_array
-                }
-            
             print("📤 Enviando solicitud de autorización a AFIP...")
-            print(f"   Tipo: {tipo_cbte} | PtoVta: {pto_vta} | Número: {proximo_nro}")
-            print(f"   Total: ${importe_total:.2f} | IVA: ${importe_iva:.2f}")
+            print(f"   Tipo comprobante: {tipo_cbte}")
+            print(f"   Punto de venta: {pto_vta}")
+            print(f"   Número: {proximo_nro}")
+            print(f"   Fecha: {fecha_hoy}")
+            print(f"   Total: ${importe_total:.2f}")
             
-            # Enviar a AFIP
-            response = client.service.FECAESolicitar(Auth=auth, FeCAEReq=fe_request)
+            # ENVÍO CRÍTICO - Aquí es donde fallaba antes
+            try:
+                response = client.service.FECAESolicitar(Auth=auth, FeCAEReq=fe_request)
+                print("✅ Respuesta recibida de AFIP")
+            except Exception as e:
+                error_str = str(e).lower()
+                if any(keyword in error_str for keyword in ['invalid xml', 'mismatch', 'html', 'br line', 'span']):
+                    raise Exception("FECAESolicitar devolviendo HTML - WSFEv1 en mantenimiento")
+                else:
+                    raise Exception(f"Error en FECAESolicitar: {str(e)}")
             
-            # Procesar respuesta
+            # Procesar respuesta de AFIP
+            print("📋 Procesando respuesta de AFIP...")
+            
+            # Verificar errores generales
             if hasattr(response, 'Errors') and response.Errors:
                 errores = []
                 if hasattr(response.Errors, 'Err'):
-                    # Puede ser una lista o un solo error
-                    if isinstance(response.Errors.Err, list):
-                        for error in response.Errors.Err:
+                    errors = response.Errors.Err
+                    if isinstance(errors, list):
+                        for error in errors:
                             errores.append(f"[{error.Code}] {error.Msg}")
                     else:
-                        errores.append(f"[{response.Errors.Err.Code}] {response.Errors.Err.Msg}")
+                        errores.append(f"[{errors.Code}] {errors.Msg}")
                 
                 error_msg = " | ".join(errores)
                 raise Exception(f"Errores AFIP: {error_msg}")
             
-            # Verificar resultado exitoso
+            # Verificar que hay respuesta de detalle
             if not hasattr(response, 'FeDetResp') or not response.FeDetResp:
-                raise Exception("Respuesta sin detalles de AFIP")
+                raise Exception("Respuesta de AFIP sin detalles")
+            
+            # Obtener detalle de respuesta
+            if not hasattr(response.FeDetResp, 'FECAEDetResponse'):
+                raise Exception("Respuesta de AFIP sin FECAEDetResponse")
             
             detalle_resp = response.FeDetResp.FECAEDetResponse[0]
             
-            if detalle_resp.Resultado != 'A':  # A = Aprobado
+            # Verificar resultado
+            resultado = getattr(detalle_resp, 'Resultado', None)
+            if resultado != 'A':  # A = Aprobado
                 observaciones = []
                 if hasattr(detalle_resp, 'Observaciones') and detalle_resp.Observaciones:
                     if hasattr(detalle_resp.Observaciones, 'Obs'):
-                        obs_list = detalle_resp.Observaciones.Obs if isinstance(detalle_resp.Observaciones.Obs, list) else [detalle_resp.Observaciones.Obs]
-                        for obs in obs_list:
-                            observaciones.append(f"[{obs.Code}] {obs.Msg}")
+                        obs_list = detalle_resp.Observaciones.Obs
+                        if isinstance(obs_list, list):
+                            for obs in obs_list:
+                                observaciones.append(f"[{obs.Code}] {obs.Msg}")
+                        else:
+                            observaciones.append(f"[{obs_list.Code}] {obs_list.Msg}")
                 
-                obs_msg = " | ".join(observaciones) if observaciones else "Sin detalles"
-                raise Exception(f"Comprobante no autorizado. Estado: {detalle_resp.Resultado}. Observaciones: {obs_msg}")
+                obs_msg = " | ".join(observaciones) if observaciones else "Sin observaciones"
+                raise Exception(f"Comprobante no autorizado. Resultado: {resultado}. {obs_msg}")
             
-            # Éxito!
-            cae = detalle_resp.CAE
-            fecha_vencimiento = detalle_resp.CAEFchVto
+            # ÉXITO - Extraer datos
+            cae = getattr(detalle_resp, 'CAE', None)
+            fecha_vencimiento = getattr(detalle_resp, 'CAEFchVto', None)
+            
+            if not cae:
+                raise Exception("Respuesta sin CAE")
+            
+            if not fecha_vencimiento:
+                raise Exception("Respuesta sin fecha de vencimiento CAE")
+            
             numero_completo = f"{pto_vta:04d}-{proximo_nro:08d}"
             
-            print(f"✅ Comprobante autorizado exitosamente:")
+            print(f"🎉 ¡COMPROBANTE AUTORIZADO EXITOSAMENTE!")
             print(f"   Número: {numero_completo}")
             print(f"   CAE: {cae}")
-            print(f"   Vencimiento: {fecha_vencimiento}")
+            print(f"   Vencimiento CAE: {fecha_vencimiento}")
             
             return {
                 'success': True,
@@ -631,17 +682,21 @@ class ARCAClient:
                 'fecha_vencimiento': fecha_vencimiento,
                 'fecha_proceso': fecha_hoy,
                 'importe_total': importe_total,
-                'tipo_comprobante': tipo_cbte
+                'tipo_comprobante': tipo_cbte,
+                'estado': 'autorizada',
+                'vto_cae': datetime.strptime(fecha_vencimiento, '%Y%m%d').date()
             }
             
         except Exception as e:
             print(f"❌ Error en autorización AFIP: {e}")
             return {
                 'success': False,
-                'error': str(e)
-            }        
+                'error': str(e),
+                'cae': None,
+                'vto_cae': None,
+                'estado': 'error_afip'
+            }
 
-            
     def get_ultimo_comprobante(self, tipo_cbte):
         """Obtener último comprobante autorizado"""
         try:
@@ -667,7 +722,7 @@ class ARCAClient:
                 Auth={
                     'Token': self.token,
                     'Sign': self.sign,
-                    'Cuit': self.config.CUIT
+                    'Cuit': self.cuit
                 },
                 PtoVta=self.config.PUNTO_VENTA,
                 CbteTipo=tipo_cbte
@@ -684,173 +739,41 @@ class ARCAClient:
         except Exception as e:
             print(f"❌ Error consultando comprobante: {e}")
             raise Exception(f"Error al obtener último comprobante: {e}")
-    
-    def autorizar_comprobante(self, factura_data):
-        """Autorizar comprobante en AFIP"""
-        try:
-            print(f"📄 Autorizando comprobante {factura_data['numero']}...")
-            
-            if not self.get_ticket_access():
-                raise Exception("No se pudo obtener acceso a AFIP")
-            
-            # URL del WSFEv1
-            wsfe_url = self.config.WSFEv1_URL
-            
-            # USAR SESIÓN PERSONALIZADA
-            session = crear_session_afip()
-            
-            from zeep.transports import Transport
-            
-            transport = Transport(session=session, timeout=60)
-            client = Client(wsfe_url, transport=transport)
-            
-            # PREPARAR DATOS DEL CLIENTE CON CONDICIÓN IVA
-            cliente_data = factura_data.get('cliente_data', {})
-            cliente_cuit = cliente_data.get('documento', '0')
-            cliente_tipo_doc = cliente_data.get('tipo_documento', 'SIN_DOC')
-            condicion_iva = cliente_data.get('condicion_iva', 'CONSUMIDOR_FINAL')
-            
-            # Mapear condición IVA a códigos AFIP
-            condiciones_iva_afip = {
-                'IVA_RESPONSABLE_INSCRIPTO': 1,
-                'IVA_RESPONSABLE_NO_INSCRIPTO': 2,
-                'IVA_NO_RESPONSABLE': 3,
-                'IVA_SUJETO_EXENTO': 4,
-                'CONSUMIDOR_FINAL': 5,
-                'MONOTRIBUTISTA': 6,
-                'SUJETO_NO_CATEGORIZADO': 7,
-            }
-            
-            # Determinar tipo y número de documento
-            if cliente_tipo_doc == 'CUIT' and cliente_cuit and len(cliente_cuit) == 11:
-                tipo_doc = 80  # CUIT
-                nro_doc = int(cliente_cuit)
-                # Para CUIT, usar condición IVA específica
-                condicion_iva_codigo = condiciones_iva_afip.get(condicion_iva, 1)
-            elif cliente_tipo_doc == 'CUIL' and cliente_cuit and len(cliente_cuit) == 11:
-                tipo_doc = 86  # CUIL
-                nro_doc = int(cliente_cuit)
-                condicion_iva_codigo = condiciones_iva_afip.get(condicion_iva, 6)
-            elif cliente_tipo_doc == 'DNI' and cliente_cuit and len(cliente_cuit) >= 7:
-                tipo_doc = 96  # DNI
-                nro_doc = int(cliente_cuit)
-                condicion_iva_codigo = 5  # Consumidor Final para DNI
-            else:
-                tipo_doc = 99  # Sin identificar
-                nro_doc = 0
-                condicion_iva_codigo = 5  # Consumidor Final
-            
-            # ESTRUCTURA CORREGIDA: cbte_data NO incluye CbteTipo
-            cbte_data = {
-                'Concepto': 1,  # Productos
-                'DocTipo': tipo_doc,
-                'DocNro': nro_doc,
-                'CbteDesde': factura_data['numero'],
-                'CbteHasta': factura_data['numero'],
-                'CbteFch': factura_data['fecha'].strftime('%Y%m%d'),
-                'ImpTotal': float(factura_data['total']),
-                'ImpTotConc': 0.00,
-                'ImpNeto': float(factura_data['subtotal']),
-                'ImpOpEx': 0.00,
-                'ImpIVA': float(factura_data['iva']),
-                'ImpTrib': 0.00,
-                'MonId': 'PES',
-                'MonCotiz': 1.00
-            }
-            
-            # AGREGAR CONDICIÓN IVA DEL RECEPTOR
-            if tipo_doc != 99:  # Solo si hay documento
-                cbte_data['CondicionIvaReceptor'] = condicion_iva_codigo
-            
-            # Agregar IVA si corresponde
-            if float(factura_data['iva']) > 0:
-                cbte_data['Iva'] = {
-                    'AlicIva': [{
-                        'Id': 5,  # IVA 21%
-                        'BaseImp': float(factura_data['subtotal']),
-                        'Importe': float(factura_data['iva'])
-                    }]
-                }
-            
-            print(f"📤 Enviando solicitud a AFIP...")
-            print(f"📋 Datos del comprobante:")
-            print(f"   Tipo: {factura_data['tipo_comprobante']}")
-            print(f"   Cliente: Tipo Doc {tipo_doc}, Nro {nro_doc}, Condición IVA {condicion_iva_codigo}")
-            print(f"   Punto Venta: {self.config.PUNTO_VENTA}")
-            print(f"   Número: {factura_data['numero']}")
-            print(f"   Total: ${factura_data['total']}")
-            
-            # ESTRUCTURA CORREGIDA: CbteTipo va en FeCabReq
-            response = client.service.FECAESolicitar(
-                Auth={
-                    'Token': self.token,
-                    'Sign': self.sign,
-                    'Cuit': self.config.CUIT
-                },
-                FeCAEReq={
-                    'FeCabReq': {
-                        'CantReg': 1,
-                        'PtoVta': self.config.PUNTO_VENTA,
-                        'CbteTipo': factura_data['tipo_comprobante']  # ← AQUÍ va CbteTipo
-                    },
-                    'FeDetReq': {
-                        'FECAEDetRequest': [cbte_data]  # ← CON CondicionIvaReceptor incluida
-                    }
-                }
-            )
-            
-            print("✅ Respuesta recibida de AFIP")
-            
-            # Verificar errores generales
-            if hasattr(response, 'Errors') and response.Errors:
-                error_msg = response.Errors.Err[0].Msg
-                print(f"❌ Error AFIP: {error_msg}")
-                raise Exception(f"Error AFIP: {error_msg}")
-            
-            # Obtener resultado del comprobante
-            if not hasattr(response, 'FeDetResp') or not response.FeDetResp.FECAEDetResponse:
-                raise Exception("Respuesta inválida de AFIP")
-            
-            result = response.FeDetResp.FECAEDetResponse[0]
-            
-            # Verificar observaciones
-            if hasattr(result, 'Observaciones') and result.Observaciones:
-                obs_msg = result.Observaciones.Obs[0].Msg
-                print(f"⚠️ Observación AFIP: {obs_msg}")
-            
-            if result.Resultado == 'A':
-                print(f"✅ Comprobante autorizado - CAE: {result.CAE}")
-                print(f"📅 Vencimiento CAE: {result.CAEFchVto}")
-                return {
-                    'cae': result.CAE,
-                    'vto_cae': datetime.strptime(result.CAEFchVto, '%Y%m%d').date(),
-                    'estado': 'autorizada'
-                }
-            elif result.Resultado == 'R':
-                error_msg = "Comprobante rechazado"
-                if hasattr(result, 'Observaciones') and result.Observaciones:
-                    error_msg += f": {result.Observaciones.Obs[0].Msg}"
-                print(f"❌ {error_msg}")
-                return {
-                    'cae': None,
-                    'vto_cae': None,
-                    'estado': 'rechazada',
-                    'error': error_msg
-                }
-            else:
-                print(f"❓ Estado desconocido: {result.Resultado}")
-                return {
-                    'cae': None,
-                    'vto_cae': None,
-                    'estado': 'desconocido'
-                }
-                
-        except Exception as e:
-            print(f"❌ Error autorizando comprobante: {e}")
-            raise Exception(f"Error al autorizar comprobante: {e}")
 
 
 arca_client = ARCAClient()
+
+# Monitor AFIP simplificado
+class AFIPStatusMonitor:
+    def __init__(self, arca_config):
+        self.config = arca_config
+    
+    def verificar_rapido(self):
+        """Verificación rápida solo de conectividad"""
+        try:
+            import socket
+            from urllib.parse import urlparse
+            
+            wsaa_host = urlparse(self.config.WSAA_URL).hostname
+            
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)
+            result = sock.connect_ex((wsaa_host, 443))
+            sock.close()
+            
+            return {
+                'conectividad': result == 0,
+                'mensaje': '✅ AFIP accesible' if result == 0 else '❌ AFIP no accesible'
+            }
+        except Exception as e:
+            return {
+                'conectividad': False,
+                'mensaje': f'❌ Error: {str(e)}'
+            }
+
+# Crear instancia del monitor
+afip_monitor = AFIPStatusMonitor(ARCA_CONFIG)
+
 
 # Rutas de la aplicación
 @app.route('/')
@@ -1442,7 +1365,9 @@ def get_producto(codigo):
         })
     return jsonify({'error': 'Producto no encontrado'}), 404
 
-# FUNCIÓN PROCESAR_VENTA CON IMPRESIÓN AUTOMÁTICA
+# FUNCIÓN PROCESAR_VENTA CORREGIDA
+# REEMPLAZA la función procesar_venta completa (línea ~1200 aprox) con esta versión corregida:
+
 @app.route('/procesar_venta', methods=['POST'])
 def procesar_venta():
     if 'user_id' not in session:
@@ -1455,57 +1380,35 @@ def procesar_venta():
         tipo_comprobante = int(data.get('tipo_comprobante', '11'))
         punto_venta = ARCA_CONFIG.PUNTO_VENTA
         
-        # Primero intentar obtener el número desde AFIP
-        numero_desde_afip = None
-        try:
-            print("🔍 Consultando último número en AFIP...")
-            ultimo_numero_afip = arca_client.get_ultimo_comprobante(tipo_comprobante)
-            numero_desde_afip = ultimo_numero_afip + 1
-            print(f"✅ Último número AFIP: {ultimo_numero_afip}, próximo: {numero_desde_afip}")
-        except Exception as e:
-            print(f"⚠️ Error consultando AFIP: {e}")
-        
-        # Obtener el último número local de la base de datos
+        # PASO 2: Generar número temporal primero
         ultima_factura_local = Factura.query.filter_by(
             tipo_comprobante=str(tipo_comprobante),
             punto_venta=punto_venta
         ).order_by(Factura.id.desc()).first()
         
-        numero_local = 1
+        numero_temporal = 1
         if ultima_factura_local and ultima_factura_local.numero:
             try:
-                # Extraer número de la última factura (formato: 0003-00000001)
                 ultimo_numero_local = int(ultima_factura_local.numero.split('-')[1])
-                numero_local = ultimo_numero_local + 1
-                print(f"✅ Último número local: {ultimo_numero_local}, próximo: {numero_local}")
+                numero_temporal = ultimo_numero_local + 1
             except:
-                numero_local = 1
-                print("⚠️ Error extrayendo número local, usando 1")
+                numero_temporal = 1
         
-        # Usar el número más alto entre AFIP y local para evitar duplicados
-        if numero_desde_afip is not None:
-            nuevo_numero = max(numero_desde_afip, numero_local)
-            print(f"📊 Usando el mayor entre AFIP ({numero_desde_afip}) y local ({numero_local}): {nuevo_numero}")
-        else:
-            nuevo_numero = numero_local
-            print(f"📊 AFIP no disponible, usando número local: {nuevo_numero}")
+        # Generar número temporal para la base de datos
+        numero_factura_temporal = f"{punto_venta:04d}-{numero_temporal:08d}"
         
-        # PASO 2: Verificar que el número no exista (doble verificación)
-        numero_factura = f"{punto_venta:04d}-{nuevo_numero:08d}"
-        
-        # Buscar si ya existe este número
-        factura_existente = Factura.query.filter_by(numero=numero_factura).first()
+        # Verificar que el número temporal no exista
+        factura_existente = Factura.query.filter_by(numero=numero_factura_temporal).first()
         while factura_existente:
-            nuevo_numero += 1
-            numero_factura = f"{punto_venta:04d}-{nuevo_numero:08d}"
-            factura_existente = Factura.query.filter_by(numero=numero_factura).first()
-            print(f"⚠️ Número {nuevo_numero-1} ya existe, probando {nuevo_numero}")
+            numero_temporal += 1
+            numero_factura_temporal = f"{punto_venta:04d}-{numero_temporal:08d}"
+            factura_existente = Factura.query.filter_by(numero=numero_factura_temporal).first()
         
-        print(f"✅ Número final asignado: {numero_factura}")
+        print(f"📝 Número temporal asignado: {numero_factura_temporal}")
         
-        # PASO 3: Crear factura CON el número ya asignado
+        # PASO 3: Crear factura CON número temporal
         factura = Factura(
-            numero=numero_factura,
+            numero=numero_factura_temporal,  # ← USAR NÚMERO TEMPORAL
             tipo_comprobante=str(tipo_comprobante),
             punto_venta=punto_venta,
             cliente_id=data['cliente_id'],
@@ -1518,7 +1421,7 @@ def procesar_venta():
         db.session.add(factura)
         db.session.flush()  # Para obtener el ID sin hacer commit
         
-        print(f"✅ Factura creada con ID: {factura.id} y número: {factura.numero}")
+        print(f"✅ Factura creada con ID: {factura.id} y número temporal: {factura.numero}")
         
         # PASO 4: Agregar detalles
         for item in data['items']:
@@ -1533,7 +1436,6 @@ def procesar_venta():
             
             # Actualizar stock
             producto = Producto.query.get(item['producto_id'])
-
             if producto:
                 producto.stock -= item['cantidad']
                 print(f"📦 Stock actualizado para {producto.nombre}: {producto.stock}")
@@ -1542,35 +1444,64 @@ def procesar_venta():
         try:
             print("📄 Autorizando en AFIP...")
             cliente = Cliente.query.get(data['cliente_id'])
-            factura_data = {
+            
+            # Preparar datos para AFIP
+            datos_comprobante = {
                 'tipo_comprobante': tipo_comprobante,
-                'numero': nuevo_numero,
-                'fecha': factura.fecha,
-                'cliente_data': {  # ← NUEVA ESTRUCTURA
-                    'documento': cliente.documento if cliente else '0',
-                    'tipo_documento': cliente.tipo_documento if cliente else 'SIN_DOC',
-                    'condicion_iva': cliente.condicion_iva if cliente else 'CONSUMIDOR_FINAL'
-                },
-                'subtotal': factura.subtotal,
-                'iva': factura.iva,
-                'total': factura.total
+                'punto_venta': punto_venta,
+                'importe_neto': float(factura.subtotal),
+                'importe_iva': float(factura.iva),
+                'doc_tipo': 99,  # Sin identificar por defecto
+                'doc_nro': 0
             }
-        
-            resultado_afip = arca_client.autorizar_comprobante(factura_data)
             
-            factura.cae = resultado_afip['cae']
-            factura.vto_cae = resultado_afip['vto_cae']
-            factura.estado = resultado_afip['estado']
+            # Si el cliente tiene documento, agregar datos
+            if cliente and cliente.documento:
+                if cliente.tipo_documento == 'CUIT' and len(cliente.documento) == 11:
+                    datos_comprobante['doc_tipo'] = 80  # CUIT
+                    datos_comprobante['doc_nro'] = int(cliente.documento)
+                elif cliente.tipo_documento == 'DNI' and len(cliente.documento) >= 7:
+                    datos_comprobante['doc_tipo'] = 96  # DNI
+                    datos_comprobante['doc_nro'] = int(cliente.documento)
             
-            if factura.cae:
+            resultado_afip = arca_client.autorizar_comprobante(datos_comprobante)
+            
+            if resultado_afip['success']:
+                # AFIP devuelve el número correcto - ACTUALIZAR la factura
+                numero_afip = resultado_afip['numero']
+                print(f"✅ AFIP asignó número: {numero_afip}")
+                
+                # Verificar si el número de AFIP ya existe en la BD
+                factura_afip_existente = Factura.query.filter(
+                    and_(Factura.numero == numero_afip, Factura.id != factura.id)
+                ).first()
+                
+                if factura_afip_existente:
+                    print(f"⚠️ Número AFIP {numero_afip} ya existe, manteniendo temporal")
+                    # Mantener número temporal y marcar como autorizada
+                    factura.cae = resultado_afip['cae']
+                    factura.vto_cae = resultado_afip['vto_cae']
+                    factura.estado = 'autorizada'
+                else:
+                    # Actualizar con número de AFIP
+                    factura.numero = numero_afip
+                    factura.cae = resultado_afip['cae']
+                    factura.vto_cae = resultado_afip['vto_cae']
+                    factura.estado = 'autorizada'
+                
                 print(f"✅ Autorización AFIP exitosa. CAE: {factura.cae}")
+                print(f"✅ Número final: {factura.numero}")
             else:
-                print(f"❌ Factura rechazada por AFIP")
+                # Si AFIP falla, mantener número temporal
+                factura.estado = 'error_afip'
+                print(f"❌ Error AFIP: {resultado_afip.get('error', 'Error desconocido')}")
+                print(f"📝 Manteniendo número temporal: {factura.numero}")
             
         except Exception as e:
-            print(f"❌ Error al autorizar en AFIP: {e}")
+            # Si hay error completo, mantener número temporal
             factura.estado = 'error_afip'
-            # Continuar con la venta local
+            print(f"❌ Error completo al autorizar en AFIP: {e}")
+            print(f"📝 Manteniendo número temporal: {factura.numero}")
             
         # PASO 6: Guardar todo en la base de datos
         db.session.commit()
@@ -1599,6 +1530,8 @@ def procesar_venta():
         print(f"❌ Error en procesar_venta: {str(e)}")
         db.session.rollback()
         return jsonify({'error': f'Error al procesar la venta: {str(e)}'}), 500
+
+
 
 # RUTAS DE IMPRESIÓN
 @app.route('/imprimir_factura/<int:factura_id>')
@@ -1860,6 +1793,157 @@ def validar_qr_factura(factura_id):
             'error': f'Error validando QR: {str(e)}'
         }), 500
 
+
+
+@app.route('/api/estado_afip_rapido')
+def api_estado_afip_rapido():
+    """API para verificación rápida de AFIP"""
+    try:
+        estado = afip_monitor.verificar_rapido()
+        return jsonify({
+            'success': True,
+            'estado': estado
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/test_afip')
+def test_afip():
+    """Test manual de conexión AFIP"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        resultado_auth = arca_client.get_ticket_access()
+        
+        return jsonify({
+            'success': resultado_auth,
+            'mensaje': "✅ Test AFIP exitoso" if resultado_auth else "❌ Test AFIP falló",
+            'estado': "success" if resultado_auth else "error",
+            'tiene_token': bool(arca_client.token),
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'mensaje': f"❌ Error en test: {str(e)}",
+            'estado': 'error'
+        }), 500
+
+
+# Agregar esta función en app.py para debug de WSFEv1
+
+# Versión simplificada sin verificación de sesión para debug
+##### http://localhost:5000/debug_afip_simple LLAMAR ESTA RUTA PARA VERIFICAR ARCA
+
+@app.route('/debug_afip_simple')
+def debug_afip_simple():
+    """Debug simple de AFIP sin verificación de sesión"""
+    try:
+        resultado = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'tests': {}
+        }
+        
+        print("🔍 INICIANDO DEBUG SIMPLE DE AFIP...")
+        
+        # Test 1: Autenticación WSAA
+        print("1️⃣ Test autenticación WSAA...")
+        try:
+            auth_result = arca_client.get_ticket_access()
+            resultado['tests']['wsaa_auth'] = {
+                'success': auth_result,
+                'token_exists': bool(arca_client.token),
+                'message': 'Autenticación exitosa' if auth_result else 'Fallo en autenticación'
+            }
+        except Exception as e:
+            resultado['tests']['wsaa_auth'] = {
+                'success': False,
+                'error': str(e),
+                'message': 'Error en autenticación'
+            }
+        
+        # Test 2: Conectividad WSFEv1
+        print("2️⃣ Test conectividad WSFEv1...")
+        try:
+            import socket
+            from urllib.parse import urlparse
+            
+            wsfe_url = ARCA_CONFIG.WSFEv1_URL
+            parsed = urlparse(wsfe_url)
+            host = parsed.hostname
+            port = 443
+            
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(10)
+            connect_result = sock.connect_ex((host, port))
+            sock.close()
+            
+            resultado['tests']['wsfe_connectivity'] = {
+                'success': connect_result == 0,
+                'host': host,
+                'port': port,
+                'url': wsfe_url,
+                'message': 'Conectividad OK' if connect_result == 0 else f'No se puede conectar (código: {connect_result})'
+            }
+        except Exception as e:
+            resultado['tests']['wsfe_connectivity'] = {
+                'success': False,
+                'error': str(e),
+                'message': 'Error verificando conectividad'
+            }
+        
+        # Test 3: Solo si tenemos autenticación, probar FEDummy
+        if resultado['tests']['wsaa_auth']['success']:
+            print("3️⃣ Test FEDummy...")
+            try:
+                from zeep import Client
+                from zeep.transports import Transport
+                
+                session_afip = crear_session_afip()
+                transport = Transport(session=session_afip, timeout=30)
+                client = Client(ARCA_CONFIG.WSFEv1_URL, transport=transport)
+                
+                dummy_response = client.service.FEDummy()
+                
+                resultado['tests']['fe_dummy'] = {
+                    'success': True,
+                    'response': str(dummy_response),
+                    'message': 'FEDummy exitoso'
+                }
+            except Exception as e:
+                resultado['tests']['fe_dummy'] = {
+                    'success': False,
+                    'error': str(e),
+                    'message': 'Error en FEDummy'
+                }
+        
+        # Generar resumen
+        total_tests = len(resultado['tests'])
+        successful_tests = sum(1 for test in resultado['tests'].values() if test['success'])
+        
+        resultado['summary'] = {
+            'total_tests': total_tests,
+            'successful_tests': successful_tests,
+            'success_rate': f"{(successful_tests/total_tests*100):.1f}%" if total_tests > 0 else "0%",
+            'overall_status': 'OK' if successful_tests == total_tests else 'PROBLEMAS'
+        }
+        
+        return jsonify(resultado)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Error general: {str(e)}',
+            'timestamp': datetime.utcnow().isoformat()
+        }), 500
+
+
+
 if __name__ == '__main__':
     # Crear directorios necesarios
     os.makedirs('cache', exist_ok=True)
@@ -1884,4 +1968,9 @@ if __name__ == '__main__':
         limpiar_facturas_duplicadas()
         verificar_estado_facturas()
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+
+
+
+
+
+app.run(debug=True, host='0.0.0.0', port=5000)

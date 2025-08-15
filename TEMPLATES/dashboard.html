@@ -1,4 +1,3 @@
-<!-- templates/dashboard.html -->
 {% extends "base.html" %}
 
 {% block title %}Dashboard - POS Argentina{% endblock %}
@@ -6,8 +5,18 @@
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">Dashboard</h1>
+    <div class="d-flex align-items-center">
+        <!-- Indicador de Estado AFIP en el encabezado -->
+        <div id="estadoAfipHeader" class="me-3">
+            <span class="badge bg-secondary" id="badgeAfip">
+                <i class="fas fa-circle-notch fa-spin"></i> Verificando AFIP...
+            </span>
+        </div>
+        <small class="text-muted" id="ultimaVerificacion"></small>
+    </div>
 </div>
 
+<!-- Fila principal de métricas con Estado AFIP -->
 <div class="row">
     <div class="col-xl-3 col-md-6 mb-4">
         <div class="card border-left-primary shadow h-100 py-2">
@@ -63,21 +72,43 @@
         </div>
     </div>
 
+    <!-- NUEVA CARD: Estado AFIP -->
     <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-warning shadow h-100 py-2">
+        <div class="card shadow h-100 py-2" id="cardAfip" style="border-left: 4px solid #6c757d;">
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                            Stock Bajo
+                        <div class="text-xs font-weight-bold text-uppercase mb-1" style="color: #6c757d;">
+                            Estado AFIP
                         </div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800">5</div>
+                        <div class="h6 mb-0 font-weight-bold text-gray-800" id="estadoAfipTexto">
+                            Verificando...
+                        </div>
+                        <small class="text-muted" id="detalleAfip">Conectando con servicios</small>
                     </div>
                     <div class="col-auto">
-                        <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                        <i class="fas fa-server fa-2x text-gray-300" id="iconoAfip"></i>
                     </div>
                 </div>
+                <!-- Botón para ver detalles -->
+                <div class="mt-2">
+                    <a href="{{ url_for('test_afip') }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-chart-line"></i> Ver Detalles
+                    </a>
+                </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- NUEVA FILA: Alerta si AFIP no funciona -->
+<div class="row" id="alertaAfip" style="display: none;">
+    <div class="col-12">
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Atención:</strong> <span id="mensajeAlertaAfip">Servicios AFIP no disponibles.</span>
+            Las ventas se procesarán en modo local y se sincronizarán cuando se restablezca la conexión.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     </div>
 </div>
@@ -95,8 +126,12 @@
                 <a href="{{ url_for('facturas') }}" class="btn btn-secondary btn-lg mb-2 w-100">
                     <i class="fas fa-file-invoice"></i> Ver Facturas
                 </a>
-                <a href="{{ url_for('productos') }}" class="btn btn-info btn-lg w-100">
+                <a href="{{ url_for('productos') }}" class="btn btn-info btn-lg mb-2 w-100">
                     <i class="fas fa-box"></i> Gestionar Productos
+                </a>
+                <!-- NUEVO BOTÓN: Estado AFIP -->
+                <a href="{{ url_for('test_afip') }}" class="btn btn-outline-primary btn-lg w-100">
+                    <i class="fas fa-server"></i> Monitor AFIP
                 </a>
             </div>
         </div>
@@ -138,4 +173,186 @@
         </div>
     </div>
 </div>
+
+<!-- JavaScript para el estado de AFIP en tiempo real -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Verificar estado AFIP al cargar
+    verificarEstadoAfip();
+    
+    // Auto-refresh cada 2 minutos
+    setInterval(verificarEstadoAfip, 120000);
+});
+
+function verificarEstadoAfip() {
+    fetch('/api/estado_afip_rapido')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                actualizarEstadoAfip(data.estado);
+            } else {
+                mostrarErrorAfip('Error de verificación');
+            }
+        })
+        .catch(error => {
+            console.error('Error verificando AFIP:', error);
+            mostrarErrorAfip('Sin conexión');
+        });
+}
+
+function actualizarEstadoAfip(estado) {
+    const operativo = estado.conectividad;
+    
+    // Elementos del encabezado
+    const badgeAfip = document.getElementById('badgeAfip');
+    const ultimaVerificacion = document.getElementById('ultimaVerificacion');
+    
+    // Elementos de la card
+    const cardAfip = document.getElementById('cardAfip');
+    const estadoTexto = document.getElementById('estadoAfipTexto');
+    const detalleAfip = document.getElementById('detalleAfip');
+    const iconoAfip = document.getElementById('iconoAfip');
+    const alertaAfip = document.getElementById('alertaAfip');
+    
+    if (operativo) {
+        // AFIP Operativo
+        badgeAfip.innerHTML = '<i class="fas fa-check-circle"></i> AFIP Operativo';
+        badgeAfip.className = 'badge bg-success';
+        
+        cardAfip.style.borderLeft = '4px solid #28a745';
+        estadoTexto.textContent = 'Operativo';
+        estadoTexto.style.color = '#28a745';
+        detalleAfip.textContent = 'Servicios disponibles';
+        iconoAfip.className = 'fas fa-check-circle fa-2x text-success';
+        
+        // Ocultar alerta
+        alertaAfip.style.display = 'none';
+        
+    } else {
+        // AFIP No disponible
+        badgeAfip.innerHTML = '<i class="fas fa-exclamation-triangle"></i> AFIP No Disponible';
+        badgeAfip.className = 'badge bg-warning';
+        
+        cardAfip.style.borderLeft = '4px solid #ffc107';
+        estadoTexto.textContent = 'No Disponible';
+        estadoTexto.style.color = '#ffc107';
+        detalleAfip.textContent = 'Modo offline activo';
+        iconoAfip.className = 'fas fa-exclamation-triangle fa-2x text-warning';
+        
+        // Mostrar alerta
+        document.getElementById('mensajeAlertaAfip').textContent = estado.mensaje || 'Servicios AFIP no disponibles.';
+        alertaAfip.style.display = 'block';
+    }
+    
+    // Actualizar timestamp
+    ultimaVerificacion.textContent = `Última verificación: ${new Date().toLocaleTimeString()}`;
+}
+
+function mostrarErrorAfip(mensaje) {
+    const badgeAfip = document.getElementById('badgeAfip');
+    const cardAfip = document.getElementById('cardAfip');
+    const estadoTexto = document.getElementById('estadoAfipTexto');
+    const detalleAfip = document.getElementById('detalleAfip');
+    const iconoAfip = document.getElementById('iconoAfip');
+    
+    badgeAfip.innerHTML = '<i class="fas fa-times-circle"></i> Error AFIP';
+    badgeAfip.className = 'badge bg-danger';
+    
+    cardAfip.style.borderLeft = '4px solid #dc3545';
+    estadoTexto.textContent = 'Error';
+    estadoTexto.style.color = '#dc3545';
+    detalleAfip.textContent = mensaje;
+    iconoAfip.className = 'fas fa-times-circle fa-2x text-danger';
+    
+    // Mostrar alerta de error
+    document.getElementById('mensajeAlertaAfip').textContent = `Error al verificar estado: ${mensaje}`;
+    document.getElementById('alertaAfip').style.display = 'block';
+}
+
+// Función para hacer test manual desde el dashboard
+function testAfipManual() {
+    const badgeAfip = document.getElementById('badgeAfip');
+    badgeAfip.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Verificando...';
+    badgeAfip.className = 'badge bg-secondary';
+    
+    fetch('/test_afip')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarNotificacion('✅ Test AFIP exitoso', 'success');
+            } else {
+                mostrarNotificacion('❌ Test AFIP falló: ' + data.mensaje, 'danger');
+            }
+            // Actualizar estado después del test
+            setTimeout(verificarEstadoAfip, 1000);
+        })
+        .catch(error => {
+            mostrarNotificacion('❌ Error en test: ' + error.message, 'danger');
+            setTimeout(verificarEstadoAfip, 1000);
+        });
+}
+
+function mostrarNotificacion(mensaje, tipo) {
+    // Crear toast de Bootstrap si está disponible
+    const toastContainer = document.querySelector('.toast-container');
+    if (toastContainer) {
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${tipo} border-0`;
+        toast.setAttribute('role', 'alert');
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${mensaje}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+        toastContainer.appendChild(toast);
+        
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+        
+        // Remover después de que se oculte
+        toast.addEventListener('hidden.bs.toast', () => {
+            toast.remove();
+        });
+    } else {
+        // Fallback: alert simple
+        alert(mensaje);
+    }
+}
+</script>
+<!-- CSS adicional para mejorar la apariencia -->
+<style>
+.border-left-primary { border-left: 4px solid #4e73df !important; }
+.border-left-success { border-left: 4px solid #1cc88a !important; }
+.border-left-info { border-left: 4px solid #36b9cc !important; }
+.border-left-warning { border-left: 4px solid #f6c23e !important; }
+
+#cardAfip {
+    transition: all 0.3s ease;
+}
+
+#cardAfip:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+}
+
+#badgeAfip {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+#badgeAfip:hover {
+    transform: scale(1.05);
+}
+
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+}
+</style>
+
+<!-- Container para toasts si no existe -->
+<div class="toast-container"></div>
 {% endblock %}
