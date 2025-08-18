@@ -1,0 +1,495 @@
+<!-- templates/reporte_ventas.html -->
+{% extends "base.html" %}
+
+{% block title %}Reporte de Ventas - POS Argentina{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-chart-bar"></i> Reporte de Ventas por Producto</h1>
+    <div class="btn-group">
+        <button class="btn btn-success" id="btnExportarExcel" onclick="exportarExcel()" disabled>
+            <i class="fas fa-file-excel"></i> Exportar Excel
+        </button>
+        <button class="btn btn-info" id="btnExportarCSV" onclick="exportarCSV()" disabled>
+            <i class="fas fa-file-csv"></i> Exportar CSV
+        </button>
+    </div>
+</div>
+
+<!-- Filtros de Fecha -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="fas fa-filter"></i> Filtros de Búsqueda</h5>
+    </div>
+    <div class="card-body">
+        <form id="formFiltros">
+            <div class="row">
+                <div class="col-md-3">
+                    <label for="fechaDesde" class="form-label">Fecha Desde *</label>
+                    <input type="date" class="form-control" id="fechaDesde" required>
+                </div>
+                <div class="col-md-3">
+                    <label for="fechaHasta" class="form-label">Fecha Hasta *</label>
+                    <input type="date" class="form-control" id="fechaHasta" required>
+                </div>
+                <div class="col-md-2">
+                    <label for="filtroCategoria" class="form-label">Categoría</label>
+                    <select class="form-select" id="filtroCategoria">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="filtroOrden" class="form-label">Ordenar por</label>
+                    <select class="form-select" id="filtroOrden">
+                        <option value="cantidad_desc">Cantidad (Mayor a Menor)</option>
+                        <option value="cantidad_asc">Cantidad (Menor a Mayor)</option>
+                        <option value="total_desc">Total Vendido (Mayor a Menor)</option>
+                        <option value="total_asc">Total Vendido (Menor a Mayor)</option>
+                        <option value="codigo">Código</option>
+                        <option value="nombre">Nombre</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <div class="d-grid">
+                        <button type="button" class="btn btn-primary" onclick="generarReporte()">
+                            <i class="fas fa-search"></i> Generar Reporte
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-md-12">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="soloConVentas" checked>
+                        <label class="form-check-label" for="soloConVentas">
+                            Mostrar solo productos con ventas
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Resumen del Reporte -->
+<div class="card mb-4" id="cardResumen" style="display: none;">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Resumen del Período</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h4 class="text-primary mb-0" id="totalProductos">0</h4>
+                    <small class="text-muted">Productos Vendidos</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h4 class="text-success mb-0" id="totalUnidades">0</h4>
+                    <small class="text-muted">Total Unidades</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h4 class="text-warning mb-0" id="totalVentas">$0.00</h4>
+                    <small class="text-muted">Total Vendido</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h4 class="text-info mb-0" id="promedioVenta">$0.00</h4>
+                    <small class="text-muted">Promedio por Producto</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla de Resultados -->
+<div class="card" id="cardResultados" style="display: none;">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-table"></i> Detalle de Ventas por Producto</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover" id="tablaReporte">
+                <thead class="table-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>Código</th>
+                        <th>Producto</th>
+                        <th>Categoría</th>
+                        <th>Precio Unitario</th>
+                        <th>Cantidad Vendida</th>
+                        <th>Total Vendido</th>
+                        <th>% del Total</th>
+                        <th>Última Venta</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaReporteBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Spinner -->
+<div class="text-center my-5" id="loadingSpinner" style="display: none;">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Generando reporte...</span>
+    </div>
+    <p class="mt-2 text-muted">Generando reporte, por favor espere...</p>
+</div>
+
+<!-- Modal de Error -->
+<div class="modal fade" id="modalError" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i> Error
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="mensajeError"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Variables globales
+let datosReporte = [];
+let parametrosBusqueda = {};
+
+// Inicializar fechas por defecto
+document.addEventListener('DOMContentLoaded', function() {
+    // Fecha por defecto: último mes
+    const hoy = new Date();
+    const haceUnMes = new Date();
+    haceUnMes.setMonth(haceUnMes.getMonth() - 1);
+    
+    document.getElementById('fechaHasta').value = hoy.toISOString().split('T')[0];
+    document.getElementById('fechaDesde').value = haceUnMes.toISOString().split('T')[0];
+    
+    // Cargar categorías
+    cargarCategorias();
+});
+
+// Función para cargar categorías
+function cargarCategorias() {
+    fetch('/obtener_categorias')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const select = document.getElementById('filtroCategoria');
+                select.innerHTML = '<option value="">Todas las categorías</option>';
+                
+                data.categorias.forEach(categoria => {
+                    const option = document.createElement('option');
+                    option.value = categoria;
+                    option.textContent = categoria;
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => console.error('Error cargando categorías:', error));
+}
+
+// Función principal para generar reporte
+function generarReporte() {
+    const fechaDesde = document.getElementById('fechaDesde').value;
+    const fechaHasta = document.getElementById('fechaHasta').value;
+    
+    // Validaciones
+    if (!fechaDesde || !fechaHasta) {
+        mostrarError('Por favor seleccione ambas fechas');
+        return;
+    }
+    
+    if (new Date(fechaDesde) > new Date(fechaHasta)) {
+        mostrarError('La fecha desde no puede ser mayor a la fecha hasta');
+        return;
+    }
+    
+    console.log('📊 Generando reporte de ventas...');
+    console.log(`📅 Período: ${fechaDesde} a ${fechaHasta}`);
+    console.log(`📂 Categoría: ${document.getElementById('filtroCategoria').value || 'Todas'}`);
+    console.log(`🔄 Orden: ${document.getElementById('filtroOrden').value}`);
+    console.log(`✅ Incluye TODAS las facturas (no solo autorizadas)`);
+    
+    // Mostrar loading
+    mostrarLoading(true);
+    
+    // Preparar parámetros
+    parametrosBusqueda = {
+        fecha_desde: fechaDesde,
+        fecha_hasta: fechaHasta,
+        categoria: document.getElementById('filtroCategoria').value,
+        orden: document.getElementById('filtroOrden').value,
+        solo_con_ventas: document.getElementById('soloConVentas').checked
+    };
+    
+    // Construir URL con parámetros
+    const params = new URLSearchParams(parametrosBusqueda);
+    
+    // Realizar petición
+    fetch(`/api/reporte_ventas_productos?${params.toString()}`)
+        .then(response => {
+            console.log('📡 Respuesta del servidor:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 Datos del reporte recibidos:', data);
+            
+            if (data.success) {
+                datosReporte = data.productos;
+                mostrarReporte(data);
+                
+                console.log('✅ Reporte generado exitosamente');
+                console.log(`📦 Productos: ${data.resumen.total_productos}`);
+                console.log(`📊 Unidades: ${data.resumen.total_unidades}`);
+                console.log(`💰 Total: $${data.resumen.total_ventas.toFixed(2)}`);
+            } else {
+                mostrarError(data.error || 'Error al generar el reporte');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error:', error);
+            mostrarError('Error de conexión al generar el reporte');
+        })
+        .finally(() => {
+            mostrarLoading(false);
+        });
+}
+
+// Función para mostrar el reporte
+function mostrarReporte(data) {
+    // Mostrar resumen
+    document.getElementById('totalProductos').textContent = data.resumen.total_productos;
+    document.getElementById('totalUnidades').textContent = data.resumen.total_unidades.toLocaleString();
+    document.getElementById('totalVentas').textContent = '$' + data.resumen.total_ventas.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    document.getElementById('promedioVenta').textContent = '$' + data.resumen.promedio_por_producto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    
+    // NUEVO: Mostrar información sobre estados de facturas si está disponible
+    if (data.resumen.estados_facturas && Object.keys(data.resumen.estados_facturas).length > 1) {
+        mostrarInfoEstadosFacturas(data.resumen.estados_facturas);
+    }
+    
+    // Mostrar tabla
+    const tbody = document.getElementById('tablaReporteBody');
+    tbody.innerHTML = '';
+    
+    if (data.productos.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="text-center text-muted py-4">
+                    <i class="fas fa-info-circle"></i> No se encontraron ventas en el período seleccionado
+                </td>
+            </tr>
+        `;
+    } else {
+        data.productos.forEach((producto, index) => {
+            const fila = document.createElement('tr');
+            
+            // Calcular porcentaje del total
+            const porcentaje = ((producto.total_vendido / data.resumen.total_ventas) * 100).toFixed(1);
+            
+            // Formatear fecha de última venta
+            const fechaUltimaVenta = producto.ultima_venta ? 
+                new Date(producto.ultima_venta).toLocaleDateString('es-AR') : 
+                'N/A';
+            
+            fila.innerHTML = `
+                <td><strong>${index + 1}</strong></td>
+                <td><code>${producto.codigo}</code></td>
+                <td>
+                    <strong>${producto.nombre}</strong>
+                    ${producto.descripcion ? `<br><small class="text-muted">${producto.descripcion.substring(0, 50)}${producto.descripcion.length > 50 ? '...' : ''}</small>` : ''}
+                </td>
+                <td>
+                    <span class="badge bg-info">${producto.categoria || 'Sin categoría'}</span>
+                </td>
+                <td class="text-end">$${producto.precio_promedio.toFixed(2)}</td>
+                <td class="text-center">
+                    <span class="badge bg-primary fs-6">${producto.cantidad_vendida}</span>
+                </td>
+                <td class="text-end">
+                    <strong>$${producto.total_vendido.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-warning text-dark">${porcentaje}%</span>
+                </td>
+                <td class="text-center">${fechaUltimaVenta}</td>
+            `;
+            
+            tbody.appendChild(fila);
+        });
+    }
+    
+    // Mostrar cards
+    document.getElementById('cardResumen').style.display = 'block';
+    document.getElementById('cardResultados').style.display = 'block';
+    
+    // Habilitar botones de exportación
+    document.getElementById('btnExportarExcel').disabled = false;
+    document.getElementById('btnExportarCSV').disabled = false;
+    
+    console.log('✅ Reporte mostrado correctamente');
+    console.log(`📊 Incluye todas las facturas: ${data.resumen.incluye_todas_facturas ? 'SÍ' : 'NO'}`);
+}
+
+// NUEVA FUNCIÓN: Mostrar información sobre estados de facturas
+function mostrarInfoEstadosFacturas(estadosFacturas) {
+    // Buscar el card de resumen para agregar información
+    const cardResumen = document.getElementById('cardResumen');
+    
+    // Remover info anterior si existe
+    const infoAnterior = cardResumen.querySelector('.info-estados-facturas');
+    if (infoAnterior) {
+        infoAnterior.remove();
+    }
+    
+    // Calcular totales
+    let totalFacturas = 0;
+    let totalImporte = 0;
+    let facturasAutorizadas = 0;
+    let importeAutorizado = 0;
+    
+    for (const estado in estadosFacturas) {
+        const info = estadosFacturas[estado];
+        totalFacturas += info.cantidad;
+        totalImporte += info.total;
+        
+        if (estado === 'autorizada') {
+            facturasAutorizadas = info.cantidad;
+            importeAutorizado = info.total;
+        }
+    }
+    
+    // Solo mostrar si hay facturas no autorizadas
+    if (totalFacturas > facturasAutorizadas) {
+        const facturasPendientes = totalFacturas - facturasAutorizadas;
+        const importePendiente = totalImporte - importeAutorizado;
+        
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'info-estados-facturas mt-3 p-3 bg-light rounded';
+        infoDiv.innerHTML = `
+            <div class="row">
+                <div class="col-12">
+                    <h6><i class="fas fa-info-circle text-info"></i> Información Detallada de Facturas</h6>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <strong>Total Facturas:</strong> ${totalFacturas}<br>
+                            <strong>Total Importe:</strong> $${totalImporte.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Autorizadas:</strong> ${facturasAutorizadas}<br>
+                            <strong>Importe Autorizado:</strong> $${importeAutorizado.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Pendientes/Error:</strong> ${facturasPendientes}<br>
+                            <strong>Importe Pendiente:</strong> $${importePendiente.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                        </div>
+                    </div>
+                    <small class="text-muted">
+                        <i class="fas fa-check-circle text-success"></i> Este reporte incluye TODAS las facturas (autorizadas y pendientes)
+                    </small>
+                </div>
+            </div>
+        `;
+        
+        cardResumen.querySelector('.card-body').appendChild(infoDiv);
+        
+        console.log('📊 Info de estados agregada al reporte');
+        console.log(`   Total: ${totalFacturas} facturas ($${totalImporte.toFixed(2)})`);
+        console.log(`   Autorizadas: ${facturasAutorizadas} ($${importeAutorizado.toFixed(2)})`);
+        console.log(`   Pendientes: ${facturasPendientes} ($${importePendiente.toFixed(2)})`);
+    }
+}
+
+// Función para mostrar/ocultar loading
+function mostrarLoading(mostrar) {
+    document.getElementById('loadingSpinner').style.display = mostrar ? 'block' : 'none';
+    document.getElementById('cardResumen').style.display = mostrar ? 'none' : 'block';
+    document.getElementById('cardResultados').style.display = mostrar ? 'none' : 'block';
+}
+
+// Función para mostrar errores
+function mostrarError(mensaje) {
+    document.getElementById('mensajeError').textContent = mensaje;
+    new bootstrap.Modal(document.getElementById('modalError')).show();
+}
+
+// Función para exportar a Excel
+function exportarExcel() {
+    if (datosReporte.length === 0) {
+        mostrarError('No hay datos para exportar');
+        return;
+    }
+    
+    const params = new URLSearchParams(parametrosBusqueda);
+    params.append('formato', 'excel');
+    
+    const url = `/exportar_reporte_ventas?${params.toString()}`;
+    
+    // Crear enlace temporal para descarga
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `reporte_ventas_${parametrosBusqueda.fecha_desde}_${parametrosBusqueda.fecha_hasta}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// Función para exportar a CSV
+function exportarCSV() {
+    if (datosReporte.length === 0) {
+        mostrarError('No hay datos para exportar');
+        return;
+    }
+    
+    const params = new URLSearchParams(parametrosBusqueda);
+    params.append('formato', 'csv');
+    
+    const url = `/exportar_reporte_ventas?${params.toString()}`;
+    
+    // Crear enlace temporal para descarga
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `reporte_ventas_${parametrosBusqueda.fecha_desde}_${parametrosBusqueda.fecha_hasta}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// Event listeners para mejorar UX
+document.getElementById('fechaDesde').addEventListener('change', function() {
+    const fechaHasta = document.getElementById('fechaHasta');
+    if (this.value && (!fechaHasta.value || new Date(this.value) > new Date(fechaHasta.value))) {
+        fechaHasta.value = this.value;
+    }
+});
+
+// Generar reporte al presionar Enter en los campos de fecha
+document.getElementById('fechaDesde').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        generarReporte();
+    }
+});
+
+document.getElementById('fechaHasta').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        generarReporte();
+    }
+});
+</script>
+{% endblock %}

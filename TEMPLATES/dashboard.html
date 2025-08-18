@@ -18,7 +18,8 @@
 
 <!-- Fila principal de métricas con Estado AFIP -->
 <div class="row">
-    <div class="col-xl-3 col-md-6 mb-4">
+
+    <!-- <div class="col-xl-3 col-md-6 mb-4">
         <div class="card border-left-primary shadow h-100 py-2">
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
@@ -35,6 +36,35 @@
             </div>
         </div>
     </div>
+ -->
+    <!-- Widget de Producto Top del Día -->
+    <div  class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h5 class="card-title mb-1">
+                            <i class="fas fa-crown"></i> Top Producto Hoy
+                        </h5>
+                        <h6 class="mb-0" id="topProductoNombre">Cargando...</h6>
+                        <small id="topProductoCodigo">-</small>
+                    </div>
+                    <div class="col-auto">
+                        <div class="text-center">
+                            <h4 class="mb-0" id="topProductoCantidad">0</h4>
+                            <small>vendidos</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-info bg-opacity-25">
+                <a href="/reporte_ventas" class="text-white text-decoration-none">
+                    <small><i class="fas fa-chart-bar"></i> Ver reporte completo</small>
+                </a>
+            </div>
+        </div>
+    </div>
+
 
     <div class="col-xl-3 col-md-6 mb-4">
         <div class="card border-left-success shadow h-100 py-2">
@@ -54,7 +84,7 @@
         </div>
     </div>
 
-    <div class="col-xl-3 col-md-6 mb-4">
+    <!-- <div class="col-xl-3 col-md-6 mb-4">
         <div class="card border-left-info shadow h-100 py-2">
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
@@ -68,6 +98,36 @@
                         <i class="fas fa-box fa-2x text-gray-300"></i>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div> -->
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h5 class="card-title mb-1">
+                            <i class="fas fa-chart-line"></i> Ventas Hoy
+                        </h5>
+                        <div class="row">
+                            <div class="col-6">
+                                <h6 class="mb-0" id="ventasHoyTotal">$0.00</h6>
+                                <small>Total vendido</small>
+                            </div>
+                            <div class="col-6">
+                                <h6 class="mb-0" id="ventasHoyFacturas">0</h6>
+                                <small>Facturas</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-cash-register fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-success bg-opacity-25">
+                <small id="ventasHoyUnidades">0 unidades vendidas</small>
             </div>
         </div>
     </div>
@@ -610,7 +670,254 @@ function obtenerColorMedioPago(codigo) {
     return colores[codigo] || 'bg-primary';
 }
 
+// Cargar datos de ventas del dashboard
+function cargarDashboardVentas() {
+    console.log('🔄 Iniciando carga de datos de ventas...');
+    
+    // Mostrar indicadores de carga
+    const elementos = {
+        'ventasHoyTotal': 'Cargando...',
+        'ventasHoyFacturas': '...',
+        'ventasHoyUnidades': 'Cargando datos...',
+        'topProductoNombre': 'Cargando...',
+        'topProductoCodigo': '...',
+        'topProductoCantidad': '...'
+    };
+    
+    // Aplicar indicadores de carga
+    Object.keys(elementos).forEach(id => {
+        const elemento = document.getElementById(id);
+        if (elemento) {
+            elemento.textContent = elementos[id];
+            elemento.style.color = '#6c757d'; // Color gris mientras carga
+        }
+    });
+    
+    fetch('/api/dashboard_ventas')
+        .then(response => {
+            console.log('📡 Respuesta recibida:', response.status, response.statusText);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 Datos recibidos del servidor:', data);
+            
+            if (data.success) {
+                // Actualizar widget de ventas del día
+                actualizarWidgetVentas(data.ventas_hoy);
+                
+                // Actualizar widget de producto top
+                actualizarWidgetProductoTop(data.producto_top_hoy);
+                
+                console.log('✅ Dashboard actualizado correctamente');
+                
+                // Mostrar mensaje de éxito discreto
+                console.log('📈 Datos cargados:', {
+                    facturas: data.ventas_hoy.num_facturas,
+                    total: data.ventas_hoy.total_vendido,
+                    unidades: data.ventas_hoy.unidades_vendidas
+                });
+                
+            } else {
+                throw new Error(data.error || 'Respuesta del servidor indica fallo');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error cargando dashboard ventas:', error);
+            
+            // Mostrar datos de error
+            mostrarErrorVentas(error.message);
+            
+            // Intentar cargar datos de debug después de 2 segundos
+            setTimeout(() => {
+                console.log('🔍 Intentando cargar datos de debug...');
+                cargarDatosDebug();
+            }, 2000);
+        });
+}
+
+
+
+function actualizarWidgetVentas(ventasHoy) {
+    try {
+        console.log('💰 Actualizando widget de ventas:', ventasHoy);
+        
+        // Total vendido
+        const totalElement = document.getElementById('ventasHoyTotal');
+        if (totalElement) {
+            const total = parseFloat(ventasHoy.total_vendido || 0);
+            const totalFormateado = formatearPesos(total);
+            totalElement.textContent = totalFormateado;
+            totalElement.style.color = total > 0 ? '#28a745' : '#6c757d'; // Verde si hay ventas
+            console.log(`💵 Total actualizado: ${totalFormateado}`);
+        }
+        
+        // Número de facturas
+        const facturasElement = document.getElementById('ventasHoyFacturas');
+        if (facturasElement) {
+            const numFacturas = parseInt(ventasHoy.num_facturas || 0);
+            facturasElement.textContent = numFacturas.toString();
+            facturasElement.style.color = numFacturas > 0 ? '#007bff' : '#6c757d';
+            console.log(`🧾 Facturas actualizadas: ${numFacturas}`);
+        }
+        
+        // Unidades vendidas
+        const unidadesElement = document.getElementById('ventasHoyUnidades');
+        if (unidadesElement) {
+            const unidades = parseInt(ventasHoy.unidades_vendidas || 0);
+            unidadesElement.textContent = `${unidades} unidades vendidas`;
+            unidadesElement.style.color = unidades > 0 ? '#17a2b8' : '#6c757d';
+            console.log(`📦 Unidades actualizadas: ${unidades}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ Error actualizando widget de ventas:', error);
+    }
+}
+
+function actualizarWidgetProductoTop(productoTop) {
+    try {
+        console.log('👑 Actualizando widget producto top:', productoTop);
+        
+        const nombreElement = document.getElementById('topProductoNombre');
+        const codigoElement = document.getElementById('topProductoCodigo');
+        const cantidadElement = document.getElementById('topProductoCantidad');
+        
+        if (productoTop && productoTop.nombre) {
+            // Hay producto top
+            if (nombreElement) {
+                nombreElement.textContent = productoTop.nombre;
+                nombreElement.style.color = '#495057';
+            }
+            if (codigoElement) {
+                codigoElement.textContent = productoTop.codigo || '-';
+                codigoElement.style.color = '#6c757d';
+            }
+            if (cantidadElement) {
+                cantidadElement.textContent = productoTop.cantidad || 0;
+                cantidadElement.style.color = '#28a745';
+            }
+            
+            console.log(`🏆 Producto top: ${productoTop.codigo} - ${productoTop.nombre} (${productoTop.cantidad})`);
+        } else {
+            // No hay producto top
+            if (nombreElement) {
+                nombreElement.textContent = 'Sin ventas hoy';
+                nombreElement.style.color = '#6c757d';
+            }
+            if (codigoElement) {
+                codigoElement.textContent = '-';
+                codigoElement.style.color = '#6c757d';
+            }
+            if (cantidadElement) {
+                cantidadElement.textContent = '0';
+                cantidadElement.style.color = '#6c757d';
+            }
+            
+            console.log('📊 No hay producto top para hoy');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error actualizando widget producto top:', error);
+    }
+}
+
+function mostrarErrorVentas(mensaje) {
+    console.error('🚨 Error en ventas:', mensaje);
+    
+    // Mostrar error en los elementos
+    const elementos = [
+        { id: 'ventasHoyTotal', texto: 'Error' },
+        { id: 'ventasHoyFacturas', texto: '??' },
+        { id: 'ventasHoyUnidades', texto: 'Error cargando datos' },
+        { id: 'topProductoNombre', texto: 'Error al cargar' },
+        { id: 'topProductoCodigo', texto: 'ERR' },
+        { id: 'topProductoCantidad', texto: '??' }
+    ];
+    
+    elementos.forEach(elem => {
+        const element = document.getElementById(elem.id);
+        if (element) {
+            element.textContent = elem.texto;
+            element.style.color = '#dc3545'; // Color rojo
+        }
+    });
+    
+    // Solo mostrar alerta si es un error importante
+    if (mensaje.includes('401') || mensaje.includes('500')) {
+        alert(`Error cargando datos del dashboard: ${mensaje}`);
+    }
+}
+
+function cargarDatosDebug() {
+    console.log('🔍 Cargando datos de debug...');
+    
+    fetch('/debug/dashboard_data')
+        .then(response => response.json())
+        .then(data => {
+            console.log('🔎 Datos de debug:', data);
+            
+            if (data.success) {
+                const info = data.debug_info;
+                console.log('📊 Información de base de datos:');
+                console.log(`   Total facturas: ${info.total_facturas_bd}`);
+                console.log(`   Facturas hoy: ${info.facturas_hoy}`);
+                console.log(`   Últimas facturas:`, info.ultimas_facturas);
+                
+                // Si no hay datos hoy pero sí hay facturas en la BD
+                if (info.facturas_hoy === 0 && info.total_facturas_bd > 0) {
+                    console.log('💡 Sugerencia: Hay facturas en la BD pero ninguna para hoy');
+                    
+                    // Mostrar mensaje informativo
+                    const ventasElement = document.getElementById('ventasHoyTotal');
+                    const unidadesElement = document.getElementById('ventasHoyUnidades');
+                    
+                    if (ventasElement) ventasElement.textContent = '$0,00';
+                    if (unidadesElement) unidadesElement.textContent = 'Sin ventas hoy';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error en debug:', error);
+        });
+}
+
+// Función auxiliar para formatear pesos argentinos
+function formatearPesos(cantidad) {
+    if (cantidad === null || cantidad === undefined || isNaN(cantidad)) {
+        return '$0,00';
+    }
+    
+    return '$' + parseFloat(cantidad).toLocaleString('es-AR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+// Función para forzar actualización manual (para debugging)
+function actualizarDashboardManual() {
+    console.log('🔄 Actualización manual solicitada por usuario');
+    cargarDashboardVentas();
+}
+// Cargar datos al inicializar la página
+document.addEventListener('DOMContentLoaded', function() {
+    cargarDashboardVentas();
+    
+    // Actualizar cada 5 minutos
+    setInterval(cargarDashboardVentas, 300000);
+});
+
+// Hacer disponible globalmente para debugging desde consola
+window.actualizarDashboardManual = actualizarDashboardManual;
+window.cargarDatosDebug = cargarDatosDebug;
+
 </script>
+
+
 <!-- CSS adicional para mejorar la apariencia -->
 <style>
 .border-left-primary { border-left: 4px solid #4e73df !important; }

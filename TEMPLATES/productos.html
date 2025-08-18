@@ -15,7 +15,7 @@
 <div class="card mb-3">
     <div class="card-body">
         <div class="row">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <label class="form-label">Buscar productos</label>
                 <input type="text" class="form-control" id="buscarProducto" placeholder="Código o nombre...">
             </div>
@@ -66,7 +66,9 @@
                         <th>Código</th>
                         <th>Nombre</th>
                         <th>Categoría</th>
-                        <th>Precio</th>
+                        <th>Costo</th>
+                        <th>Margen %</th>
+                        <th>Precio Venta</th>
                         <th>Stock</th>
                         <th>IVA %</th>
                         <th>Estado</th>
@@ -85,6 +87,12 @@
                         </td>
                         <td>
                             <span class="badge bg-info">{{ producto.categoria or 'Sin categoría' }}</span>
+                        </td>
+                        <td class="text-end">
+                            <small class="text-muted">$</small><strong>{{ "%.2f"|format(producto.costo or 0) }}</strong>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-warning text-dark">{{ "%.1f"|format(producto.margen or 0) }}%</span>
                         </td>
                         <td class="text-end">
                             <strong>${{ "%.2f"|format(producto.precio) }}</strong>
@@ -166,16 +174,57 @@
                         <label for="descripcion" class="form-label">Descripción</label>
                         <textarea class="form-control" id="descripcion" rows="3"></textarea>
                     </div>
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label for="precio" class="form-label">Precio *</label>
-                                <div class="input-group">
-                                    <span class="input-group-text">$</span>
-                                    <input type="number" class="form-control" id="precio" step="0.01" min="0.01" required>
+                    
+                    <!-- NUEVA SECCIÓN: Costos y Precios -->
+                    <div class="card mb-3 bg-light">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0"><i class="fas fa-calculator"></i> Costos y Precios</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="costo" class="form-label">Precio de Costo *</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">$</span>
+                                            <input type="number" class="form-control" id="costo" step="0.01" min="0.01" required>
+                                        </div>
+                                        <small class="form-text text-muted">Costo sin IVA</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="margen" class="form-label">Margen de Ganancia %</label>
+                                        <div class="input-group">
+                                            <input type="number" class="form-control" id="margen" step="0.1" min="0" value="30">
+                                            <span class="input-group-text">%</span>
+                                        </div>
+                                        <small class="form-text text-muted">Porcentaje sobre el costo</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="precio" class="form-label">Precio de Venta</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">$</span>
+                                            <input type="number" class="form-control bg-warning" id="precio" step="0.01" readonly>
+                                        </div>
+                                        <small class="form-text text-primary"><strong>Calculado automáticamente</strong></small>
+                                    </div>
                                 </div>
                             </div>
+                            
+                            <!-- Indicador visual del cálculo -->
+                            <div class="alert alert-info mb-0" id="calculoInfo">
+                                <i class="fas fa-info-circle"></i> 
+                                <strong>Cálculo:</strong> Precio = Costo × (1 + Margen/100)
+                                <br>
+                                <span id="formulaEjemplo">Ejemplo: $0.00 × (1 + 0%/100) = $0.00</span>
+                            </div>
                         </div>
+                    </div>
+                    
+                    <div class="row">
                         <div class="col-md-4" id="stockInicialContainer">
                             <div class="mb-3">
                                 <label for="stock" class="form-label">Stock Inicial</label>
@@ -194,10 +243,8 @@
                                 </select>
                             </div>
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-check">
+                        <div class="col-md-4">
+                            <div class="form-check mt-4">
                                 <input class="form-check-input" type="checkbox" id="activo" checked>
                                 <label class="form-check-label" for="activo">
                                     Producto activo
@@ -269,6 +316,26 @@
 let productoActual = null;
 let stockActual = 0;
 
+// Función para calcular precio automáticamente
+function calcularPrecio() {
+    const costo = parseFloat(document.getElementById('costo').value) || 0;
+    const margen = parseFloat(document.getElementById('margen').value) || 0;
+    
+    // Fórmula: precio = costo * (1 + (margen/100))
+    const precio = costo * (1 + (margen / 100));
+    
+    // Actualizar campo precio
+    document.getElementById('precio').value = precio.toFixed(2);
+    
+    // Actualizar ejemplo visual
+    const formulaEjemplo = document.getElementById('formulaEjemplo');
+    if (formulaEjemplo) {
+        formulaEjemplo.textContent = `Ejemplo: $${costo.toFixed(2)} × (1 + ${margen}%/100) = $${precio.toFixed(2)}`;
+    }
+    
+    console.log(`💰 Precio calculado: Costo=$${costo.toFixed(2)}, Margen=${margen}%, Precio=$${precio.toFixed(2)}`);
+}
+
 // Función para limpiar el formulario
 function limpiarFormProducto() {
     document.getElementById('formProducto').reset();
@@ -277,6 +344,12 @@ function limpiarFormProducto() {
     document.getElementById('stock').value = '0';
     document.getElementById('iva').value = '21';
     document.getElementById('activo').checked = true;
+    
+    // Valores por defecto para costo y margen
+    document.getElementById('costo').value = '';
+    document.getElementById('margen').value = '30';
+    document.getElementById('precio').value = '0.00';
+    
     productoActual = null;
     
     // Mostrar campo de stock inicial solo para productos nuevos
@@ -288,6 +361,9 @@ function limpiarFormProducto() {
         input.setCustomValidity('');
         input.classList.remove('is-invalid', 'is-valid');
     });
+    
+    // Calcular precio inicial
+    calcularPrecio();
 }
 
 // Función para cargar datos de producto en el formulario
@@ -296,10 +372,16 @@ function cargarProductoEnFormulario(producto) {
     document.getElementById('codigo').value = producto.codigo;
     document.getElementById('nombre').value = producto.nombre;
     document.getElementById('descripcion').value = producto.descripcion || '';
-    document.getElementById('precio').value = producto.precio;
     document.getElementById('categoria').value = producto.categoria || '';
     document.getElementById('iva').value = producto.iva;
     document.getElementById('activo').checked = producto.activo;
+    
+    // NUEVOS CAMPOS: Cargar costo y margen
+    document.getElementById('costo').value = producto.costo || 0;
+    document.getElementById('margen').value = producto.margen || 30;
+    
+    // El precio se calculará automáticamente
+    calcularPrecio();
     
     // Ocultar campo de stock inicial para edición
     document.getElementById('stockInicialContainer').style.display = 'none';
@@ -340,12 +422,33 @@ function guardarProducto() {
         return;
     }
     
+    // Validaciones adicionales
+    const costo = parseFloat(document.getElementById('costo').value);
+    const margen = parseFloat(document.getElementById('margen').value);
+    
+    if (costo <= 0) {
+        alert('El costo debe ser mayor a 0');
+        document.getElementById('costo').focus();
+        return;
+    }
+    
+    if (margen < 0) {
+        alert('El margen no puede ser negativo');
+        document.getElementById('margen').focus();
+        return;
+    }
+    
+    // Recalcular precio antes de enviar
+    calcularPrecio();
+    
     // Recopilar datos del formulario
     const formData = {
         id: document.getElementById('productoId').value || null,
         codigo: document.getElementById('codigo').value.trim().toUpperCase(),
         nombre: document.getElementById('nombre').value.trim(),
         descripcion: document.getElementById('descripcion').value.trim(),
+        costo: costo,
+        margen: margen,
         precio: parseFloat(document.getElementById('precio').value),
         categoria: document.getElementById('categoria').value.trim(),
         iva: parseFloat(document.getElementById('iva').value),
@@ -367,12 +470,6 @@ function guardarProducto() {
     if (!formData.nombre) {
         alert('El nombre es obligatorio');
         document.getElementById('nombre').focus();
-        return;
-    }
-    
-    if (formData.precio <= 0) {
-        alert('El precio debe ser mayor a 0');
-        document.getElementById('precio').focus();
         return;
     }
     
@@ -583,7 +680,7 @@ function actualizarTablaProductos(productos) {
     if (productos.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="text-center text-muted">
+                <td colspan="10" class="text-center text-muted">
                     <i class="fas fa-search"></i> No se encontraron productos
                 </td>
             </tr>
@@ -600,6 +697,16 @@ function actualizarTablaProductos(productos) {
         const btnToggleClass = producto.activo ? 'btn-danger' : 'btn-success';
         const btnToggleTitle = producto.activo ? 'Desactivar' : 'Activar';
         
+        // Calcular margen si no existe
+        const costo = producto.costo || 0;
+        const precio = producto.precio || 0;
+        let margen = producto.margen || 0;
+        
+        // Si no hay margen guardado, calcularlo desde precio y costo
+        if (!producto.margen && costo > 0) {
+            margen = ((precio / costo) - 1) * 100;
+        }
+        
         return `
             <tr>
                 <td><code>${producto.codigo}</code></td>
@@ -614,7 +721,13 @@ function actualizarTablaProductos(productos) {
                     <span class="badge bg-info">${producto.categoria || 'Sin categoría'}</span>
                 </td>
                 <td class="text-end">
-                    <strong>${producto.precio.toFixed(2)}</strong>
+                    <small class="text-muted">$</small><strong>${costo.toFixed(2)}</strong>
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-warning text-dark">${margen.toFixed(1)}%</span>
+                </td>
+                <td class="text-end">
+                    <strong>${precio.toFixed(2)}</strong>
                 </td>
                 <td class="text-center">${stockBadge}</td>
                 <td class="text-center">${Math.round(producto.iva)}%</td>
@@ -680,6 +793,10 @@ function cargarCategorias() {
 document.addEventListener('DOMContentLoaded', function() {
     // Cargar categorías al inicio
     cargarCategorias();
+    
+    // NUEVOS: Event listeners para cálculo automático de precio
+    document.getElementById('costo').addEventListener('input', calcularPrecio);
+    document.getElementById('margen').addEventListener('input', calcularPrecio);
     
     // Cambiar ayuda según tipo de movimiento de stock
     document.getElementById('tipoMovimiento').addEventListener('change', function() {

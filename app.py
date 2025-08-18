@@ -2,10 +2,11 @@
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Numeric, or_, and_  # ← IMPORTAR AQUÍ
+from sqlalchemy import Numeric, or_, and_, func, desc, asc  
+#from sqlalchemy import Numeric, or_, and_  # ← IMPORTAR AQUÍ
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
-import mysql.connector
+#import mysql.connector
 from decimal import Decimal
 from qr_afip import crear_generador_qr
 import os
@@ -15,6 +16,9 @@ from zeep import Client
 from zeep.wsse import BinarySignature
 import base64
 import hashlib
+import csv
+import io
+from flask import make_response
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -190,6 +194,52 @@ class Producto(db.Model):
     categoria = db.Column(db.String(100))
     iva = db.Column(Numeric(5, 2), default=21.00)
     activo = db.Column(db.Boolean, default=True)
+    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha_modificacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # NUEVAS COLUMNAS AGREGADAS:
+    costo = db.Column(Numeric(10, 2), default=0.00)  # ← AGREGAR ESTA LÍNEA
+    margen = db.Column(Numeric(5, 2), default=30.00)  # ← AGREGAR ESTA LÍNEA
+    
+    def __repr__(self):
+        return f'<Producto {self.codigo}: {self.nombre}>'
+    
+    def to_dict(self):
+        """Convertir producto a diccionario"""
+        return {
+            'id': self.id,
+            'codigo': self.codigo,
+            'nombre': self.nombre,
+            'descripcion': self.descripcion,
+            'precio': float(self.precio),
+            'costo': float(self.costo) if self.costo else 0.0,
+            'margen': float(self.margen) if self.margen else 0.0,
+            'stock': self.stock,
+            'categoria': self.categoria,
+            'iva': float(self.iva),
+            'activo': self.activo,
+            'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
+            'fecha_modificacion': self.fecha_modificacion.isoformat() if self.fecha_modificacion else None
+        }
+    
+    @property
+    def precio_calculado(self):
+        """Calcular precio basado en costo y margen"""
+        if self.costo and self.margen is not None:
+            return float(self.costo) * (1 + (float(self.margen) / 100))
+        return float(self.precio)
+    
+    def actualizar_precio_desde_costo_margen(self):
+        """Actualizar el precio basado en costo y margen"""
+        if self.costo and self.margen is not None:
+            self.precio = Decimal(str(self.precio_calculado))
+            self.fecha_modificacion = datetime.utcnow()
+    
+    @staticmethod
+    def calcular_precio_venta(costo, margen):
+        """Método estático para calcular precio de venta"""
+        if not costo or margen is None:
+            return 0.0
+        return float(costo) * (1 + (float(margen) / 100))
 
 class Factura(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1146,6 +1196,7 @@ def buscar_clientes():
 
 # ==================== RUTAS DE PRODUCTOS ====================
 
+# 1. ACTUALIZAR LA RUTA /api/producto_detalle/<int:producto_id>
 @app.route('/api/producto_detalle/<int:producto_id>')
 def obtener_producto_detalle(producto_id):
     """Obtener datos completos de un producto para edición"""
@@ -1153,25 +1204,38 @@ def obtener_producto_detalle(producto_id):
         return jsonify({'error': 'No autorizado'}), 401
     
     try:
-        # Método compatible con SQLAlchemy antiguo
         producto = Producto.query.get_or_404(producto_id)
+        
+        # Usar valores por defecto si costo o margen son 0 o None
+        costo = float(producto.costo) if producto.costo and producto.costo > 0 else 0.0
+        margen = float(producto.margen) if producto.margen is not None else 30.0
+        
+        # Si no hay costo pero hay precio, calcular costo aproximado
+        if costo == 0.0 and producto.precio > 0:
+            costo = float(producto.precio) / (1 + (margen / 100))
+        
         return jsonify({
             'id': producto.id,
             'codigo': producto.codigo,
             'nombre': producto.nombre,
             'descripcion': producto.descripcion or '',
             'precio': float(producto.precio),
+            'costo': round(costo, 2),
+            'margen': round(margen, 1),
             'stock': producto.stock,
             'categoria': producto.categoria or '',
             'iva': float(producto.iva),
             'activo': producto.activo
         })
+        
     except Exception as e:
+        print(f"Error en obtener_producto_detalle: {str(e)}")
         return jsonify({'error': f'Error al obtener producto: {str(e)}'}), 500
 
+# 2. ACTUALIZAR LA RUTA /guardar_producto
 @app.route('/guardar_producto', methods=['POST'])
 def guardar_producto():
-    """Crear o actualizar un producto"""
+    """Crear o actualizar un producto con costo y margen"""
     if 'user_id' not in session:
         return jsonify({'error': 'No autorizado'}), 401
     
@@ -1185,12 +1249,24 @@ def guardar_producto():
         if not data.get('nombre', '').strip():
             return jsonify({'error': 'El nombre es obligatorio'}), 400
         
+        # Validar costo
         try:
-            precio = float(data.get('precio', 0))
-            if precio <= 0:
-                return jsonify({'error': 'El precio debe ser mayor a 0'}), 400
+            costo = float(data.get('costo', 0))
+            if costo <= 0:
+                return jsonify({'error': 'El costo debe ser mayor a 0'}), 400
         except (ValueError, TypeError):
-            return jsonify({'error': 'Precio inválido'}), 400
+            return jsonify({'error': 'Costo inválido'}), 400
+        
+        # Validar margen
+        try:
+            margen = float(data.get('margen', 30))
+            if margen < 0:
+                return jsonify({'error': 'El margen no puede ser negativo'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Margen inválido'}), 400
+        
+        # Calcular precio automáticamente
+        precio_calculado = costo * (1 + (margen / 100))
         
         producto_id = data.get('id')
         codigo = data['codigo'].strip().upper()
@@ -1211,10 +1287,13 @@ def guardar_producto():
         producto.codigo = codigo
         producto.nombre = data['nombre'].strip()
         producto.descripcion = data.get('descripcion', '').strip() or None
-        producto.precio = precio
+        producto.precio = Decimal(str(round(precio_calculado, 2)))
+        producto.costo = Decimal(str(round(costo, 2)))
+        producto.margen = Decimal(str(round(margen, 2)))
         producto.categoria = data.get('categoria', '').strip() or None
-        producto.iva = float(data.get('iva', 21))
+        producto.iva = Decimal(str(data.get('iva', 21)))
         producto.activo = bool(data.get('activo', True))
+        producto.fecha_modificacion = datetime.utcnow()
         
         # Solo actualizar stock si es producto nuevo
         if not producto_id:
@@ -1226,11 +1305,19 @@ def guardar_producto():
         
         db.session.commit()
         
+        print(f"✅ Producto {accion}: {codigo}")
+        print(f"   Costo: ${costo:.2f}")
+        print(f"   Margen: {margen}%")
+        print(f"   Precio: ${precio_calculado:.2f}")
+        
         return jsonify({
             'success': True,
             'message': f'Producto {accion} correctamente',
             'producto_id': producto.id,
-            'producto_codigo': producto.codigo
+            'producto_codigo': producto.codigo,
+            'precio_calculado': round(precio_calculado, 2),
+            'costo': round(costo, 2),
+            'margen': round(margen, 2)
         })
         
     except Exception as e:
@@ -1323,9 +1410,10 @@ def toggle_producto(producto_id):
         print(f"Error cambiando estado del producto: {str(e)}")
         return jsonify({'error': f'Error al cambiar estado: {str(e)}'}), 500
 
+# 3. ACTUALIZAR LA RUTA /buscar_productos_admin
 @app.route('/buscar_productos_admin')
 def buscar_productos_admin():
-    """Buscar productos con filtros para administración"""
+    """Buscar productos con filtros para administración - INCLUYE COSTO Y MARGEN"""
     if 'user_id' not in session:
         return jsonify({'error': 'No autorizado'}), 401
     
@@ -1362,12 +1450,22 @@ def buscar_productos_admin():
         # Formatear respuesta
         resultado = []
         for producto in productos:
+            # Manejar valores por defecto
+            costo = float(producto.costo) if producto.costo else 0.0
+            margen = float(producto.margen) if producto.margen is not None else 0.0
+            
+            # Si no hay costo guardado, calcularlo aproximadamente desde precio
+            if costo == 0.0 and producto.precio > 0 and margen > 0:
+                costo = float(producto.precio) / (1 + (margen / 100))
+            
             resultado.append({
                 'id': producto.id,
                 'codigo': producto.codigo,
                 'nombre': producto.nombre,
                 'descripcion': producto.descripcion,
                 'precio': float(producto.precio),
+                'costo': round(costo, 2),
+                'margen': round(margen, 1),
                 'stock': producto.stock,
                 'categoria': producto.categoria,
                 'iva': float(producto.iva),
@@ -1383,6 +1481,46 @@ def buscar_productos_admin():
     except Exception as e:
         print(f"Error buscando productos: {str(e)}")
         return jsonify({'error': f'Error en la búsqueda: {str(e)}'}), 500
+
+# FUNCIÓN PARA ACTUALIZAR PRODUCTOS EXISTENTES CON COSTO CALCULADO
+@app.route('/actualizar_costos_productos', methods=['POST'])
+def actualizar_costos_productos():
+    """Actualizar productos que tienen costo 0 calculándolo desde precio y margen"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        productos_sin_costo = Producto.query.filter(
+            or_(Producto.costo == 0, Producto.costo.is_(None))
+        ).all()
+        
+        contador_actualizados = 0
+        
+        for producto in productos_sin_costo:
+            if producto.precio > 0:
+                margen = float(producto.margen) if producto.margen else 30.0
+                # Calcular costo desde precio: costo = precio / (1 + margen/100)
+                costo_calculado = float(producto.precio) / (1 + (margen / 100))
+                
+                producto.costo = Decimal(str(round(costo_calculado, 2)))
+                producto.fecha_modificacion = datetime.utcnow()
+                
+                contador_actualizados += 1
+                print(f"📦 Actualizado: {producto.codigo} - Precio=${float(producto.precio):.2f} → Costo=${costo_calculado:.2f}")
+        
+        if contador_actualizados > 0:
+            db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Se actualizaron {contador_actualizados} productos',
+            'productos_actualizados': contador_actualizados
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error actualizando costos: {str(e)}")
+        return jsonify({'error': f'Error al actualizar costos: {str(e)}'}), 500
 
 @app.route('/obtener_categorias')
 def obtener_categorias():
@@ -1419,9 +1557,10 @@ def nueva_venta():
     return render_template('nueva_venta.html', productos=productos, clientes=clientes)
 
 # APIs para búsqueda de productos
+# 4. ACTUALIZAR LAS APIS DE BÚSQUEDA PARA INCLUIR COSTO
 @app.route('/api/buscar_productos/<termino>')
 def buscar_productos(termino):
-    """Busca productos por código o nombre (búsqueda parcial)"""
+    """Busca productos por código o nombre - INCLUYE COSTO"""
     if not termino or len(termino) < 2:
         return jsonify([])
     
@@ -1433,6 +1572,8 @@ def buscar_productos(termino):
             'codigo': producto_exacto.codigo,
             'nombre': producto_exacto.nombre,
             'precio': float(producto_exacto.precio),
+            'costo': float(producto_exacto.costo) if producto_exacto.costo else 0.0,  # ← NUEVO
+            'margen': float(producto_exacto.margen) if producto_exacto.margen else 0.0,  # ← NUEVO
             'stock': producto_exacto.stock,
             'iva': float(producto_exacto.iva),
             'match_tipo': 'codigo_exacto',
@@ -1467,6 +1608,8 @@ def buscar_productos(termino):
             'codigo': producto.codigo,
             'nombre': producto.nombre,
             'precio': float(producto.precio),
+            'costo': float(producto.costo) if producto.costo else 0.0,  # ← NUEVO
+            'margen': float(producto.margen) if producto.margen else 0.0,  # ← NUEVO
             'stock': producto.stock,
             'iva': float(producto.iva),
             'match_tipo': match_tipo,
@@ -1487,9 +1630,10 @@ def buscar_productos(termino):
     resultados.sort(key=orden_relevancia)
     return jsonify(resultados)
 
+
 @app.route('/api/producto_por_id/<int:producto_id>')
 def get_producto_por_id(producto_id):
-    """Obtiene un producto por ID"""
+    """Obtiene un producto por ID - INCLUYE COSTO"""
     producto = Producto.query.filter_by(id=producto_id, activo=True).first()
     if producto:
         return jsonify({
@@ -1497,6 +1641,8 @@ def get_producto_por_id(producto_id):
             'codigo': producto.codigo,
             'nombre': producto.nombre,
             'precio': float(producto.precio),
+            'costo': float(producto.costo) if producto.costo else 0.0,  # ← NUEVO
+            'margen': float(producto.margen) if producto.margen else 0.0,  # ← NUEVO
             'stock': producto.stock,
             'iva': float(producto.iva),
             'descripcion': producto.descripcion or ''
@@ -1505,7 +1651,7 @@ def get_producto_por_id(producto_id):
 
 @app.route('/api/producto/<codigo>')
 def get_producto(codigo):
-    """Obtiene un producto por código exacto"""
+    """Obtiene un producto por código exacto - INCLUYE COSTO"""
     producto = Producto.query.filter_by(codigo=codigo.upper(), activo=True).first()
     if producto:
         return jsonify({
@@ -1513,11 +1659,53 @@ def get_producto(codigo):
             'codigo': producto.codigo,
             'nombre': producto.nombre,
             'precio': float(producto.precio),
+            'costo': float(producto.costo) if producto.costo else 0.0,  # ← NUEVO
+            'margen': float(producto.margen) if producto.margen else 0.0,  # ← NUEVO
             'stock': producto.stock,
             'iva': float(producto.iva),
             'descripcion': producto.descripcion or ''
         })
     return jsonify({'error': 'Producto no encontrado'}), 404
+
+
+# 5. FUNCIÓN AUXILIAR PARA MIGRAR PRODUCTOS EXISTENTES
+def migrar_productos_sin_costo_margen():
+    """Función para migrar productos existentes que no tienen costo ni margen"""
+    try:
+        productos_sin_costo = Producto.query.filter(
+            or_(
+                Producto.costo.is_(None),
+                Producto.margen.is_(None),
+                Producto.costo == 0
+            )
+        ).all()
+        
+        contador_migrados = 0
+        
+        for producto in productos_sin_costo:
+            # Si no tiene costo, calcular desde precio con margen del 30%
+            if not producto.costo or producto.costo == 0:
+                # Asumiendo un margen del 30%, costo = precio / 1.30
+                precio_actual = float(producto.precio)
+                costo_calculado = precio_actual / 1.30
+                margen_calculado = 30.0
+                
+                producto.costo = Decimal(str(round(costo_calculado, 2)))
+                producto.margen = Decimal(str(margen_calculado))
+                
+                contador_migrados += 1
+                print(f"📦 Migrado: {producto.codigo} - Precio=${precio_actual:.2f} → Costo=${costo_calculado:.2f}, Margen=30%")
+        
+        if contador_migrados > 0:
+            db.session.commit()
+            print(f"✅ Migración completada: {contador_migrados} productos actualizados")
+        else:
+            print("✅ No hay productos que migrar")
+            
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error en migración: {e}")
+
 
 # FUNCIÓN PROCESAR_VENTA CORREGIDA
 # REEMPLAZA la función procesar_venta completa (línea ~1200 aprox) con esta versión corregida:
@@ -2219,6 +2407,8 @@ if __name__ == '__main__':
     with app.app_context():
         create_tables()
         
+        migrar_productos_sin_costo_margen()  # ← EJECUTAR UNA SOLA VEZ
+
         # Limpiar datos problemáticos
         print("🧹 Verificando integridad de datos...")
         limpiar_facturas_duplicadas()
@@ -2301,6 +2491,621 @@ def reporte_medios_pago():
         }), 500
 
 
+@app.route('/reporte_ventas')
+def reporte_ventas():
+    """Página principal del reporte de ventas"""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    return render_template('reporte_ventas.html')
 
+
+@app.route('/api/reporte_ventas_productos')
+def api_reporte_ventas_productos():
+    """API para generar reporte de ventas por producto - INCLUYE TODAS LAS FACTURAS"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Obtener parámetros
+        fecha_desde = request.args.get('fecha_desde')
+        fecha_hasta = request.args.get('fecha_hasta')
+        categoria = request.args.get('categoria', '').strip()
+        orden = request.args.get('orden', 'cantidad_desc')
+        solo_con_ventas = request.args.get('solo_con_ventas', 'true').lower() == 'true'
+        
+        # Validar fechas
+        if not fecha_desde or not fecha_hasta:
+            return jsonify({
+                'success': False,
+                'error': 'Debe proporcionar fechas desde y hasta'
+            })
+        
+        try:
+            fecha_desde_dt = datetime.strptime(fecha_desde, '%Y-%m-%d')
+            fecha_hasta_dt = datetime.strptime(fecha_hasta, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'error': 'Formato de fecha inválido'
+            })
+        
+        # Validar rango de fechas (máximo 2 años)
+        if (fecha_hasta_dt - fecha_desde_dt).days > 730:
+            return jsonify({
+                'success': False,
+                'error': 'El rango de fechas no puede ser mayor a 2 años'
+            })
+        
+        print(f"📊 Generando reporte de ventas:")
+        print(f"   Período: {fecha_desde} a {fecha_hasta}")
+        print(f"   Categoría: {categoria or 'Todas'}")
+        print(f"   Orden: {orden}")
+        print(f"   Solo con ventas: {solo_con_ventas}")
+        
+        # CLAVE: Query principal SIN FILTRO DE ESTADO (incluye todas las facturas)
+        query = db.session.query(
+            Producto.id,
+            Producto.codigo,
+            Producto.nombre,
+            Producto.descripcion,
+            Producto.categoria,
+            func.sum(DetalleFactura.cantidad).label('cantidad_vendida'),
+            func.sum(DetalleFactura.subtotal).label('total_vendido'),
+            func.avg(DetalleFactura.precio_unitario).label('precio_promedio'),
+            func.max(Factura.fecha).label('ultima_venta'),
+            func.count(DetalleFactura.id).label('num_transacciones')
+        ).join(
+            DetalleFactura, Producto.id == DetalleFactura.producto_id
+        ).join(
+            Factura, DetalleFactura.factura_id == Factura.id
+        ).filter(
+            and_(
+                Factura.fecha >= fecha_desde_dt,
+                Factura.fecha <= fecha_hasta_dt
+                # *** REMOVIDO: Factura.estado == 'autorizada' ***
+                # Ahora incluye TODAS las facturas independientemente del estado
+            )
+        )
+        
+        print(f"✅ Query configurada para incluir TODAS las facturas (sin filtro de estado)")
+        
+        # Filtrar por categoría si se especifica
+        if categoria:
+            query = query.filter(Producto.categoria == categoria)
+            print(f"   Filtro categoría aplicado: {categoria}")
+        
+        # Agrupar por producto
+        query = query.group_by(
+            Producto.id,
+            Producto.codigo,
+            Producto.nombre,
+            Producto.descripcion,
+            Producto.categoria
+        )
+        
+        # Aplicar ordenamiento
+        if orden == 'cantidad_desc':
+            query = query.order_by(desc('cantidad_vendida'))
+        elif orden == 'cantidad_asc':
+            query = query.order_by(asc('cantidad_vendida'))
+        elif orden == 'total_desc':
+            query = query.order_by(desc('total_vendido'))
+        elif orden == 'total_asc':
+            query = query.order_by(asc('total_vendido'))
+        elif orden == 'codigo':
+            query = query.order_by(Producto.codigo)
+        elif orden == 'nombre':
+            query = query.order_by(Producto.nombre)
+        
+        print(f"   Ordenamiento aplicado: {orden}")
+        
+        # Ejecutar query
+        print(f"🔍 Ejecutando consulta...")
+        resultados = query.all()
+        print(f"📋 Encontrados {len(resultados)} productos con ventas")
+        
+        # Consulta adicional: información de estados de facturas para debug
+        debug_estados = db.session.query(
+            Factura.estado,
+            func.count(Factura.id).label('cantidad'),
+            func.sum(Factura.total).label('total')
+        ).filter(
+            and_(
+                Factura.fecha >= fecha_desde_dt,
+                Factura.fecha <= fecha_hasta_dt
+            )
+        ).group_by(Factura.estado).all()
+        
+        estados_info = {}
+        for estado, cantidad, total in debug_estados:
+            estados_info[estado] = {
+                'cantidad': cantidad,
+                'total': float(total) if total else 0.0
+            }
+        
+        print(f"📊 Estados de facturas en el período:")
+        for estado, info in estados_info.items():
+            print(f"   {estado}: {info['cantidad']} facturas (${info['total']:.2f})")
+        
+        # Formatear resultados
+        productos = []
+        total_unidades = 0
+        total_ventas = 0.0
+        
+        for resultado in resultados:
+            cantidad = int(resultado.cantidad_vendida) if resultado.cantidad_vendida else 0
+            total_producto = float(resultado.total_vendido) if resultado.total_vendido else 0.0
+            precio_promedio = float(resultado.precio_promedio) if resultado.precio_promedio else 0.0
+            
+            productos.append({
+                'id': resultado.id,
+                'codigo': resultado.codigo,
+                'nombre': resultado.nombre,
+                'descripcion': resultado.descripcion,
+                'categoria': resultado.categoria,
+                'cantidad_vendida': cantidad,
+                'total_vendido': total_producto,
+                'precio_promedio': precio_promedio,
+                'ultima_venta': resultado.ultima_venta.isoformat() if resultado.ultima_venta else None,
+                'num_transacciones': int(resultado.num_transacciones) if resultado.num_transacciones else 0
+            })
+            
+            total_unidades += cantidad
+            total_ventas += total_producto
+        
+        # Calcular resumen
+        resumen = {
+            'total_productos': len(productos),
+            'total_unidades': total_unidades,
+            'total_ventas': total_ventas,
+            'promedio_por_producto': total_ventas / len(productos) if len(productos) > 0 else 0,
+            'fecha_desde': fecha_desde,
+            'fecha_hasta': fecha_hasta,
+            'categoria_filtro': categoria or 'Todas',
+            'incluye_todas_facturas': True,  # ← Nuevo flag
+            'estados_facturas': estados_info  # ← Info de debug
+        }
+        
+        print(f"✅ Reporte generado exitosamente:")
+        print(f"   Productos: {resumen['total_productos']}")
+        print(f"   Unidades: {resumen['total_unidades']}")
+        print(f"   Total: ${resumen['total_ventas']:.2f}")
+        print(f"   Incluye todas las facturas: SÍ")
+        
+        return jsonify({
+            'success': True,
+            'productos': productos,
+            'resumen': resumen,
+            'parametros': {
+                'fecha_desde': fecha_desde,
+                'fecha_hasta': fecha_hasta,
+                'categoria': categoria,
+                'orden': orden,
+                'solo_con_ventas': solo_con_ventas,
+                'incluye_todas_facturas': True
+            }
+        })
+        
+    except Exception as e:
+        print(f"❌ Error en reporte de ventas: {str(e)}")
+        import traceback
+        print(f"📋 Stack trace: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': f'Error interno del servidor: {str(e)}'
+        }), 500
+
+
+@app.route('/exportar_reporte_ventas')
+def exportar_reporte_ventas():
+    """Exportar reporte de ventas a Excel o CSV - INCLUYE TODAS LAS FACTURAS"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Obtener parámetros (mismos que el reporte)
+        fecha_desde = request.args.get('fecha_desde')
+        fecha_hasta = request.args.get('fecha_hasta')
+        categoria = request.args.get('categoria', '').strip()
+        orden = request.args.get('orden', 'cantidad_desc')
+        formato = request.args.get('formato', 'csv')  # csv o excel
+        
+        # Validar fechas
+        fecha_desde_dt = datetime.strptime(fecha_desde, '%Y-%m-%d')
+        fecha_hasta_dt = datetime.strptime(fecha_hasta, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+        
+        print(f"📤 Exportando reporte a {formato.upper()}: {fecha_desde} a {fecha_hasta}")
+        
+        # Query principal (MISMA del reporte - SIN filtro de estado)
+        query = db.session.query(
+            Producto.codigo,
+            Producto.nombre,
+            Producto.descripcion,
+            Producto.categoria,
+            func.sum(DetalleFactura.cantidad).label('cantidad_vendida'),
+            func.sum(DetalleFactura.subtotal).label('total_vendido'),
+            func.avg(DetalleFactura.precio_unitario).label('precio_promedio'),
+            func.max(Factura.fecha).label('ultima_venta'),
+            func.count(DetalleFactura.id).label('num_transacciones')
+        ).join(
+            DetalleFactura, Producto.id == DetalleFactura.producto_id
+        ).join(
+            Factura, DetalleFactura.factura_id == Factura.id
+        ).filter(
+            and_(
+                Factura.fecha >= fecha_desde_dt,
+                Factura.fecha <= fecha_hasta_dt
+                # *** SIN FILTRO DE ESTADO - Incluye todas las facturas ***
+            )
+        )
+        
+        if categoria:
+            query = query.filter(Producto.categoria == categoria)
+        
+        query = query.group_by(
+            Producto.id,
+            Producto.codigo,
+            Producto.nombre,
+            Producto.descripcion,
+            Producto.categoria
+        )
+        
+        # Aplicar ordenamiento
+        if orden == 'cantidad_desc':
+            query = query.order_by(desc('cantidad_vendida'))
+        elif orden == 'cantidad_asc':
+            query = query.order_by(asc('cantidad_vendida'))
+        elif orden == 'total_desc':
+            query = query.order_by(desc('total_vendido'))
+        elif orden == 'total_asc':
+            query = query.order_by(asc('total_vendido'))
+        elif orden == 'codigo':
+            query = query.order_by(Producto.codigo)
+        elif orden == 'nombre':
+            query = query.order_by(Producto.nombre)
+        
+        resultados = query.all()
+        print(f"📊 Exportando {len(resultados)} productos")
+        
+        # Preparar datos para exportación
+        datos_exportacion = []
+        encabezados = [
+            'Código',
+            'Producto',
+            'Descripción',
+            'Categoría',
+            'Cantidad Vendida',
+            'Precio Promedio',
+            'Total Vendido',
+            'Última Venta',
+            'Número de Transacciones'
+        ]
+        
+        # Agregar encabezados
+        datos_exportacion.append(encabezados)
+        
+        # Agregar datos
+        for resultado in resultados:
+            fila = [
+                resultado.codigo,
+                resultado.nombre,
+                resultado.descripcion or '',
+                resultado.categoria or 'Sin categoría',
+                int(resultado.cantidad_vendida) if resultado.cantidad_vendida else 0,
+                f"{float(resultado.precio_promedio):.2f}" if resultado.precio_promedio else "0.00",
+                f"{float(resultado.total_vendido):.2f}" if resultado.total_vendido else "0.00",
+                resultado.ultima_venta.strftime('%d/%m/%Y') if resultado.ultima_venta else 'N/A',
+                int(resultado.num_transacciones) if resultado.num_transacciones else 0
+            ]
+            datos_exportacion.append(fila)
+        
+        # Generar archivo según formato
+        if formato == 'excel':
+            return generar_excel_reporte(datos_exportacion, fecha_desde, fecha_hasta)
+        else:  # CSV por defecto
+            return generar_csv_reporte(datos_exportacion, fecha_desde, fecha_hasta)
+        
+    except Exception as e:
+        print(f"❌ Error exportando reporte: {str(e)}")
+        return jsonify({'error': f'Error al exportar: {str(e)}'}), 500
+
+
+def generar_csv_reporte(datos, fecha_desde, fecha_hasta):
+    """Generar archivo CSV del reporte"""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Escribir encabezado del reporte
+    writer.writerow([f'Reporte de Ventas por Producto'])
+    writer.writerow([f'Período: {fecha_desde} al {fecha_hasta}'])
+    writer.writerow([f'Generado: {datetime.now().strftime("%d/%m/%Y %H:%M")}'])
+    writer.writerow([])  # Línea vacía
+    
+    # Escribir datos
+    for fila in datos:
+        writer.writerow(fila)
+    
+    # Crear respuesta
+    output.seek(0)
+    response = make_response(output.getvalue())
+    response.headers['Content-Type'] = 'text/csv'
+    response.headers['Content-Disposition'] = f'attachment; filename=reporte_ventas_{fecha_desde}_{fecha_hasta}.csv'
+    
+    return response
+
+def generar_excel_reporte(datos, fecha_desde, fecha_hasta):
+    """Generar archivo Excel del reporte (requiere openpyxl)"""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.utils import get_column_letter
+        
+        # Crear workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Reporte de Ventas"
+        
+        # Estilos
+        titulo_font = Font(bold=True, size=16)
+        encabezado_font = Font(bold=True, size=12, color="FFFFFF")
+        encabezado_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        
+        # Título del reporte
+        ws['A1'] = f'Reporte de Ventas por Producto'
+        ws['A1'].font = titulo_font
+        ws['A2'] = f'Período: {fecha_desde} al {fecha_hasta}'
+        ws['A3'] = f'Generado: {datetime.now().strftime("%d/%m/%Y %H:%M")}'
+        
+        # Fila inicial para datos
+        fila_inicio = 5
+        
+        # Escribir encabezados
+        encabezados = datos[0]
+        for col, encabezado in enumerate(encabezados, 1):
+            celda = ws.cell(row=fila_inicio, column=col, value=encabezado)
+            celda.font = encabezado_font
+            celda.fill = encabezado_fill
+            celda.alignment = Alignment(horizontal='center')
+        
+        # Escribir datos
+        for fila_idx, fila_datos in enumerate(datos[1:], fila_inicio + 1):
+            for col_idx, valor in enumerate(fila_datos, 1):
+                ws.cell(row=fila_idx, column=col_idx, value=valor)
+        
+        # Ajustar ancho de columnas
+        for col in range(1, len(encabezados) + 1):
+            ws.column_dimensions[get_column_letter(col)].width = 15
+        
+        # Guardar en memoria
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        # Crear respuesta
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        response.headers['Content-Disposition'] = f'attachment; filename=reporte_ventas_{fecha_desde}_{fecha_hasta}.xlsx'
+        
+        return response
+        
+    except ImportError:
+        # Si no está instalado openpyxl, devolver CSV
+        return generar_csv_reporte(datos, fecha_desde, fecha_hasta)
+
+# ==================== REPORTE RÁPIDO DE TOP PRODUCTOS ====================
+
+@app.route('/api/top_productos_vendidos')
+def api_top_productos_vendidos():
+    """API para obtener top 10 productos más vendidos (últimos 30 días)"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Últimos 30 días
+        fecha_hasta = datetime.utcnow()
+        fecha_desde = fecha_hasta - timedelta(days=30)
+        
+        # Query para top productos
+        resultados = db.session.query(
+            Producto.codigo,
+            Producto.nombre,
+            func.sum(DetalleFactura.cantidad).label('cantidad_vendida'),
+            func.sum(DetalleFactura.subtotal).label('total_vendido')
+        ).join(
+            DetalleFactura, Producto.id == DetalleFactura.producto_id
+        ).join(
+            Factura, DetalleFactura.factura_id == Factura.id
+        ).filter(
+            and_(
+                Factura.fecha >= fecha_desde,
+                Factura.fecha <= fecha_hasta,
+                Factura.estado == 'autorizada'
+            )
+        ).group_by(
+            Producto.id,
+            Producto.codigo,
+            Producto.nombre
+        ).order_by(
+            desc('cantidad_vendida')
+        ).limit(10).all()
+        
+        # Formatear respuesta
+        top_productos = []
+        for resultado in resultados:
+            top_productos.append({
+                'codigo': resultado.codigo,
+                'nombre': resultado.nombre,
+                'cantidad_vendida': int(resultado.cantidad_vendida),
+                'total_vendido': float(resultado.total_vendido)
+            })
+        
+        return jsonify({
+            'success': True,
+            'productos': top_productos,
+            'periodo': '30 días'
+        })
+        
+    except Exception as e:
+        print(f"Error en top productos: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# ==================== DASHBOARD DE VENTAS PARA INCLUIR EN MAIN ====================
+
+# REEMPLAZA tu función api_dashboard_ventas() existente con esta versión mejorada:
+
+@app.route('/api/dashboard_ventas')
+def api_dashboard_ventas():
+    """API para dashboard de ventas (resumen del día) - VERSIÓN CORREGIDA"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        print("🔍 Iniciando consulta dashboard ventas...")
+        
+        # Obtener fecha actual
+        from datetime import date
+        hoy = date.today()
+        print(f"📅 Consultando ventas para: {hoy}")
+        
+        # CONSULTA 1: Datos básicos de ventas del día
+        # Usar DATE() para comparar solo la fecha, no hora
+        consulta_ventas = db.session.query(
+            func.count(Factura.id).label('num_facturas'),
+            func.coalesce(func.sum(Factura.total), 0).label('total_vendido')
+        ).filter(
+            func.date(Factura.fecha) == hoy
+        ).first()
+        
+        print(f"📊 Consulta ventas básicas completada")
+        print(f"   Facturas: {consulta_ventas.num_facturas}")
+        print(f"   Total: ${consulta_ventas.total_vendido}")
+        
+        # CONSULTA 2: Total de unidades vendidas del día
+        consulta_unidades = db.session.query(
+            func.coalesce(func.sum(DetalleFactura.cantidad), 0).label('total_unidades')
+        ).join(
+            Factura, DetalleFactura.factura_id == Factura.id
+        ).filter(
+            func.date(Factura.fecha) == hoy
+        ).first()
+        
+        print(f"📦 Unidades vendidas: {consulta_unidades.total_unidades}")
+        
+        # CONSULTA 3: Producto más vendido del día
+        consulta_top_producto = db.session.query(
+            Producto.codigo,
+            Producto.nombre,
+            func.sum(DetalleFactura.cantidad).label('cantidad_vendida')
+        ).join(
+            DetalleFactura, Producto.id == DetalleFactura.producto_id
+        ).join(
+            Factura, DetalleFactura.factura_id == Factura.id
+        ).filter(
+            func.date(Factura.fecha) == hoy
+        ).group_by(
+            Producto.id,
+            Producto.codigo, 
+            Producto.nombre
+        ).order_by(
+            desc('cantidad_vendida')
+        ).first()
+        
+        if consulta_top_producto:
+            print(f"👑 Top producto: {consulta_top_producto.codigo} - {consulta_top_producto.nombre} ({consulta_top_producto.cantidad_vendida} unidades)")
+        else:
+            print("👑 No hay ventas de productos hoy")
+        
+        # Preparar respuesta
+        response_data = {
+            'success': True,
+            'ventas_hoy': {
+                'num_facturas': int(consulta_ventas.num_facturas or 0),
+                'total_vendido': float(consulta_ventas.total_vendido or 0),
+                'unidades_vendidas': int(consulta_unidades.total_unidades or 0)
+            },
+            'producto_top_hoy': None
+        }
+        
+        # Agregar producto top si existe
+        if consulta_top_producto:
+            response_data['producto_top_hoy'] = {
+                'codigo': consulta_top_producto.codigo,
+                'nombre': consulta_top_producto.nombre,
+                'cantidad': int(consulta_top_producto.cantidad_vendida)
+            }
+        
+        print(f"✅ Dashboard data preparada correctamente")
+        print(f"📤 Enviando respuesta: {response_data}")
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        print(f"❌ Error en api_dashboard_ventas: {str(e)}")
+        import traceback
+        print(f"📋 Stack trace: {traceback.format_exc()}")
+        
+        # Devolver datos por defecto en caso de error
+        return jsonify({
+            'success': True,
+            'ventas_hoy': {
+                'num_facturas': 0,
+                'total_vendido': 0.0,
+                'unidades_vendidas': 0
+            },
+            'producto_top_hoy': None,
+            'error_debug': str(e)
+        })
+
+# AGREGAR TAMBIÉN ESTA RUTA PARA DEBUG:
+@app.route('/debug/dashboard_data')
+def debug_dashboard_data():
+    """Endpoint para debugging del dashboard"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        from datetime import date
+        hoy = date.today()
+        
+        # Información de debug
+        debug_info = {
+            'fecha_hoy': str(hoy),
+            'total_facturas_bd': Factura.query.count(),
+            'total_productos_bd': Producto.query.count(),
+            'facturas_hoy': Factura.query.filter(func.date(Factura.fecha) == hoy).count(),
+            'ultimas_facturas': []
+        }
+        
+        # Últimas 5 facturas para debug
+        ultimas_facturas = Factura.query.order_by(Factura.id.desc()).limit(5).all()
+        for factura in ultimas_facturas:
+            debug_info['ultimas_facturas'].append({
+                'id': factura.id,
+                'numero': factura.numero,
+                'total': float(factura.total),
+                'fecha': factura.fecha.strftime('%Y-%m-%d %H:%M:%S'),
+                'estado': factura.estado
+            })
+        
+        # Probar la consulta de dashboard
+        try:
+            dashboard_data = api_dashboard_ventas()
+            debug_info['dashboard_response'] = dashboard_data.get_json()
+        except Exception as e:
+            debug_info['dashboard_error'] = str(e)
+        
+        return jsonify({
+            'success': True,
+            'debug_info': debug_info
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 app.run(debug=True, host='0.0.0.0', port=5000)

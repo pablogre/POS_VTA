@@ -238,7 +238,7 @@
                 
                 <div class="btn-group" role="group">
                     <button type="button" class="btn btn-info dropdown-toggle" data-bs-toggle="dropdown">
-                        <i class="fas fa-qrcode"></i> QR AFIP
+                        <i class="fas fa-qrcode"></i> QR ARCA
                     </button>
                     <ul class="dropdown-menu">
                         <li><a class="dropdown-item" href="#" onclick="mostrarQRFactura()">
@@ -248,7 +248,7 @@
                             <i class="fas fa-check-circle"></i> Validar QR
                         </a></li>
                         <li><a class="dropdown-item" href="#" onclick="abrirQREnAFIP()">
-                            <i class="fas fa-external-link-alt"></i> Abrir en AFIP
+                            <i class="fas fa-external-link-alt"></i> Abrir en ARCA
                         </a></li>
                     </ul>
                 </div>
@@ -980,15 +980,15 @@ function mostrarResultadoVenta(resultado) {
     
     if (resultado.estado === 'autorizada') {
         estadoHtml = `<div class="alert alert-success">
-            <i class="fas fa-check-circle"></i> <strong>¡Factura autorizada por AFIP!</strong>
+            <i class="fas fa-check-circle"></i> <strong>¡Factura autorizada por ARCA!</strong>
             <br><strong>CAE:</strong> ${resultado.cae}
-            <br><small class="text-success">✅ Código QR AFIP disponible</small>
+            <br><small class="text-success">✅ Código QR ARCA disponible</small>
         </div>`;
     } else if (resultado.estado === 'error_afip') {
         estadoHtml = `<div class="alert alert-warning">
             <i class="fas fa-exclamation-triangle"></i> <strong>Venta procesada localmente</strong>
-            <br>Error de conexión con AFIP - La factura se guardó localmente
-            <br><small class="text-warning">⚠️ QR AFIP no disponible</small>
+            <br>Error de conexión con ARCA - La factura se guardó localmente
+            <br><small class="text-warning">⚠️ QR ARCA no disponible</small>
         </div>`;
     } else {
         estadoHtml = `<div class="alert alert-info">
@@ -1173,7 +1173,7 @@ function validarQRFactura() {
         if (data.qr_valido) {
             mensaje = `
                 <div class="alert alert-success">
-                    <h5><i class="fas fa-check-circle"></i> QR AFIP Válido</h5>
+                    <h5><i class="fas fa-check-circle"></i> QR ARCA Válido</h5>
                     <p><strong>Factura:</strong> ${data.numero}</p>
                     <p><strong>Estado:</strong> ${data.mensaje}</p>
                     <small><strong>URL QR:</strong><br>
