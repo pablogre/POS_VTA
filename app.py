@@ -219,6 +219,83 @@ class DetalleFactura(db.Model):
     factura = db.relationship('Factura', backref='detalles')
     producto = db.relationship('Producto', backref='detalles_factura')
 
+class MedioPago(db.Model):
+    """Tabla para registrar los medios de pago de cada factura"""
+    __tablename__ = 'medios_pago'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    factura_id = db.Column(db.Integer, db.ForeignKey('factura.id'), nullable=False)
+    medio_pago = db.Column(db.String(20), nullable=False)  # efectivo, credito, debito, mercado_pago
+    importe = db.Column(Numeric(10, 2), nullable=False)
+    fecha_registro = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relación con Factura
+    factura = db.relationship('Factura', backref=db.backref('medios_pago', lazy=True))
+    
+    def __repr__(self):
+        return f'<MedioPago {self.medio_pago}: ${self.importe}>'
+    
+    def to_dict(self):
+        """Convertir a diccionario para JSON"""
+        return {
+            'id': self.id,
+            'factura_id': self.factura_id,
+            'medio_pago': self.medio_pago,
+            'importe': float(self.importe),
+            'fecha_registro': self.fecha_registro.strftime('%Y-%m-%d %H:%M:%S')
+        }
+    
+    @staticmethod
+    def obtener_medios_disponibles():
+        """Retorna los medios de pago disponibles"""
+        return [
+            {'codigo': 'efectivo', 'nombre': 'Efectivo', 'icono': 'fas fa-money-bill-wave'},
+            {'codigo': 'credito', 'nombre': 'Tarjeta de Crédito', 'icono': 'fas fa-credit-card'},
+            {'codigo': 'debito', 'nombre': 'Tarjeta de Débito', 'icono': 'fas fa-credit-card'},
+            {'codigo': 'mercado_pago', 'nombre': 'Mercado Pago', 'icono': 'fas fa-mobile-alt'}
+        ]
+    
+    @staticmethod
+    def calcular_recaudacion_por_fecha(fecha_desde, fecha_hasta):
+        """Calcular recaudación por medio de pago en un rango de fechas"""
+        try:
+            from sqlalchemy import func, and_
+            
+            resultado = db.session.query(
+                MedioPago.medio_pago,
+                func.sum(MedioPago.importe).label('total'),
+                func.count(MedioPago.id).label('cantidad_operaciones')
+            ).filter(
+                and_(
+                    MedioPago.fecha_registro >= fecha_desde,
+                    MedioPago.fecha_registro <= fecha_hasta
+                )
+            ).group_by(MedioPago.medio_pago).all()
+            
+            # Convertir a diccionario
+            recaudacion = {}
+            total_general = 0
+            
+            for medio, total, cantidad in resultado:
+                recaudacion[medio] = {
+                    'total': float(total),
+                    'cantidad_operaciones': cantidad
+                }
+                total_general += float(total)
+            
+            return {
+                'recaudacion_por_medio': recaudacion,
+                'total_general': total_general,
+                'fecha_desde': fecha_desde.strftime('%Y-%m-%d'),
+                'fecha_hasta': fecha_hasta.strftime('%Y-%m-%d')
+            }
+            
+        except Exception as e:
+            print(f"Error calculando recaudación: {e}")
+            return None
+
+
+
 # Clase para manejo de ARCA/AFIP
 class ARCAClient:
     def __init__(self):
@@ -1370,19 +1447,40 @@ def get_producto(codigo):
 
 @app.route('/procesar_venta', methods=['POST'])
 def procesar_venta():
+    """Procesar venta con medios de pago - VERSIÓN CON MEDIOS DE PAGO"""
     if 'user_id' not in session:
         return jsonify({'error': 'No autorizado'}), 401
     
     try:
         data = request.json
         
+        # Validar datos básicos
+        cliente_id = data.get('cliente_id')
+        tipo_comprobante = data.get('tipo_comprobante')
+        items = data.get('items', [])
+        medios_pago = data.get('medios_pago', [])
+        imprimir_automatico = data.get('imprimir_automatico', True)
+        
+        if not items:
+            return jsonify({'success': False, 'error': 'No hay productos en la venta'})
+        
+        if not medios_pago:
+            return jsonify({'success': False, 'error': 'No se especificaron medios de pago'})
+        
+        # Validar que la suma de medios de pago coincida con el total
+        total_medios = sum(float(mp.get('importe', 0)) for mp in medios_pago)
+        total_venta = float(data.get('total', 0))
+        
+        if total_medios < total_venta:
+            return jsonify({'success': False, 'error': 'El total de medios de pago es menor al total de la venta'})
+        
         # PASO 1: Determinar el próximo número de comprobante
-        tipo_comprobante = int(data.get('tipo_comprobante', '11'))
+        tipo_comprobante_int = int(tipo_comprobante)
         punto_venta = ARCA_CONFIG.PUNTO_VENTA
         
         # PASO 2: Generar número temporal primero
         ultima_factura_local = Factura.query.filter_by(
-            tipo_comprobante=str(tipo_comprobante),
+            tipo_comprobante=str(tipo_comprobante_int),
             punto_venta=punto_venta
         ).order_by(Factura.id.desc()).first()
         
@@ -1408,14 +1506,14 @@ def procesar_venta():
         
         # PASO 3: Crear factura CON número temporal
         factura = Factura(
-            numero=numero_factura_temporal,  # ← USAR NÚMERO TEMPORAL
-            tipo_comprobante=str(tipo_comprobante),
+            numero=numero_factura_temporal,
+            tipo_comprobante=str(tipo_comprobante_int),
             punto_venta=punto_venta,
-            cliente_id=data['cliente_id'],
+            cliente_id=cliente_id,
             usuario_id=session['user_id'],
             subtotal=Decimal(str(data['subtotal'])),
             iva=Decimal(str(data['iva'])),
-            total=Decimal(str(data['total']))
+            total=Decimal(str(total_venta))
         )
         
         db.session.add(factura)
@@ -1423,8 +1521,8 @@ def procesar_venta():
         
         print(f"✅ Factura creada con ID: {factura.id} y número temporal: {factura.numero}")
         
-        # PASO 4: Agregar detalles
-        for item in data['items']:
+        # PASO 4: Agregar detalles de productos
+        for item in items:
             detalle = DetalleFactura(
                 factura_id=factura.id,
                 producto_id=item['producto_id'],
@@ -1440,14 +1538,26 @@ def procesar_venta():
                 producto.stock -= item['cantidad']
                 print(f"📦 Stock actualizado para {producto.nombre}: {producto.stock}")
         
-        # PASO 5: Intentar autorizar en AFIP
+        # *** NUEVO: PASO 5: Agregar medios de pago ***
+        print(f"💳 Agregando {len(medios_pago)} medios de pago...")
+        for medio_data in medios_pago:
+            medio_pago = MedioPago(
+                factura_id=factura.id,
+                medio_pago=medio_data['medio_pago'],
+                importe=Decimal(str(medio_data['importe'])),
+                fecha_registro=datetime.utcnow()
+            )
+            db.session.add(medio_pago)
+            print(f"💰 Medio agregado: {medio_data['medio_pago']} ${medio_data['importe']}")
+        
+        # PASO 6: Intentar autorizar en AFIP
         try:
             print("📄 Autorizando en AFIP...")
-            cliente = Cliente.query.get(data['cliente_id'])
+            cliente = Cliente.query.get(cliente_id)
             
             # Preparar datos para AFIP
             datos_comprobante = {
-                'tipo_comprobante': tipo_comprobante,
+                'tipo_comprobante': tipo_comprobante_int,
                 'punto_venta': punto_venta,
                 'importe_neto': float(factura.subtotal),
                 'importe_iva': float(factura.iva),
@@ -1503,13 +1613,12 @@ def procesar_venta():
             print(f"❌ Error completo al autorizar en AFIP: {e}")
             print(f"📝 Manteniendo número temporal: {factura.numero}")
             
-        # PASO 6: Guardar todo en la base de datos
+        # PASO 7: Guardar todo en la base de datos
         db.session.commit()
         
         print(f"🎉 Venta procesada exitosamente: {factura.numero}")
         
-        # PASO 7: Imprimir automáticamente si está configurado
-        imprimir_automatico = data.get('imprimir_automatico', True)
+        # PASO 8: Imprimir automáticamente si está configurado
         if imprimir_automatico and IMPRESION_DISPONIBLE:
             try:
                 print("🖨️ Imprimiendo factura automáticamente...")
@@ -1530,8 +1639,6 @@ def procesar_venta():
         print(f"❌ Error en procesar_venta: {str(e)}")
         db.session.rollback()
         return jsonify({'error': f'Error al procesar la venta: {str(e)}'}), 500
-
-
 
 # RUTAS DE IMPRESIÓN
 @app.route('/imprimir_factura/<int:factura_id>')
@@ -1942,6 +2049,97 @@ def debug_afip_simple():
             'timestamp': datetime.utcnow().isoformat()
         }), 500
 
+
+
+# *** NUEVAS RUTAS: Reporte de medios de pago ***
+@app.route('/reporte_medios_pago', methods=['POST'])
+def reporte_medios_pago():
+    """Generar reporte de recaudación por medios de pago"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        data = request.get_json()
+        fecha_desde_str = data.get('fecha_desde')
+        fecha_hasta_str = data.get('fecha_hasta')
+        
+        # Si no se especifican fechas, usar el día actual
+        if not fecha_desde_str:
+            fecha_desde = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            fecha_desde = datetime.strptime(fecha_desde_str, '%Y-%m-%d')
+            
+        if not fecha_hasta_str:
+            fecha_hasta = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
+        else:
+            fecha_hasta = datetime.strptime(fecha_hasta_str + ' 23:59:59', '%Y-%m-%d %H:%M:%S')
+        
+        # Obtener recaudación
+        reporte = MedioPago.calcular_recaudacion_por_fecha(fecha_desde, fecha_hasta)
+        
+        if reporte:
+            return jsonify({
+                'success': True,
+                'reporte': reporte
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Error al generar el reporte'
+            })
+            
+    except Exception as e:
+        print(f"Error generando reporte medios de pago: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/reporte_medios_hoy')
+def reporte_medios_hoy():
+    """Reporte rápido de medios de pago del día actual"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        hoy = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        fin_hoy = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        reporte = MedioPago.calcular_recaudacion_por_fecha(hoy, fin_hoy)
+        
+        return jsonify({
+            'success': True,
+            'reporte': reporte
+        })
+        
+    except Exception as e:
+        print(f"Error en reporte del día: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/medios_pago_factura/<int:factura_id>')
+def medios_pago_factura(factura_id):
+    """Obtener los medios de pago de una factura específica"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        factura = Factura.query.get_or_404(factura_id)
+        
+        medios = [{
+            'medio_pago': mp.medio_pago,
+            'importe': float(mp.importe),
+            'fecha_registro': mp.fecha_registro.strftime('%Y-%m-%d %H:%M:%S')
+        } for mp in factura.medios_pago]
+        
+        return jsonify({
+            'success': True,
+            'factura_numero': factura.numero,
+            'total_factura': float(factura.total),
+            'medios_pago': medios
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo medios de pago: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 
 if __name__ == '__main__':
