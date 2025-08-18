@@ -174,6 +174,50 @@
     </div>
 </div>
 
+<!-- NUEVA SECCIÓN: Reporte de Medios de Pago -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-chart-bar"></i> Reporte de Medios de Pago</h5>
+            </div>
+            <div class="card-body">
+                <!-- Filtros de fecha -->
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label for="fecha_desde" class="form-label">Desde:</label>
+                        <input type="date" class="form-control" id="fecha_desde">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="fecha_hasta" class="form-label">Hasta:</label>
+                        <input type="date" class="form-control" id="fecha_hasta">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="button" class="btn btn-success w-100" onclick="cargarReporteMediosPago()">
+                            <i class="fas fa-search"></i> Generar Reporte
+                        </button>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="establecerFechasHoy()">
+                            <i class="fas fa-calendar-day"></i> Hoy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Resultados del reporte -->
+                <div id="reporte_medios_pago">
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-chart-pie fa-3x mb-3"></i>
+                        <h6>Selecciona un rango de fechas para ver el reporte</h6>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- JavaScript para el estado de AFIP en tiempo real -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -319,6 +363,253 @@ function mostrarNotificacion(mensaje, tipo) {
         alert(mensaje);
     }
 }
+
+// Establecer fechas por defecto al cargar
+document.addEventListener('DOMContentLoaded', function() {
+    establecerFechasHoy();
+    cargarReporteMediosPago(); // Cargar reporte del día actual
+});
+
+function establecerFechasHoy() {
+    const hoy = new Date().toISOString().split('T')[0];
+    document.getElementById('fecha_desde').value = hoy;
+    document.getElementById('fecha_hasta').value = hoy;
+}
+
+function cargarReporteMediosPago() {
+    const fechaDesde = document.getElementById('fecha_desde').value;
+    const fechaHasta = document.getElementById('fecha_hasta').value;
+    
+    if (!fechaDesde || !fechaHasta) {
+        mostrarErrorReporte('Debe seleccionar ambas fechas');
+        return;
+    }
+    
+    if (fechaDesde > fechaHasta) {
+        mostrarErrorReporte('La fecha "desde" no puede ser mayor que la fecha "hasta"');
+        return;
+    }
+    
+    // Mostrar loading
+    const contenedor = document.getElementById('reporte_medios_pago');
+    contenedor.innerHTML = `
+        <div class="text-center py-4">
+            <i class="fas fa-spinner fa-spin fa-2x text-primary mb-3"></i>
+            <h6>Generando reporte...</h6>
+        </div>
+    `;
+    
+    // Realizar petición al servidor
+    fetch(`/api/reporte_medios_pago?desde=${fechaDesde}&hasta=${fechaHasta}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarReporteMediosPago(data.reporte, fechaDesde, fechaHasta);
+            } else {
+                mostrarErrorReporte(data.error || 'Error al generar el reporte');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarErrorReporte('Error de conexión al cargar el reporte');
+        });
+}
+
+function mostrarReporteMediosPago(reporte, fechaDesde, fechaHasta) {
+    const contenedor = document.getElementById('reporte_medios_pago');
+    
+    if (!reporte.medios_pago || reporte.medios_pago.length === 0) {
+        contenedor.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                <strong>Sin datos:</strong> No se encontraron transacciones en el período seleccionado.
+            </div>
+        `;
+        return;
+    }
+    
+    // Calcular totales
+    const totalGeneral = reporte.medios_pago.reduce((sum, medio) => sum + parseFloat(medio.total), 0);
+    
+    let html = `
+        <!-- Resumen del período -->
+        <div class="alert alert-primary">
+            <div class="row">
+                <div class="col-md-6">
+                    <strong><i class="fas fa-calendar-alt"></i> Período:</strong> ${formatearFecha(fechaDesde)} - ${formatearFecha(fechaHasta)}
+                </div>
+                <div class="col-md-6">
+                    <strong><i class="fas fa-dollar-sign"></i> Total General:</strong> 
+                    <span class="h5 text-success">$${totalGeneral.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tabla de medios de pago -->
+        <div class="row">
+            <div class="col-md-8">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th><i class="fas fa-credit-card"></i> Medio de Pago</th>
+                                <th class="text-center"><i class="fas fa-hash"></i> Transacciones</th>
+                                <th class="text-end"><i class="fas fa-dollar-sign"></i> Total</th>
+                                <th class="text-end"><i class="fas fa-percentage"></i> % del Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+    `;
+    
+    // Agregar filas de medios de pago
+    reporte.medios_pago.forEach(medio => {
+        const total = parseFloat(medio.total);
+        const porcentaje = (total / totalGeneral * 100);
+        const icono = obtenerIconoMedioPago(medio.medio_pago);
+        
+        html += `
+            <tr>
+                <td>
+                    <i class="${icono}"></i> ${obtenerNombreMedioPago(medio.medio_pago)}
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-primary">${medio.cantidad}</span>
+                </td>
+                <td class="text-end">
+                    <strong>$${total.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                </td>
+                <td class="text-end">
+                    <span class="badge bg-secondary">${porcentaje.toFixed(1)}%</span>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <!-- Gráfico visual (barras simples con CSS) -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6><i class="fas fa-chart-bar"></i> Distribución Visual</h6>
+                    </div>
+                    <div class="card-body">
+    `;
+    
+    // Crear barras visuales
+    reporte.medios_pago.forEach(medio => {
+        const total = parseFloat(medio.total);
+        const porcentaje = (total / totalGeneral * 100);
+        const anchoBar = Math.max(porcentaje, 5); // Mínimo 5% para visibilidad
+        
+        html += `
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <small><strong>${obtenerNombreMedioPago(medio.medio_pago)}</strong></small>
+                    <small class="text-muted">${porcentaje.toFixed(1)}%</small>
+                </div>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar ${obtenerColorMedioPago(medio.medio_pago)}" 
+                         style="width: ${anchoBar}%"
+                         title="$${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}">
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Información adicional -->
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6><i class="fas fa-info-circle"></i> Estadísticas</h6>
+                        <ul class="list-unstyled mb-0">
+                            <li><strong>Total de transacciones:</strong> ${reporte.medios_pago.reduce((sum, m) => sum + parseInt(m.cantidad), 0)}</li>
+                            <li><strong>Promedio por transacción:</strong> $${(totalGeneral / reporte.medios_pago.reduce((sum, m) => sum + parseInt(m.cantidad), 0)).toLocaleString('es-AR', {minimumFractionDigits: 2})}</li>
+                            <li><strong>Medios de pago utilizados:</strong> ${reporte.medios_pago.length}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6><i class="fas fa-clock"></i> Actualización</h6>
+                        <p class="mb-0">
+                            <small class="text-muted">
+                                Reporte generado: ${new Date().toLocaleString('es-AR')}<br>
+                                Datos en tiempo real
+                            </small>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    contenedor.innerHTML = html;
+}
+
+function mostrarErrorReporte(mensaje) {
+    const contenedor = document.getElementById('reporte_medios_pago');
+    contenedor.innerHTML = `
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Error:</strong> ${mensaje}
+        </div>
+    `;
+}
+
+function formatearFecha(fecha) {
+    return new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR');
+}
+
+function obtenerNombreMedioPago(codigo) {
+    const nombres = {
+        'efectivo': 'Efectivo',
+        'credito': 'Tarjeta de Crédito',
+        'debito': 'Tarjeta de Débito',
+        'mercado_pago': 'Mercado Pago',
+        'transferencia': 'Transferencia',
+        'cheque': 'Cheque'
+    };
+    return nombres[codigo] || codigo.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+function obtenerIconoMedioPago(codigo) {
+    const iconos = {
+        'efectivo': 'fas fa-money-bill-wave text-success',
+        'credito': 'fas fa-credit-card text-primary',
+        'debito': 'fas fa-credit-card text-info',
+        'mercado_pago': 'fas fa-mobile-alt text-warning',
+        'transferencia': 'fas fa-exchange-alt text-secondary',
+        'cheque': 'fas fa-money-check text-dark'
+    };
+    return iconos[codigo] || 'fas fa-credit-card';
+}
+
+function obtenerColorMedioPago(codigo) {
+    const colores = {
+        'efectivo': 'bg-success',
+        'credito': 'bg-primary',
+        'debito': 'bg-info',
+        'mercado_pago': 'bg-warning',
+        'transferencia': 'bg-secondary',
+        'cheque': 'bg-dark'
+    };
+    return colores[codigo] || 'bg-primary';
+}
+
 </script>
 <!-- CSS adicional para mejorar la apariencia -->
 <style>
@@ -351,6 +642,31 @@ function mostrarNotificacion(mensaje, tipo) {
     right: 20px;
     z-index: 1050;
 }
+
+/* <!-- Estilos adicionales para el reporte --> */
+.progress {
+    border-radius: 10px;
+}
+
+.progress-bar {
+    border-radius: 10px;
+    transition: width 0.6s ease;
+}
+
+.table th {
+    font-size: 0.9em;
+    font-weight: 600;
+}
+
+.card-header h6 {
+    margin-bottom: 0;
+    font-weight: 600;
+}
+
+#reporte_medios_pago .alert-primary {
+    border-left: 4px solid #007bff;
+}
+
 </style>
 
 <!-- Container para toasts si no existe -->

@@ -20,6 +20,7 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 import json
 import subprocess
+import MySQLdb.cursors
 
 # ================ FIX SSL COMPATIBLE PARA AFIP ================
 import ssl
@@ -2051,48 +2052,6 @@ def debug_afip_simple():
 
 
 
-# *** NUEVAS RUTAS: Reporte de medios de pago ***
-@app.route('/reporte_medios_pago', methods=['POST'])
-def reporte_medios_pago():
-    """Generar reporte de recaudación por medios de pago"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'No autorizado'}), 401
-    
-    try:
-        data = request.get_json()
-        fecha_desde_str = data.get('fecha_desde')
-        fecha_hasta_str = data.get('fecha_hasta')
-        
-        # Si no se especifican fechas, usar el día actual
-        if not fecha_desde_str:
-            fecha_desde = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        else:
-            fecha_desde = datetime.strptime(fecha_desde_str, '%Y-%m-%d')
-            
-        if not fecha_hasta_str:
-            fecha_hasta = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
-        else:
-            fecha_hasta = datetime.strptime(fecha_hasta_str + ' 23:59:59', '%Y-%m-%d %H:%M:%S')
-        
-        # Obtener recaudación
-        reporte = MedioPago.calcular_recaudacion_por_fecha(fecha_desde, fecha_hasta)
-        
-        if reporte:
-            return jsonify({
-                'success': True,
-                'reporte': reporte
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'Error al generar el reporte'
-            })
-            
-    except Exception as e:
-        print(f"Error generando reporte medios de pago: {e}")
-        return jsonify({'success': False, 'error': str(e)})
-
-
 @app.route('/reporte_medios_hoy')
 def reporte_medios_hoy():
     """Reporte rápido de medios de pago del día actual"""
@@ -2166,7 +2125,81 @@ if __name__ == '__main__':
         limpiar_facturas_duplicadas()
         verificar_estado_facturas()
     
+# AGREGAR esta función a tu app.py (después de la línea que dice @app.route('/medios_pago_factura/<int:factura_id>')):
 
+@app.route('/api/reporte_medios_pago')
+def reporte_medios_pago():
+    """Generar reporte de medios de pago por fecha usando SQLAlchemy"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Obtener parámetros de fecha
+        fecha_desde = request.args.get('desde')
+        fecha_hasta = request.args.get('hasta')
+        
+        if not fecha_desde or not fecha_hasta:
+            return jsonify({
+                'success': False,
+                'error': 'Debe proporcionar fechas desde y hasta'
+            })
+        
+        # Convertir strings a datetime
+        try:
+            fecha_desde_dt = datetime.strptime(fecha_desde, '%Y-%m-%d')
+            fecha_hasta_dt = datetime.strptime(fecha_hasta, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'error': 'Formato de fecha inválido. Use YYYY-MM-DD'
+            })
+        
+        # Consulta usando SQLAlchemy
+        from sqlalchemy import func
+        
+        resultados = db.session.query(
+            MedioPago.medio_pago,
+            func.count(MedioPago.id).label('cantidad'),
+            func.sum(MedioPago.importe).label('total')
+        ).join(
+            Factura, MedioPago.factura_id == Factura.id
+        ).filter(
+            and_(
+                Factura.fecha >= fecha_desde_dt,
+                Factura.fecha <= fecha_hasta_dt
+            )
+        ).group_by(MedioPago.medio_pago).order_by(
+            func.sum(MedioPago.importe).desc()
+        ).all()
+        
+        # Formatear resultados
+        medios_pago = []
+        total_general = 0
+        
+        for medio, cantidad, total in resultados:
+            medios_pago.append({
+                'medio_pago': medio,
+                'cantidad': cantidad,
+                'total': float(total)
+            })
+            total_general += float(total)
+        
+        return jsonify({
+            'success': True,
+            'reporte': {
+                'medios_pago': medios_pago,
+                'fecha_desde': fecha_desde,
+                'fecha_hasta': fecha_hasta,
+                'total_general': total_general
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error en reporte_medios_pago: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Error interno del servidor: {str(e)}'
+        }), 500
 
 
 
