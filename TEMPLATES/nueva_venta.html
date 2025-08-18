@@ -153,7 +153,7 @@
                     <div class="col text-end" id="subtotal_display">$0.00</div>
                 </div>
                 <div class="row mb-2">
-                    <div class="col">IVA (21%):</div>
+                    <div class="col" id="iva_label">IVA:</div>
                     <div class="col text-end" id="iva_display">$0.00</div>
                 </div>
                 <hr>
@@ -466,6 +466,30 @@ let mediosPagoIngresados = [];
 let contadorMediosPago = 0;
 let totalVenta = 0;
 
+// ✅ FUNCIÓN CORRECTA: Cálculo IVA método AFIP
+function calcularIVAAFIP() {
+    // Agrupar items por alícuota de IVA
+    const porAlicuota = {};
+    
+    itemsVenta.forEach(item => {
+        const alicuota = item.iva;
+        if (!porAlicuota[alicuota]) {
+            porAlicuota[alicuota] = 0;
+        }
+        porAlicuota[alicuota] += item.subtotal;
+    });
+    
+    // Calcular IVA por alícuota y redondear
+    let ivaTotal = 0;
+    Object.keys(porAlicuota).forEach(alicuota => {
+        const baseImponible = porAlicuota[alicuota];
+        const ivaAlicuota = Math.round((baseImponible * parseFloat(alicuota) / 100) * 100) / 100;
+        ivaTotal += ivaAlicuota;
+    });
+    
+    return Math.round(ivaTotal * 100) / 100;
+}
+
 // ===========================================
 // FUNCIONES DE BÚSQUEDA MEJORADA
 // ===========================================
@@ -724,12 +748,50 @@ function eliminarItem(itemId) {
 
 function calcularTotales() {
     const subtotal = itemsVenta.reduce((sum, item) => sum + item.subtotal, 0);
-    const iva = itemsVenta.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0);
+    
+    // ✅ USAR método AFIP
+    const iva = calcularIVAAFIP();
     const total = subtotal + iva;
     
+    // Actualizar displays
     document.getElementById('subtotal_display').textContent = `${subtotal.toFixed(2)}`;
     document.getElementById('iva_display').textContent = `${iva.toFixed(2)}`;
     document.getElementById('total_display').textContent = `${total.toFixed(2)}`;
+    
+    // Actualizar etiqueta de IVA
+    actualizarEtiquetaIVA();
+    
+    // 🔍 DEBUG
+    console.log('💰 Totales calculados:', { subtotal, iva, total });
+}
+
+// *** NUEVA FUNCIÓN: Actualizar etiqueta de IVA ***
+function actualizarEtiquetaIVA() {
+    const ivaLabel = document.getElementById('iva_label');
+    
+    if (itemsVenta.length === 0) {
+        ivaLabel.textContent = 'IVA:';
+        return;
+    }
+    
+    // Obtener todas las alícuotas únicas
+    const alicuotas = [...new Set(itemsVenta.map(item => item.iva))];
+    
+    if (alicuotas.length === 1) {
+        // Solo una alícuota
+        const alicuota = alicuotas[0];
+        if (alicuota === 0) {
+            ivaLabel.textContent = 'IVA (Exento):';
+        } else {
+            ivaLabel.textContent = `IVA (${alicuota}%):`;
+        }
+    } else if (alicuotas.length > 1) {
+        // Múltiples alícuotas
+        const alicuotasTexto = alicuotas.sort((a, b) => b - a).join('%, ') + '%';
+        ivaLabel.innerHTML = `IVA <small>(${alicuotasTexto})</small>:`;
+    } else {
+        ivaLabel.textContent = 'IVA:';
+    }
 }
 
 function actualizarTipoComprobante() {
@@ -763,9 +825,14 @@ function procesarVenta() {
         return;
     }
     
-    // AGREGAR ESTAS LÍNEAS NUEVAS:
     const subtotal = itemsVenta.reduce((sum, item) => sum + item.subtotal, 0);
-    const iva = itemsVenta.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0);
+    
+    // *** NUEVO: Calcular IVA con redondeo correcto POR ITEM ***
+    const iva = itemsVenta.reduce((sum, item) => {
+        const ivaItem = Math.round((item.subtotal * item.iva / 100) * 100) / 100;
+        return sum + ivaItem;
+    }, 0);
+    
     totalVenta = subtotal + iva;
     
     // Mostrar modal de medios de pago en lugar de procesar directamente
@@ -777,20 +844,27 @@ function procesarVentaConMediosPago() {
     const tipoComprobante = document.getElementById('tipo_comprobante').value;
     
     const subtotal = itemsVenta.reduce((sum, item) => sum + item.subtotal, 0);
-    const iva = itemsVenta.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0);
+    
+    // ✅ USAR método AFIP consistente
+    const iva = calcularIVAAFIP();
     const total = subtotal + iva;
     
     const imprimirAuto = document.getElementById('imprimir_automatico');
     
+    // *** NUEVO: Preparar items con detalle de IVA para AFIP ***
+    const itemsDetallados = itemsVenta.map(item => ({
+        producto_id: item.producto_id,
+        cantidad: item.cantidad,
+        precio_unitario: item.precio_unitario,
+        subtotal: item.subtotal,
+        iva_porcentaje: item.iva  // ✅ CLAVE: Porcentaje de IVA individual
+    }));
+    
     const ventaData = {
         cliente_id: parseInt(clienteId),
         tipo_comprobante: tipoComprobante,
-        items: itemsVenta.map(item => ({
-            producto_id: item.producto_id,
-            cantidad: item.cantidad,
-            precio_unitario: item.precio_unitario,
-            subtotal: item.subtotal
-        })),
+        items: itemsDetallados,  // Items para la BD
+        items_detalle: itemsDetallados,  // *** NUEVO: Items detallados para AFIP ***
         subtotal: subtotal,
         iva: iva,
         total: total,
@@ -800,6 +874,10 @@ function procesarVentaConMediosPago() {
         })),
         imprimir_automatico: imprimirAuto ? imprimirAuto.checked : true
     };
+    
+    // 🔍 DEBUG final
+    console.log('📤 Enviando a AFIP con items detallados:', ventaData);
+    console.log('🧮 Items con IVA individual:', itemsDetallados);
     
     // Deshabilitar botón y mostrar loading
     const btnProcesar = document.getElementById('btn_procesar');
@@ -919,7 +997,12 @@ function mostrarResultadoVenta(resultado) {
     }
     
     const subtotalFinal = itemsVenta.reduce((sum, item) => sum + item.subtotal, 0);
-    const ivaFinal = itemsVenta.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0);
+     // *** NUEVO: Calcular IVA con redondeo correcto POR ITEM ***
+    const ivaFinal = itemsVenta.reduce((sum, item) => {
+        const ivaItem = Math.round((item.subtotal * item.iva / 100) * 100) / 100;
+        return sum + ivaItem;
+    }, 0);
+
     const totalFinal = subtotalFinal + ivaFinal;
     
     contenido.innerHTML = `
@@ -1371,11 +1454,25 @@ function confirmarMediosPago() {
     }
     
     const totalIngresado = mediosPagoIngresados.reduce((sum, mp) => sum + mp.importe, 0);
+     // *** CORREGIR COMPARACIÓN CON TOLERANCIA ***
+    const diferencia = Math.abs(totalIngresado - totalVenta);
     
-    if (totalIngresado < totalVenta) {
-        mostrarError('El total ingresado es menor al total de la venta');
+    if (diferencia > 0.01) { // Tolerancia de 1 centavo
+        mostrarError(`El total ingresado es menor al total de la venta. Diferencia: $${diferencia.toFixed(2)}`);
         return;
     }
+    
+    // *** DEBUG TEMPORAL ***
+    console.log('💰 DEBUG Medios de Pago:');
+    console.log('  Total Venta:', totalVenta);
+    console.log('  Total Ingresado:', totalIngresado);
+    console.log('  Diferencia:', diferencia);
+    
+
+    //if (totalIngresado < totalVenta) {
+    //    mostrarError('El total ingresado es menor al total de la venta');
+    //    return;
+    // }
     
     // Cerrar modal de medios de pago
     const modal = bootstrap.Modal.getInstance(document.getElementById('modalMediosPago'));

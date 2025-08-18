@@ -529,7 +529,7 @@ class ARCAClient:
 
     def autorizar_comprobante(self, datos_comprobante):
         """
-        Autorizar comprobante en AFIP usando WSFEv1 - VERSIÓN CORREGIDA
+        Autorizar comprobante en AFIP usando WSFEv1 - VERSIÓN CORREGIDA CON MÚLTIPLES ALÍCUOTAS IVA
         """
         try:
             print("🎫 Verificando ticket de acceso...")
@@ -626,40 +626,97 @@ class ARCAClient:
             # Preparar datos del comprobante
             fecha_hoy = datetime.now().strftime('%Y%m%d')
             
-            # Calcular importes
-            importe_neto = float(datos_comprobante.get('importe_neto', 0))
-            importe_iva = float(datos_comprobante.get('importe_iva', 0))
-            importe_total = importe_neto + importe_iva
+            # *** NUEVO: CALCULAR ALÍCUOTAS IVA SEPARADAS ***
+            # Obtener los items del comprobante (deben venir con detalle por producto)
+            items_detalle = datos_comprobante.get('items_detalle', [])
             
-            print(f"💰 Importes: Neto=${importe_neto:.2f}, IVA=${importe_iva:.2f}, Total=${importe_total:.2f}")
+            if not items_detalle:
+                raise Exception("Se requieren items detallados con alícuotas IVA individuales")
+            
+            # Agrupar por alícuota de IVA
+            alicuotas_iva = {}
+            importe_neto_total = 0
+            importe_iva_total = 0
+            
+            print("🧮 Calculando alícuotas de IVA por separado...")
+            
+            for item in items_detalle:
+                subtotal = float(item.get('subtotal', 0))
+                iva_porcentaje = float(item.get('iva_porcentaje', 0))
+                
+                # Calcular IVA del item con redondeo AFIP
+                iva_item = round((subtotal * iva_porcentaje / 100), 2)
+                
+                # Agrupar por alícuota
+                if iva_porcentaje not in alicuotas_iva:
+                    alicuotas_iva[iva_porcentaje] = {
+                        'base_imponible': 0,
+                        'iva_total': 0
+                    }
+                
+                alicuotas_iva[iva_porcentaje]['base_imponible'] += subtotal
+                alicuotas_iva[iva_porcentaje]['iva_total'] += iva_item
+                
+                importe_neto_total += subtotal
+                importe_iva_total += iva_item
+                
+                print(f"   📦 Item: ${subtotal:.2f} (IVA {iva_porcentaje}% = ${iva_item:.2f})")
+            
+            # Redondear totales
+            importe_neto_total = round(importe_neto_total, 2)
+            importe_iva_total = round(importe_iva_total, 2)
+            importe_total = round(importe_neto_total + importe_iva_total, 2)
+            
+            print(f"💰 Totales calculados: Neto=${importe_neto_total:.2f}, IVA=${importe_iva_total:.2f}, Total=${importe_total:.2f}")
+            
+            # Mostrar alícuotas calculadas
+            print("📊 Alícuotas de IVA:")
+            for porcentaje, datos in alicuotas_iva.items():
+                base = round(datos['base_imponible'], 2)
+                iva = round(datos['iva_total'], 2)
+                print(f"   IVA {porcentaje}%: Base=${base:.2f}, IVA=${iva:.2f}")
             
             # Estructura del comprobante según especificación AFIP
             comprobante = {
-                'Concepto': 1,  # 1 = Productos
-                'DocTipo': datos_comprobante.get('doc_tipo', 99),  # 99 = Sin identificar
+                'Concepto': 1,
+                'DocTipo': datos_comprobante.get('doc_tipo', 99),
                 'DocNro': datos_comprobante.get('doc_nro', 0),
                 'CbteDesde': proximo_nro,
                 'CbteHasta': proximo_nro,
                 'CbteFch': fecha_hoy,
-                'ImpTotal': round(importe_total, 2),
-                'ImpTotConc': 0.00,  # Importe neto no gravado
-                'ImpNeto': round(importe_neto, 2),  # Importe neto gravado
-                'ImpOpEx': 0.00,  # Importe exento
-                'ImpTrib': 0.00,  # Otros tributos
-                'ImpIVA': round(importe_iva, 2),  # Importe de IVA
-                'MonId': 'PES',  # Pesos argentinos
-                'MonCotiz': 1.00,  # Cotización = 1 para pesos
+                'ImpTotal': importe_total,
+                'ImpTotConc': 0.00,
+                'ImpNeto': importe_neto_total,
+                'ImpOpEx': 0.00,
+                'ImpTrib': 0.00,
+                'ImpIVA': importe_iva_total,
+                'MonId': 'PES',
+                'MonCotiz': 1.00,
             }
             
-            # Agregar detalle de IVA solo si hay IVA
-            if importe_iva > 0:
-                comprobante['Iva'] = {
-                    'AlicIva': [{
-                        'Id': 5,  # 5 = IVA 21%
-                        'BaseImp': round(importe_neto, 2),
-                        'Importe': round(importe_iva, 2)
-                    }]
-                }
+            # *** CLAVE: AGREGAR DETALLE DE IVA POR ALÍCUOTA ***
+            if importe_iva_total > 0:
+                alicuotas_afip = []
+                
+                for porcentaje, datos in alicuotas_iva.items():
+                    if porcentaje > 0:  # Solo agregar si hay IVA
+                        # Mapear porcentajes a códigos AFIP
+                        codigo_iva = self.get_codigo_iva_afip(porcentaje)
+                        
+                        if codigo_iva:
+                            alicuotas_afip.append({
+                                'Id': codigo_iva,
+                                'BaseImp': round(datos['base_imponible'], 2),
+                                'Importe': round(datos['iva_total'], 2)
+                            })
+                            
+                            print(f"✅ Alícuota AFIP: Código {codigo_iva}, Base=${datos['base_imponible']:.2f}, IVA=${datos['iva_total']:.2f}")
+                
+                if alicuotas_afip:
+                    comprobante['Iva'] = {'AlicIva': alicuotas_afip}
+                    print(f"📝 Se agregaron {len(alicuotas_afip)} alícuotas de IVA al comprobante")
+                else:
+                    print("⚠️ No se pudieron mapear las alícuotas a códigos AFIP")
             
             # Crear request completo
             fe_request = {
@@ -679,8 +736,9 @@ class ARCAClient:
             print(f"   Número: {proximo_nro}")
             print(f"   Fecha: {fecha_hoy}")
             print(f"   Total: ${importe_total:.2f}")
+            print(f"   Alícuotas IVA: {len(alicuotas_iva)} diferentes")
             
-            # ENVÍO CRÍTICO - Aquí es donde fallaba antes
+            # ENVÍO CRÍTICO
             try:
                 response = client.service.FECAESolicitar(Auth=auth, FeCAEReq=fe_request)
                 print("✅ Respuesta recibida de AFIP")
@@ -774,6 +832,24 @@ class ARCAClient:
                 'vto_cae': None,
                 'estado': 'error_afip'
             }
+
+    def get_codigo_iva_afip(self, porcentaje):
+        """Mapear porcentajes de IVA a códigos AFIP"""
+        mapeo_iva = {
+            0: 3,      # Exento
+            10.5: 4,   # IVA 10.5%
+            21: 5,     # IVA 21%
+            27: 6,     # IVA 27%
+            2.5: 9     # IVA 2.5%
+        }
+        
+        codigo = mapeo_iva.get(porcentaje, None)
+        if codigo is None:
+            print(f"⚠️ Porcentaje IVA {porcentaje}% no reconocido, usando código 5 (21%) por defecto")
+            return 5  # Por defecto IVA 21%
+        
+        return codigo
+    
 
     def get_ultimo_comprobante(self, tipo_cbte):
         """Obtener último comprobante autorizado"""
@@ -1448,7 +1524,7 @@ def get_producto(codigo):
 
 @app.route('/procesar_venta', methods=['POST'])
 def procesar_venta():
-    """Procesar venta con medios de pago - VERSIÓN CON MEDIOS DE PAGO"""
+    """Procesar venta con medios de pago y items detallados para AFIP"""
     if 'user_id' not in session:
         return jsonify({'error': 'No autorizado'}), 401
     
@@ -1459,6 +1535,7 @@ def procesar_venta():
         cliente_id = data.get('cliente_id')
         tipo_comprobante = data.get('tipo_comprobante')
         items = data.get('items', [])
+        items_detalle = data.get('items_detalle', [])  # *** NUEVO: Items con detalle IVA ***
         medios_pago = data.get('medios_pago', [])
         imprimir_automatico = data.get('imprimir_automatico', True)
         
@@ -1468,12 +1545,26 @@ def procesar_venta():
         if not medios_pago:
             return jsonify({'success': False, 'error': 'No se especificaron medios de pago'})
         
+        if not items_detalle:
+            return jsonify({'success': False, 'error': 'No se recibieron items detallados para AFIP'})
+        
         # Validar que la suma de medios de pago coincida con el total
         total_medios = sum(float(mp.get('importe', 0)) for mp in medios_pago)
         total_venta = float(data.get('total', 0))
         
-        if total_medios < total_venta:
-            return jsonify({'success': False, 'error': 'El total de medios de pago es menor al total de la venta'})
+       # *** CORREGIR: Usar tolerancia en lugar de comparación estricta ***
+        diferencia = abs(total_medios - total_venta)
+
+        if diferencia > 0.01:  # Tolerancia de 1 centavo
+            print(f"❌ DEBUG MEDIOS DE PAGO:")
+            print(f"   Total venta: ${total_venta:.2f}")
+            print(f"   Total medios: ${total_medios:.2f}")
+            print(f"   Diferencia: ${diferencia:.2f}")
+            print(f"   Medios individuales:")
+            for i, mp in enumerate(medios_pago):
+                print(f"     {i+1}. {mp.get('medio_pago', 'UNKNOWN')}: ${float(mp.get('importe', 0)):.2f}")
+            
+            return jsonify({'success': False, 'error': f'El total de medios de pago difiere del total de la venta en ${diferencia:.2f}'})
         
         # PASO 1: Determinar el próximo número de comprobante
         tipo_comprobante_int = int(tipo_comprobante)
@@ -1539,7 +1630,7 @@ def procesar_venta():
                 producto.stock -= item['cantidad']
                 print(f"📦 Stock actualizado para {producto.nombre}: {producto.stock}")
         
-        # *** NUEVO: PASO 5: Agregar medios de pago ***
+        # PASO 5: Agregar medios de pago
         print(f"💳 Agregando {len(medios_pago)} medios de pago...")
         for medio_data in medios_pago:
             medio_pago = MedioPago(
@@ -1551,20 +1642,26 @@ def procesar_venta():
             db.session.add(medio_pago)
             print(f"💰 Medio agregado: {medio_data['medio_pago']} ${medio_data['importe']}")
         
-        # PASO 6: Intentar autorizar en AFIP
+        # PASO 6: Intentar autorizar en AFIP con items detallados
         try:
-            print("📄 Autorizando en AFIP...")
+            print("📄 Autorizando en AFIP con items detallados...")
             cliente = Cliente.query.get(cliente_id)
             
-            # Preparar datos para AFIP
+            # *** CLAVE: Preparar datos para AFIP con items_detalle ***
             datos_comprobante = {
                 'tipo_comprobante': tipo_comprobante_int,
                 'punto_venta': punto_venta,
                 'importe_neto': float(factura.subtotal),
                 'importe_iva': float(factura.iva),
+                'items_detalle': items_detalle,  # *** NUEVO: Items con IVA individual ***
                 'doc_tipo': 99,  # Sin identificar por defecto
                 'doc_nro': 0
             }
+            
+            # Debug: Mostrar items que se envían a AFIP
+            print("🧮 Items detallados enviados a AFIP:")
+            for item in items_detalle:
+                print(f"   📦 ${item['subtotal']:.2f} (IVA {item['iva_porcentaje']}%)")
             
             # Si el cliente tiene documento, agregar datos
             if cliente and cliente.documento:
@@ -1640,6 +1737,8 @@ def procesar_venta():
         print(f"❌ Error en procesar_venta: {str(e)}")
         db.session.rollback()
         return jsonify({'error': f'Error al procesar la venta: {str(e)}'}), 500
+
+
 
 # RUTAS DE IMPRESIÓN
 @app.route('/imprimir_factura/<int:factura_id>')

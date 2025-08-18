@@ -25,14 +25,33 @@ class ImpresoraTermica:
         
         print(f"🖨️ Configuración: {ancho_mm}mm = {self.ancho} caracteres por línea")
         
+    # Reemplaza la función _buscar_impresora_termica en tu impresora_termica.py:
+
     def _buscar_impresora_termica(self):
-        """Buscar impresora térmica automáticamente"""
+        """Buscar impresora térmica automáticamente - EPSON TM-m30II prioritaria"""
         try:
             impresoras = win32print.EnumPrinters(win32print.PRINTER_ENUM_LOCAL)
             
-            # Nombres comunes de impresoras térmicas - EPSON TM-M30II específicamente
-            nombres_termicas = [
-                'tm-m30ii', 'tm-m30', 'epson tm-m30ii', 'epson tm-m30',
+            # ORDEN DE PRIORIDAD: EPSON TM-m30II PRIMERO
+            nombres_termicas_prioritarios = [
+                'EPSON TM-m30II Receipt',  # ✅ Esta es la mejor - nombre exacto
+                'epson tm-m30ii receipt',  # Variación en minúsculas
+                'tm-m30ii receipt',        # Sin marca
+            ]
+            
+            # Buscar EPSON TM-m30II primero (prioritario)
+            for impresora in impresoras:
+                nombre = impresora[2].lower()
+                for prioritario in nombres_termicas_prioritarios:
+                    if prioritario.lower() in nombre:
+                        print(f"🖨️ ✅ EPSON TM-m30II detectada: {impresora[2]}")
+                        print(f"🎯 Esta impresora térmica profesional será usada")
+                        return impresora[2]
+            
+            # Si no encuentra EPSON, buscar otras térmicas
+            nombres_termicas_secundarios = [
+                'pos-58', 'pos58',
+                'tm-m30ii', 'tm-m30', 'epson tm-m30',
                 'thermal', 'receipt', 'pos', 'tm-', 'rp-', 'sp-',
                 'termica', 'ticket', 'epson', 'star', 'citizen',
                 'xprinter', 'godex', 'zebra', 'bixolon'
@@ -40,15 +59,17 @@ class ImpresoraTermica:
             
             for impresora in impresoras:
                 nombre = impresora[2].lower()
-                for termico in nombres_termicas:
+                for termico in nombres_termicas_secundarios:
                     if termico in nombre:
-                        print(f"🖨️ Impresora térmica detectada: {impresora[2]}")
+                        print(f"🖨️ ⚠️ Impresora térmica secundaria detectada: {impresora[2]}")
+                        print(f"💡 Recomendación: Usar EPSON TM-m30II si está disponible")
                         return impresora[2]
             
             # Si no encuentra térmica, usar impresora por defecto
             try:
                 impresora_default = win32print.GetDefaultPrinter()
-                print(f"🖨️ Usando impresora por defecto: {impresora_default}")
+                print(f"🖨️ 📄 Usando impresora por defecto: {impresora_default}")
+                print(f"⚠️ Esta puede no ser una impresora térmica")
                 return impresora_default
             except:
                 print("❌ No se pudo obtener impresora por defecto")
@@ -57,7 +78,7 @@ class ImpresoraTermica:
         except Exception as e:
             print(f"❌ Error detectando impresora: {e}")
             return None
-    
+            
     def centrar_texto(self, texto, ancho=None):
         """Centrar texto en el ancho especificado"""
         ancho = ancho or self.ancho
@@ -359,49 +380,79 @@ class ImpresoraTermica:
 
     
     def imprimir_factura(self, factura):
-        """Imprimir factura - MÉTODO SÚPER SIMPLE"""
+        """Imprimir factura optimizada para EPSON TM-m30II"""
         try:
             if not self.nombre_impresora:
                 raise Exception("No se encontró impresora térmica")
             
             print(f"🖨️ INICIANDO IMPRESIÓN - Factura: {getattr(factura, 'numero', 'SIN_NUMERO')}")
             
+            # Detectar si es EPSON TM-m30II
+            es_epson_tm = 'epson tm-m30ii' in self.nombre_impresora.lower()
+            
+            if es_epson_tm:
+                print("🎯 Usando configuración optimizada para EPSON TM-m30II")
+            
             # Formatear contenido
             contenido = self.formatear_factura_termica(factura)
             print(f"📝 Contenido formateado: {len(contenido)} caracteres")
             
-            # MÉTODO 1: win32print directo
+            # MÉTODO OPTIMIZADO PARA EPSON TM-m30II
             try:
-                print("🔄 Método 1: win32print directo...")
+                print("🔄 Método optimizado: win32print...")
                 
                 hPrinter = win32print.OpenPrinter(self.nombre_impresora)
+                print("✅ Impresora abierta")
                 
                 try:
-                    hJob = win32print.StartDocPrinter(hPrinter, 1, (f"Factura_{getattr(factura, 'numero', 'XXX')}", None, "RAW"))
+                    # Configuración específica para cada tipo de impresora
+                    if es_epson_tm:
+                        doc_type = "RAW"
+                        job_name = f"Factura_EPSON_{getattr(factura, 'numero', 'XXX')}"
+                    else:
+                        doc_type = "TEXT"
+                        job_name = f"Factura_{getattr(factura, 'numero', 'XXX')}"
+                    
+                    hJob = win32print.StartDocPrinter(hPrinter, 1, (job_name, None, doc_type))
+                    print(f"✅ Documento iniciado (tipo: {doc_type})")
                     
                     try:
                         win32print.StartPagePrinter(hPrinter)
+                        print("✅ Página iniciada")
                         
-                        # Enviar datos como UTF-8
-                        datos_bytes = contenido.encode('utf-8', errors='replace')
+                        # Preparar datos según el tipo de impresora
+                        if es_epson_tm:
+                            # EPSON TM-m30II: Comandos ESC/POS
+                            init_cmd = b'\x1B\x40'  # ESC @ - Inicializar
+                            datos_bytes = init_cmd + contenido.encode('utf-8', errors='replace')
+                            # Comando de corte automático
+                            datos_bytes += b'\n\n\x1D\x56\x00'  # GS V 0 - Corte total
+                        else:
+                            # Otras impresoras: envío simple
+                            datos_bytes = contenido.encode('utf-8', errors='replace')
+                        
                         bytes_escritos = win32print.WritePrinter(hPrinter, datos_bytes)
+                        print(f"✅ Datos enviados: {bytes_escritos} bytes")
                         
                         win32print.EndPagePrinter(hPrinter)
+                        print("✅ Página completada")
                         
-                        print(f"✅ MÉTODO 1 EXITOSO - Factura enviada: {bytes_escritos} bytes")
+                        print("✅ *** IMPRESIÓN EXITOSA *** - Factura enviada a impresora")
                         return True
                         
                     finally:
                         win32print.EndDocPrinter(hPrinter)
+                        print("✅ Documento finalizado")
                 finally:
                     win32print.ClosePrinter(hPrinter)
+                    print("✅ Impresora cerrada")
                     
             except Exception as e1:
-                print(f"❌ MÉTODO 1 FALLÓ: {e1}")
+                print(f"❌ MÉTODO OPTIMIZADO FALLÓ: {e1}")
                 
-                # MÉTODO 2: Archivo temporal
+                # MÉTODO FALLBACK: Archivo temporal
                 try:
-                    print("🔄 Método 2: Archivo temporal...")
+                    print("🔄 Método fallback: Archivo temporal...")
                     
                     import tempfile
                     import subprocess
@@ -410,11 +461,11 @@ class ImpresoraTermica:
                         temp_file.write(contenido)
                         temp_path = temp_file.name
                     
-                    cmd = f'type "{temp_path}" > "{self.nombre_impresora}"'
-                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
+                    cmd = f'print /D:"{self.nombre_impresora}" "{temp_path}"'
+                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=20)
                     
                     if result.returncode == 0:
-                        print("✅ MÉTODO 2 EXITOSO - Factura enviada")
+                        print("✅ MÉTODO FALLBACK EXITOSO - Factura enviada")
                         
                         try:
                             os.unlink(temp_path)
@@ -423,10 +474,10 @@ class ImpresoraTermica:
                         
                         return True
                     else:
-                        print(f"❌ MÉTODO 2 FALLÓ: {result.stderr}")
+                        print(f"❌ MÉTODO FALLBACK FALLÓ: {result.stderr}")
                         
                 except Exception as e2:
-                    print(f"❌ MÉTODO 2 FALLÓ: {e2}")
+                    print(f"❌ MÉTODO FALLBACK FALLÓ: {e2}")
             
             print("❌ TODOS LOS MÉTODOS FALLARON")
             return False
@@ -435,16 +486,23 @@ class ImpresoraTermica:
             print(f"❌ ERROR GENERAL en impresión: {e}")
             import traceback
             traceback.print_exc()
-            return False        
+            return False
+
 
     def test_impresion(self):
-        """Test de impresión - MÉTODO SÚPER SIMPLE"""
+        """Test de impresión optimizado para EPSON TM-m30II"""
         try:
             if not self.nombre_impresora:
                 raise Exception("No se encontró impresora")
                 
             print(f"🧪 INICIANDO TEST - Impresora: {self.nombre_impresora}")
             
+            # Detectar si es EPSON TM-m30II para usar configuración específica
+            es_epson_tm = 'epson tm-m30ii' in self.nombre_impresora.lower()
+            
+            if es_epson_tm:
+                print("🎯 Impresora EPSON TM-m30II detectada - usando configuración optimizada")
+                
             contenido_test = """
     === PRUEBA DE IMPRESION ===
 
@@ -463,28 +521,42 @@ class ImpresoraTermica:
 
 
 
-""" + "\x1B\x69"  # Agregar comando de corte al test
+    """
             
             print(f"📝 Contenido creado: {len(contenido_test)} caracteres")
             
-            # MÉTODO 1: Intentar win32print directo
+            # MÉTODO OPTIMIZADO PARA EPSON TM-m30II
             try:
-                print("🔄 Método 1: win32print directo...")
+                print("🔄 Método optimizado: win32print con RAW...")
                 
                 hPrinter = win32print.OpenPrinter(self.nombre_impresora)
                 print("✅ Impresora abierta correctamente")
                 
                 try:
-                    hJob = win32print.StartDocPrinter(hPrinter, 1, ("POS_Test", None, "RAW"))
-                    print("✅ Documento iniciado")
+                    # Para EPSON TM-m30II usar RAW, para otras usar TEXT
+                    doc_type = "RAW" if es_epson_tm else "TEXT"
+                    job_name = "POS_Test_EPSON" if es_epson_tm else "POS_Test"
+                    
+                    hJob = win32print.StartDocPrinter(hPrinter, 1, (job_name, None, doc_type))
+                    print(f"✅ Documento iniciado (tipo: {doc_type})")
                     
                     try:
                         win32print.StartPagePrinter(hPrinter)
                         print("✅ Página iniciada")
                         
-                        # Enviar datos como bytes
-                        datos_bytes = contenido_test.encode('utf-8', errors='replace')
-                        print(f"✅ Datos convertidos: {len(datos_bytes)} bytes")
+                        # Para EPSON TM-m30II, agregar comandos ESC/POS básicos
+                        if es_epson_tm:
+                            # Comandos ESC/POS para EPSON
+                            init_cmd = b'\x1B\x40'  # ESC @ - Inicializar
+                            contenido_con_comandos = init_cmd + contenido_test.encode('utf-8', errors='replace')
+                            # Agregar comando de corte de papel
+                            contenido_con_comandos += b'\n\n\x1D\x56\x00'  # GS V 0 - Corte total
+                            datos_bytes = contenido_con_comandos
+                        else:
+                            # Para otras impresoras, envío simple
+                            datos_bytes = contenido_test.encode('utf-8', errors='replace')
+                        
+                        print(f"✅ Datos preparados: {len(datos_bytes)} bytes")
                         
                         bytes_escritos = win32print.WritePrinter(hPrinter, datos_bytes)
                         print(f"✅ Datos escritos: {bytes_escritos} bytes")
@@ -492,12 +564,12 @@ class ImpresoraTermica:
                         win32print.EndPagePrinter(hPrinter)
                         print("✅ Página finalizada")
                         
-                        print("✅ MÉTODO 1 EXITOSO - Test enviado correctamente")
+                        print("✅ *** TEST EXITOSO *** - Impresión enviada correctamente")
                         return True
                         
                     except Exception as e3:
-                        print(f"❌ Error en escritura: {e3}")
-                        raise e3
+                        print(f"❌ Error en proceso de impresión: {e3}")
+                        return False
                     finally:
                         try:
                             win32print.EndDocPrinter(hPrinter)
@@ -513,11 +585,11 @@ class ImpresoraTermica:
                         print(f"⚠️ Error cerrando impresora: {e5}")
                         
             except Exception as e1:
-                print(f"❌ MÉTODO 1 FALLÓ: {e1}")
+                print(f"❌ MÉTODO OPTIMIZADO FALLÓ: {e1}")
                 
-                # MÉTODO 2: Fallback con archivo temporal
+                # FALLBACK: Método de archivo temporal
                 try:
-                    print("🔄 Método 2: Archivo temporal...")
+                    print("🔄 Método fallback: Archivo temporal...")
                     
                     import tempfile
                     import subprocess
@@ -530,13 +602,13 @@ class ImpresoraTermica:
                     print(f"📁 Archivo temporal: {temp_path}")
                     
                     # Comando para enviar a impresora
-                    cmd = f'type "{temp_path}" > "{self.nombre_impresora}"'
+                    cmd = f'print /D:"{self.nombre_impresora}" "{temp_path}"'
                     print(f"🔧 Comando: {cmd}")
                     
-                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
                     
                     if result.returncode == 0:
-                        print("✅ MÉTODO 2 EXITOSO - Comando ejecutado")
+                        print("✅ MÉTODO FALLBACK EXITOSO")
                         
                         # Limpiar archivo
                         try:
@@ -547,12 +619,12 @@ class ImpresoraTermica:
                         
                         return True
                     else:
-                        print(f"❌ MÉTODO 2 FALLÓ: {result.stderr}")
+                        print(f"❌ MÉTODO FALLBACK FALLÓ: {result.stderr}")
                         
                 except Exception as e2:
-                    print(f"❌ MÉTODO 2 FALLÓ: {e2}")
+                    print(f"❌ MÉTODO FALLBACK FALLÓ: {e2}")
             
-            # Si llegamos aquí, ambos métodos fallaron
+            # Si llegamos aquí, todos los métodos fallaron
             print("❌ TODOS LOS MÉTODOS FALLARON")
             return False
             
