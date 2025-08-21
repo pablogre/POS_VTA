@@ -200,9 +200,20 @@ class Producto(db.Model):
     costo = db.Column(Numeric(10, 2), default=0.00)  # ← AGREGAR ESTA LÍNEA
     margen = db.Column(Numeric(5, 2), default=30.00)  # ← AGREGAR ESTA LÍNEA
     
+     # ✅ SOLO AGREGAR ESTOS 5 CAMPOS NUEVOS:
+    es_combo = db.Column(db.Boolean, default=False)
+    producto_base_id = db.Column(db.Integer, db.ForeignKey('producto.id'), nullable=True)
+    cantidad_combo = db.Column(Numeric(8, 3), default=1.000)
+    precio_unitario_base = db.Column(Numeric(10, 2), nullable=True)
+    descuento_porcentaje = db.Column(Numeric(5, 2), default=0.00)
+    
+    # ✅ AGREGAR ESTA RELACIÓN:
+    producto_base = db.relationship('Producto', remote_side=[id], backref='combos_derivados')
+    
     def __repr__(self):
         return f'<Producto {self.codigo}: {self.nombre}>'
     
+    # ✅ ACTUALIZAR tu método to_dict() existente:
     def to_dict(self):
         """Convertir producto a diccionario"""
         return {
@@ -218,7 +229,17 @@ class Producto(db.Model):
             'iva': float(self.iva),
             'activo': self.activo,
             'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
-            'fecha_modificacion': self.fecha_modificacion.isoformat() if self.fecha_modificacion else None
+            'fecha_modificacion': self.fecha_modificacion.isoformat() if self.fecha_modificacion else None,
+            
+            # ✅ AGREGAR ESTAS LÍNEAS AL FINAL:
+            'es_combo': self.es_combo,
+            'producto_base_id': self.producto_base_id,
+            'cantidad_combo': float(self.cantidad_combo) if self.cantidad_combo else 1.0,
+            'precio_unitario_base': float(self.precio_unitario_base) if self.precio_unitario_base else float(self.precio),
+            'descuento_porcentaje': float(self.descuento_porcentaje) if self.descuento_porcentaje else 0.0,
+            'ahorro_combo': self.calcular_ahorro_combo(),
+            'precio_normal': self.calcular_precio_normal(),
+            'producto_base_nombre': self.producto_base.nombre if self.producto_base else None
         }
     
     @property
@@ -240,6 +261,55 @@ class Producto(db.Model):
         if not costo or margen is None:
             return 0.0
         return float(costo) * (1 + (float(margen) / 100))
+    # ✅ AGREGAR ESTOS MÉTODOS NUEVOS PARA COMBOS:
+    def calcular_precio_normal(self):
+        """Calcular precio normal sin descuento"""
+        if self.es_combo and self.precio_unitario_base and self.cantidad_combo:
+            return float(self.precio_unitario_base) * float(self.cantidad_combo)
+        return float(self.precio)
+    
+    def calcular_ahorro_combo(self):
+        """Calcular cuánto se ahorra con el combo"""
+        if self.es_combo:
+            precio_normal = self.calcular_precio_normal()
+            precio_combo = float(self.precio)
+            return precio_normal - precio_combo
+        return 0.0
+    
+    def obtener_descripcion_completa(self):
+        """Obtener descripción que incluye información del combo"""
+        if self.es_combo:
+            ahorro = self.calcular_ahorro_combo()
+            cantidad_str = f"{self.cantidad_combo:g}"  # Elimina .0 si es entero
+            return f"{self.nombre} - {cantidad_str} unidades (Ahorro: ${ahorro:.0f})"
+        return self.nombre
+    
+    @staticmethod
+    def obtener_productos_con_ofertas():
+        """Obtener productos base con sus ofertas"""
+        # Productos base (no combos)
+        productos_base = Producto.query.filter_by(es_combo=False, activo=True).all()
+        
+        resultado = []
+        for producto_base in productos_base:
+            # Agregar producto base
+            item_base = producto_base.to_dict()
+            item_base['tipo'] = 'BASE'
+            resultado.append(item_base)
+            
+            # Agregar sus combos/ofertas
+            combos = Producto.query.filter_by(
+                producto_base_id=producto_base.id, 
+                es_combo=True, 
+                activo=True
+            ).order_by(Producto.precio).all()
+            
+            for combo in combos:
+                item_combo = combo.to_dict()
+                item_combo['tipo'] = 'COMBO'
+                resultado.append(item_combo)
+        
+        return resultado
 
 class Factura(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1020,6 +1090,12 @@ def productos():
     productos = Producto.query.filter_by(activo=True).all()
     return render_template('productos.html', productos=productos)
 
+@app.route('/combos')
+def combos():
+    # Obtener solo productos que son combos
+    combos = Producto.query.filter_by(es_combo=True).all()
+    return render_template('combos.html', combos=combos)
+
 @app.route('/clientes')
 def clientes():
     if 'user_id' not in session:
@@ -1216,7 +1292,8 @@ def obtener_producto_detalle(producto_id):
         if costo == 0.0 and producto.precio > 0:
             costo = float(producto.precio) / (1 + (margen / 100))
         
-        return jsonify({
+        # Datos base del producto
+        resultado = {
             'id': producto.id,
             'codigo': producto.codigo,
             'nombre': producto.nombre,
@@ -1227,8 +1304,36 @@ def obtener_producto_detalle(producto_id):
             'stock': producto.stock,
             'categoria': producto.categoria or '',
             'iva': float(producto.iva),
-            'activo': producto.activo
-        })
+            'activo': producto.activo,
+            
+            # ✅ CAMPOS DE COMBO AGREGADOS
+            'es_combo': getattr(producto, 'es_combo', False),
+            'cantidad_combo': getattr(producto, 'cantidad_combo', None),
+            'producto_base_id': getattr(producto, 'producto_base_id', None)
+        }
+        
+        # ✅ SI ES UN COMBO, AGREGAR INFORMACIÓN DEL PRODUCTO BASE
+        if resultado['es_combo'] and resultado['producto_base_id']:
+            try:
+                producto_base = Producto.query.get(resultado['producto_base_id'])
+                if producto_base:
+                    resultado['producto_base'] = {
+                        'id': producto_base.id,
+                        'codigo': producto_base.codigo,
+                        'nombre': producto_base.nombre,
+                        'precio': float(producto_base.precio)
+                    }
+                    # Precio unitario del producto base para cálculos
+                    resultado['precio_unitario_base'] = float(producto_base.precio)
+                else:
+                    resultado['producto_base'] = None
+                    resultado['precio_unitario_base'] = 0.0
+            except Exception as e:
+                print(f"Error obteniendo producto base: {str(e)}")
+                resultado['producto_base'] = None
+                resultado['precio_unitario_base'] = 0.0
+        
+        return jsonify(resultado)
         
     except Exception as e:
         print(f"Error en obtener_producto_detalle: {str(e)}")
@@ -1549,6 +1654,310 @@ def obtener_categorias():
         print(f"Error obteniendo categorías: {str(e)}")
         return jsonify({'error': f'Error al obtener categorías: {str(e)}'}), 500
 
+
+###### RUTAS API PARA MANEJAR COMBOS
+
+@app.route('/api/productos_con_ofertas')
+def api_productos_con_ofertas():
+    """API para obtener productos con sus ofertas/combos"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        productos = Producto.obtener_productos_con_ofertas()
+        return jsonify({
+            'success': True,
+            'productos': productos
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/crear_combo', methods=['POST'])
+def crear_combo():
+    """Crear un nuevo combo/oferta basado en un producto existente o editarlo"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        data = request.json
+        
+        # ✅ DETECTAR SI ES EDICIÓN
+        combo_id = data.get('id')
+        es_edicion = combo_id is not None
+        
+        if es_edicion:
+            print(f"🔧 EDITANDO combo ID: {combo_id}")
+            combo = Producto.query.get_or_404(combo_id)
+            if not combo.es_combo:
+                return jsonify({'error': 'El producto no es un combo'}), 400
+        else:
+            print("🆕 CREANDO nuevo combo")
+            combo = None
+        
+        # Validar datos
+        producto_base_id = data.get('producto_base_id')
+        cantidad_combo = float(data.get('cantidad_combo', 1))
+        precio_combo = float(data.get('precio_combo', 0))
+        nombre_combo = data.get('nombre_combo', '').strip()
+        
+        if not producto_base_id:
+            return jsonify({'error': 'Producto base requerido'}), 400
+        
+        if cantidad_combo <= 0:
+            return jsonify({'error': 'La cantidad debe ser mayor a 0'}), 400
+        
+        if precio_combo <= 0:
+            return jsonify({'error': 'El precio debe ser mayor a 0'}), 400
+        
+        # Obtener producto base
+        producto_base = Producto.query.get_or_404(producto_base_id)
+        
+        # Calcular precio normal y descuento
+        precio_normal = float(producto_base.precio) * cantidad_combo
+        descuento_monto = precio_normal - precio_combo
+        descuento_porcentaje = (descuento_monto / precio_normal) * 100 if precio_normal > 0 else 0
+        
+        # Generar código automático si no se proporciona
+        codigo_combo = data.get('codigo_combo', '').strip()
+        if not codigo_combo:
+            cantidad_str = f"{cantidad_combo:g}".replace('.', '')
+            codigo_combo = f"{producto_base.codigo}-{cantidad_str}UN"
+        
+        # ✅ VERIFICAR CÓDIGO DUPLICADO SOLO SI ES NUEVO O CAMBIÓ
+        if not es_edicion or (es_edicion and combo.codigo != codigo_combo):
+            if Producto.query.filter_by(codigo=codigo_combo).first():
+                return jsonify({'error': f'Ya existe un producto con el código {codigo_combo}'}), 400
+        
+        # Generar nombre automático si no se proporciona
+        if not nombre_combo:
+            cantidad_str = f"{cantidad_combo:g}"
+            nombre_combo = f"{cantidad_str} x {producto_base.nombre} (Oferta)"
+        
+        if es_edicion:
+            # ✅ ACTUALIZAR COMBO EXISTENTE
+            combo.codigo = codigo_combo
+            combo.nombre = nombre_combo
+            combo.descripcion = data.get('descripcion_combo', combo.descripcion)
+            combo.precio = Decimal(str(precio_combo))
+            combo.categoria = 'OFERTAS'
+            combo.iva = producto_base.iva
+            combo.costo = Decimal(str(float(producto_base.costo or 0) * cantidad_combo))
+            combo.stock = int(float(producto_base.stock) / cantidad_combo)
+            combo.producto_base_id = producto_base.id
+            combo.cantidad_combo = Decimal(str(cantidad_combo))
+            combo.precio_unitario_base = producto_base.precio
+            combo.descuento_porcentaje = Decimal(str(descuento_porcentaje))
+            
+            accion = "actualizado"
+        else:
+            # ✅ CREAR NUEVO COMBO
+            combo = Producto(
+                codigo=codigo_combo,
+                nombre=nombre_combo,
+                descripcion=f"Oferta especial: {cantidad_combo:g} unidades de {producto_base.nombre}",
+                precio=Decimal(str(precio_combo)),
+                categoria='OFERTAS',
+                iva=producto_base.iva,
+                costo=Decimal(str(float(producto_base.costo or 0) * cantidad_combo)),
+                stock=int(float(producto_base.stock) / cantidad_combo),
+                es_combo=True,
+                producto_base_id=producto_base.id,
+                cantidad_combo=Decimal(str(cantidad_combo)),
+                precio_unitario_base=producto_base.precio,
+                descuento_porcentaje=Decimal(str(descuento_porcentaje))
+            )
+            
+            db.session.add(combo)
+            accion = "creado"
+        
+        db.session.commit()
+        
+        print(f"✅ Combo {accion}: {codigo_combo}")
+        print(f"   Producto base: {producto_base.nombre}")
+        print(f"   Cantidad: {cantidad_combo}")
+        print(f"   Precio normal: ${precio_normal:.2f}")
+        print(f"   Precio combo: ${precio_combo:.2f}")
+        print(f"   Descuento: {descuento_porcentaje:.1f}% (${descuento_monto:.2f})")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Combo {accion} correctamente',
+            'combo': combo.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en combo: {str(e)}")
+        return jsonify({'error': f'Error al procesar combo: {str(e)}'}), 500
+
+@app.route('/api/combos_producto/<int:producto_id>')
+def obtener_combos_producto(producto_id):
+    """Obtener todos los combos de un producto base"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        producto_base = Producto.query.get_or_404(producto_id)
+        
+        # Obtener combos del producto
+        combos = Producto.query.filter_by(
+            producto_base_id=producto_id,
+            es_combo=True,
+            activo=True
+        ).order_by(Producto.cantidad_combo.asc()).all()
+        
+        # Preparar respuesta
+        combos_data = []
+        for combo in combos:
+            combo_info = combo.to_dict()
+            combos_data.append(combo_info)
+        
+        return jsonify({
+            'success': True,
+            'producto_base': producto_base.to_dict(),
+            'combos': combos_data,
+            'total_combos': len(combos_data)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# FUNCIÓN PARA MIGRAR PRODUCTOS EXISTENTES
+def migrar_productos_para_combos():
+    """Migrar productos existentes al nuevo sistema de combos"""
+    try:
+        print("🔄 Iniciando migración para sistema de combos...")
+        
+        # Actualizar productos existentes
+        productos_sin_migrar = Producto.query.filter(
+            Producto.es_combo.is_(None)
+        ).all()
+        
+        contador_migrados = 0
+        
+        for producto in productos_sin_migrar:
+            # Todos los productos existentes son productos base (no combos)
+            producto.es_combo = False
+            producto.cantidad_combo = Decimal('1.000')
+            producto.precio_unitario_base = producto.precio
+            producto.descuento_porcentaje = Decimal('0.00')
+            
+            contador_migrados += 1
+        
+        if contador_migrados > 0:
+            db.session.commit()
+            print(f"✅ Migración completada: {contador_migrados} productos actualizados")
+        else:
+            print("✅ No hay productos para migrar")
+            
+        return contador_migrados
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error en migración: {e}")
+        return 0
+
+
+# EJEMPLO DE USO PARA CREAR COMBOS
+def crear_ejemplos_combos():
+    """Crear ejemplos de combos para demostración"""
+    try:
+        # Buscar producto base (milanesa)
+        producto_base = Producto.query.filter_by(codigo='MIL001').first()
+        
+        if not producto_base:
+            print("⚠️ Producto base MIL001 no encontrado")
+            return
+        
+        combos_ejemplos = [
+            {
+                'codigo': 'MIL001-3KG',
+                'nombre': '3kg Milanesa de Ternera (Oferta)',
+                'cantidad': 3.0,
+                'precio': 10000.00,
+                'descripcion': 'Oferta especial: 3 kilogramos de milanesa de ternera'
+            },
+            {
+                'codigo': 'MIL001-5KG', 
+                'nombre': '5kg Milanesa de Ternera (Super Oferta)',
+                'cantidad': 5.0,
+                'precio': 18000.00,
+                'descripcion': 'Super oferta: 5 kilogramos de milanesa de ternera'
+            }
+        ]
+        
+        for combo_data in combos_ejemplos:
+            # Verificar si ya existe
+            if Producto.query.filter_by(codigo=combo_data['codigo']).first():
+                print(f"⚠️ Combo {combo_data['codigo']} ya existe")
+                continue
+            
+            # Calcular valores
+            precio_normal = float(producto_base.precio) * combo_data['cantidad']
+            descuento_monto = precio_normal - combo_data['precio']
+            descuento_porcentaje = (descuento_monto / precio_normal) * 100
+            
+            # Crear combo
+            combo = Producto(
+                codigo=combo_data['codigo'],
+                nombre=combo_data['nombre'],
+                descripcion=combo_data['descripcion'],
+                precio=Decimal(str(combo_data['precio'])),
+                categoria='OFERTAS',
+                iva=producto_base.iva,
+                costo=Decimal(str(float(producto_base.costo or 0) * combo_data['cantidad'])),
+                stock=int(float(producto_base.stock) / combo_data['cantidad']),
+                
+                es_combo=True,
+                producto_base_id=producto_base.id,
+                cantidad_combo=Decimal(str(combo_data['cantidad'])),
+                precio_unitario_base=producto_base.precio,
+                descuento_porcentaje=Decimal(str(descuento_porcentaje))
+            )
+            
+            db.session.add(combo)
+            print(f"✅ Combo creado: {combo_data['codigo']} - Descuento: {descuento_porcentaje:.1f}%")
+        
+        db.session.commit()
+        print("🎉 Ejemplos de combos creados exitosamente")
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error creando ejemplos: {e}")
+
+
+# RUTA PARA EJECUTAR MIGRACIÓN
+@app.route('/migrar_combos', methods=['POST'])
+def ejecutar_migracion_combos():
+    """Endpoint para ejecutar migración de combos"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        contador = migrar_productos_para_combos()
+        
+        return jsonify({
+            'success': True,
+            'mensaje': f'Migración completada: {contador} productos actualizados',
+            'productos_migrados': contador
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Error en migración: {str(e)}'
+        }), 500
+
+
+
 @app.route('/nueva_venta')
 def nueva_venta():
     if 'user_id' not in session:
@@ -1579,7 +1988,14 @@ def buscar_productos(termino):
             'stock': producto_exacto.stock,
             'iva': float(producto_exacto.iva),
             'match_tipo': 'codigo_exacto',
-            'descripcion': producto_exacto.descripcion or ''
+            'descripcion': producto_exacto.descripcion or '',
+            'es_combo': producto_exacto.es_combo,
+            'producto_base_id': producto_exacto.producto_base_id,
+            'cantidad_combo': float(producto_exacto.cantidad_combo) if producto_exacto.cantidad_combo else 1.0,
+            'precio_unitario_base': float(producto_exacto.precio_unitario_base) if producto_exacto.precio_unitario_base else float(producto_exacto.precio),
+            'descuento_porcentaje': float(producto_exacto.descuento_porcentaje) if producto_exacto.descuento_porcentaje else 0.0,
+            'ahorro_combo': producto_exacto.calcular_ahorro_combo(),
+            'precio_normal': producto_exacto.calcular_precio_normal()
         }])
     
     # Búsqueda parcial en código y nombre
@@ -1594,7 +2010,7 @@ def buscar_productos(termino):
                 Producto.descripcion.ilike(termino_busqueda)
             )
         )
-    ).limit(10).all()
+    ).limit(15).all()
     
     resultados = []
     for producto in productos:
@@ -1615,7 +2031,14 @@ def buscar_productos(termino):
             'stock': producto.stock,
             'iva': float(producto.iva),
             'match_tipo': match_tipo,
-            'descripcion': producto.descripcion or ''
+            'descripcion': producto.descripcion or '',
+            'es_combo': producto.es_combo,
+            'producto_base_id': producto.producto_base_id,
+            'cantidad_combo': float(producto.cantidad_combo) if producto.cantidad_combo else 1.0,
+            'precio_unitario_base': float(producto.precio_unitario_base) if producto.precio_unitario_base else float(producto.precio),
+            'descuento_porcentaje': float(producto.descuento_porcentaje) if producto.descuento_porcentaje else 0.0,
+            'ahorro_combo': producto.calcular_ahorro_combo(),
+            'precio_normal': producto.calcular_precio_normal()
         })
     
     # Ordenar resultados por relevancia
@@ -1647,7 +2070,14 @@ def get_producto_por_id(producto_id):
             'margen': float(producto.margen) if producto.margen else 0.0,  # ← NUEVO
             'stock': producto.stock,
             'iva': float(producto.iva),
-            'descripcion': producto.descripcion or ''
+            'descripcion': producto.descripcion or '',
+            'es_combo': producto.es_combo,
+            'producto_base_id': producto.producto_base_id,
+            'cantidad_combo': float(producto.cantidad_combo) if producto.cantidad_combo else 1.0,
+            'precio_unitario_base': float(producto.precio_unitario_base) if producto.precio_unitario_base else float(producto.precio),
+            'descuento_porcentaje': float(producto.descuento_porcentaje) if producto.descuento_porcentaje else 0.0,
+            'ahorro_combo': producto.calcular_ahorro_combo(),
+            'precio_normal': producto.calcular_precio_normal()
         })
     return jsonify({'error': 'Producto no encontrado'}), 404
 
@@ -1665,7 +2095,15 @@ def get_producto(codigo):
             'margen': float(producto.margen) if producto.margen else 0.0,  # ← NUEVO
             'stock': producto.stock,
             'iva': float(producto.iva),
-            'descripcion': producto.descripcion or ''
+            'descripcion': producto.descripcion or '',
+            'es_combo': producto.es_combo,
+            'producto_base_id': producto.producto_base_id,
+            'cantidad_combo': float(producto.cantidad_combo) if producto.cantidad_combo else 1.0,
+            'precio_unitario_base': float(producto.precio_unitario_base) if producto.precio_unitario_base else float(producto.precio),
+            'descuento_porcentaje': float(producto.descuento_porcentaje) if producto.descuento_porcentaje else 0.0,
+            'ahorro_combo': producto.calcular_ahorro_combo(),
+            'precio_normal': producto.calcular_precio_normal()
+
         })
     return jsonify({'error': 'Producto no encontrado'}), 404
 

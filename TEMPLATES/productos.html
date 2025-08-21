@@ -81,6 +81,9 @@
                         <td><code>{{ producto.codigo }}</code></td>
                         <td>
                             <strong>{{ producto.nombre }}</strong>
+                            {% if producto.es_combo %}
+                                <br><span class="badge bg-warning text-dark">OFERTA</span>
+                            {% endif %}
                             {% if producto.descripcion %}
                                 <br><small class="text-muted">{{ producto.descripcion[:50] }}{% if producto.descripcion|length > 50 %}...{% endif %}</small>
                             {% endif %}
@@ -96,6 +99,11 @@
                         </td>
                         <td class="text-end">
                             <strong>${{ "%.2f"|format(producto.precio) }}</strong>
+                            {% if producto.es_combo and producto.producto_base %}
+                                {% set precio_normal = producto.producto_base.precio * producto.cantidad_combo %}
+                                {% set descuento = ((precio_normal - producto.precio) / precio_normal * 100) %}
+                                <br><small class="text-danger">-{{ "%.1f"|format(descuento) }}%</small>
+                            {% endif %}
                         </td>
                         <td class="text-center">
                             {% if producto.stock <= 0 %}
@@ -116,9 +124,15 @@
                         </td>
                         <td>
                             <div class="btn-group btn-group-sm">
-                                <button class="btn btn-warning" onclick="editarProducto({{ producto.id }})" title="Editar">
-                                    <i class="fas fa-edit"></i>
-                                </button>
+                                {% if producto.es_combo %}
+                                    <button class="btn btn-warning" onclick="editarCombo({{ producto.id }})" title="Editar Combo">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                {% else %}
+                                    <button class="btn btn-warning" onclick="editarProducto({{ producto.id }})" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                {% endif %}
                                 <button class="btn btn-info" onclick="ajustarStock({{ producto.id }})" title="Ajustar Stock">
                                     <i class="fas fa-boxes"></i>
                                 </button>
@@ -131,6 +145,114 @@
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SECCIÓN DE GESTIÓN DE COMBOS ===== -->
+<div class="card mt-4">
+    <div class="card-header bg-warning text-dark">
+        <h5><i class="fas fa-tags"></i> Gestión de Combos y Ofertas</h5>
+    </div>
+    <div class="card-body">
+        <!-- Botones de acción -->
+        <div class="mb-3">
+            <button type="button" class="btn btn-success" onclick="mostrarModalCrearCombo()">
+                <i class="fas fa-plus"></i> Crear Nueva Oferta
+            </button>
+            <button type="button" class="btn btn-info" onclick="verTodosCombos()">
+                <i class="fas fa-list"></i> Ver Todas las Ofertas
+            </button>
+        </div>
+        
+        <!-- Lista de combos existentes -->
+        <div id="lista_productos_combos">
+            <div class="table-responsive" id="tablaCombosContainer">
+                <table class="table table-striped" id="tablaCombos">
+                    <thead class="table-warning">
+                        <tr>
+                            <th>Código</th>
+                            <th>Nombre</th>
+                            <th>Producto Base</th>
+                            <th>Cantidad</th>
+                            <th>Precio Normal</th>
+                            <th>Precio Oferta</th>
+                            <th>Descuento</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for producto in productos %}
+                            {% if producto.es_combo %}
+                            <tr>
+                                <td><code>{{ producto.codigo }}</code></td>
+                                <td>{{ producto.nombre }}</td>
+                                <td>
+                                    {% if producto.producto_base %}
+                                        <strong>{{ producto.producto_base.codigo }}</strong><br>
+                                        <small class="text-muted">{{ producto.producto_base.nombre }}</small>
+                                    {% else %}
+                                        <span class="text-muted">Sin base</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-info">{{ producto.cantidad_combo }}x</span>
+                                </td>
+                                <td class="text-end">
+                                    {% if producto.producto_base %}
+                                        {% set precio_normal = producto.producto_base.precio * producto.cantidad_combo %}
+                                        <span class="text-muted">${{ "%.2f"|format(precio_normal) }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <strong class="text-success">${{ "%.2f"|format(producto.precio) }}</strong>
+                                </td>
+                                <td class="text-center">
+                                    {% if producto.producto_base %}
+                                        {% set precio_normal = producto.producto_base.precio * producto.cantidad_combo %}
+                                        {% set descuento = ((precio_normal - producto.precio) / precio_normal * 100) %}
+                                        <span class="badge bg-danger">-{{ "%.1f"|format(descuento) }}%</span>
+                                        <br><small class="text-success">Ahorro: ${{ "%.0f"|format(precio_normal - producto.precio) }}</small>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if producto.activo %}
+                                        <span class="badge bg-success">Activo</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactivo</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-warning" onclick="editarCombo({{ producto.id }})" title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-info" onclick="ajustarStock({{ producto.id }})" title="Ajustar Stock">
+                                            <i class="fas fa-boxes"></i>
+                                        </button>
+                                        <button class="btn btn-{% if producto.activo %}danger{% else %}success{% endif %}" onclick="toggleProducto({{ producto.id }})" title="{% if producto.activo %}Desactivar{% else %}Activar{% endif %}">
+                                            <i class="fas fa-power-off"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Mensaje cuando no hay combos -->
+            <div id="mensaje_sin_combos" class="text-center text-muted py-4">
+                <i class="fas fa-tags fa-3x mb-3 opacity-50"></i>
+                <h5>No hay combos/ofertas creados</h5>
+                <p>Usa el botón "Crear Nueva Oferta" para crear tu primera oferta</p>
+            </div>
         </div>
     </div>
 </div>
@@ -175,7 +297,7 @@
                         <textarea class="form-control" id="descripcion" rows="3"></textarea>
                     </div>
                     
-                    <!-- NUEVA SECCIÓN: Costos y Precios -->
+                    <!-- Costos y Precios -->
                     <div class="card mb-3 bg-light">
                         <div class="card-header bg-info text-white">
                             <h6 class="mb-0"><i class="fas fa-calculator"></i> Costos y Precios</h6>
@@ -308,6 +430,7 @@
         </div>
     </div>
 </div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -315,6 +438,9 @@
 // Variables globales
 let productoActual = null;
 let stockActual = 0;
+let productosBase = [];
+
+// ===== FUNCIONES PARA PRODUCTOS =====
 
 // Función para calcular precio automáticamente
 function calcularPrecio() {
@@ -376,7 +502,7 @@ function cargarProductoEnFormulario(producto) {
     document.getElementById('iva').value = producto.iva;
     document.getElementById('activo').checked = producto.activo;
     
-    // NUEVOS CAMPOS: Cargar costo y margen
+    // Cargar costo y margen
     document.getElementById('costo').value = producto.costo || 0;
     document.getElementById('margen').value = producto.margen || 30;
     
@@ -707,11 +833,14 @@ function actualizarTablaProductos(productos) {
             margen = ((precio / costo) - 1) * 100;
         }
         
+        const editFunction = producto.es_combo ? 'editarCombo' : 'editarProducto';
+        
         return `
             <tr>
                 <td><code>${producto.codigo}</code></td>
                 <td>
                     <strong>${producto.nombre}</strong>
+                    ${producto.es_combo ? '<br><span class="badge bg-warning text-dark">OFERTA</span>' : ''}
                     ${producto.descripcion ? 
                         `<br><small class="text-muted">${producto.descripcion.substring(0, 50)}${producto.descripcion.length > 50 ? '...' : ''}</small>` : 
                         ''
@@ -734,7 +863,7 @@ function actualizarTablaProductos(productos) {
                 <td>${estadoBadge}</td>
                 <td>
                     <div class="btn-group btn-group-sm">
-                        <button class="btn btn-warning" onclick="editarProducto(${producto.id})" title="Editar">
+                        <button class="btn btn-warning" onclick="${editFunction}(${producto.id})" title="Editar">
                             <i class="fas fa-edit"></i>
                         </button>
                         <button class="btn btn-info" onclick="ajustarStock(${producto.id})" title="Ajustar Stock">
@@ -769,7 +898,6 @@ function cargarCategorias() {
             if (data.success) {
                 // Actualizar filtro de categorías
                 const filtroCategoria = document.getElementById('filtroCategoria');
-                const opcionesActuales = filtroCategoria.innerHTML;
                 
                 const nuevasOpciones = data.categorias.map(cat => 
                     `<option value="${cat}">${cat}</option>`
@@ -789,12 +917,18 @@ function cargarCategorias() {
         });
 }
 
-// Event listeners
+
+
+// ===== EVENT LISTENERS =====
+
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Inicializando página de productos...');
+    
     // Cargar categorías al inicio
     cargarCategorias();
     
-    // NUEVOS: Event listeners para cálculo automático de precio
+    
+    // Event listeners para cálculo automático de precio
     document.getElementById('costo').addEventListener('input', calcularPrecio);
     document.getElementById('margen').addEventListener('input', calcularPrecio);
     
@@ -892,6 +1026,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
         }
     });
+    
+    
+    console.log('✅ Página de productos inicializada correctamente');
 });
+
+
 </script>
 {% endblock %}

@@ -182,8 +182,8 @@ class ImpresoraTermica:
                     # Formatear números de forma segura
                     try:
                         cant_str = f"{int(detalle.cantidad)}"
-                        precio_str = f"{float(detalle.precio_unitario):,.0f}"
-                        total_str = f"{float(detalle.subtotal):,.0f}"
+                        precio_str = f"{float(detalle.precio_unitario):,.2f}"
+                        total_str = f"{float(detalle.subtotal):,.2f}"
                     except (ValueError, AttributeError) as e:
                         print(f"⚠️ Error formateando números: {e}")
                         cant_str = "1"
