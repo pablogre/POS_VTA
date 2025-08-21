@@ -266,6 +266,8 @@ class DetalleFactura(db.Model):
     cantidad = db.Column(db.Integer, nullable=False)
     precio_unitario = db.Column(Numeric(10, 2), nullable=False)
     subtotal = db.Column(Numeric(10, 2), nullable=False)
+    porcentaje_iva = db.Column(Numeric(5, 2), nullable=False, default=21.00)  # ← NUEVO CAMPO
+    importe_iva = db.Column(Numeric(10, 2), nullable=False, default=0.00)    # ← NUEVO CAMPO
     
     factura = db.relationship('Factura', backref='detalles')
     producto = db.relationship('Producto', backref='detalles_factura')
@@ -1801,14 +1803,24 @@ def procesar_venta():
         
         print(f"✅ Factura creada con ID: {factura.id} y número temporal: {factura.numero}")
         
-        # PASO 4: Agregar detalles de productos
-        for item in items:
+       # PASO 4: Agregar detalles de productos CON IVA CORRECTO
+        for i, item in enumerate(items):
+            # Obtener el detalle correspondiente con IVA
+            item_detalle = items_detalle[i] if i < len(items_detalle) else {}
+            iva_porcentaje = float(item_detalle.get('iva_porcentaje', 21.0))
+            
+            # Calcular IVA del item con redondeo AFIP
+            subtotal = float(item['subtotal'])
+            importe_iva = round((subtotal * iva_porcentaje / 100), 2)
+            
             detalle = DetalleFactura(
                 factura_id=factura.id,
                 producto_id=item['producto_id'],
                 cantidad=item['cantidad'],
                 precio_unitario=Decimal(str(item['precio_unitario'])),
-                subtotal=Decimal(str(item['subtotal']))
+                subtotal=Decimal(str(subtotal)),
+                porcentaje_iva=Decimal(str(iva_porcentaje)),  # ✅ GUARDAR IVA CORRECTO
+                importe_iva=Decimal(str(importe_iva))          # ✅ GUARDAR IMPORTE IVA
             )
             db.session.add(detalle)
             
@@ -1817,6 +1829,9 @@ def procesar_venta():
             if producto:
                 producto.stock -= item['cantidad']
                 print(f"📦 Stock actualizado para {producto.nombre}: {producto.stock}")
+                print(f"💰 Detalle guardado: IVA {iva_porcentaje}% = ${importe_iva:.2f}")
+            else:
+                print(f"⚠️ Producto ID {item['producto_id']} no encontrado")
         
         # PASO 5: Agregar medios de pago
         print(f"💳 Agregando {len(medios_pago)} medios de pago...")
@@ -1925,6 +1940,7 @@ def procesar_venta():
         print(f"❌ Error en procesar_venta: {str(e)}")
         db.session.rollback()
         return jsonify({'error': f'Error al procesar la venta: {str(e)}'}), 500
+
 
 
 
@@ -3106,6 +3122,147 @@ def debug_dashboard_data():
         return jsonify({
             'success': False,
             'error': str(e)
+        }), 500
+
+
+# ==================== PASO 3: FUNCIÓN PARA MIGRAR DATOS EXISTENTES ====================
+
+def migrar_detalle_facturas_con_iva():
+    """Migrar detalles de facturas existentes para agregar IVA individual"""
+    try:
+        print("🔄 Iniciando migración de detalles con IVA...")
+        
+        # Buscar detalles sin porcentaje_iva o importe_iva
+        detalles_sin_iva = DetalleFactura.query.filter(
+            or_(
+                DetalleFactura.porcentaje_iva.is_(None),
+                DetalleFactura.importe_iva.is_(None),
+                DetalleFactura.porcentaje_iva == 0
+            )
+        ).all()
+        
+        print(f"📋 Encontrados {len(detalles_sin_iva)} detalles para migrar")
+        
+        contador_migrados = 0
+        
+        for detalle in detalles_sin_iva:
+            try:
+                # Obtener porcentaje de IVA del producto
+                if detalle.producto:
+                    porcentaje_iva = float(detalle.producto.iva)
+                else:
+                    porcentaje_iva = 21.0  # Por defecto
+                
+                # Calcular importe de IVA
+                subtotal = float(detalle.subtotal)
+                importe_iva = round((subtotal * porcentaje_iva / 100), 2)
+                
+                # Actualizar campos
+                detalle.porcentaje_iva = Decimal(str(porcentaje_iva))
+                detalle.importe_iva = Decimal(str(importe_iva))
+                
+                contador_migrados += 1
+                
+                if contador_migrados % 50 == 0:
+                    print(f"   📊 Migrados {contador_migrados}/{len(detalles_sin_iva)}")
+                
+            except Exception as e:
+                print(f"⚠️ Error migrando detalle ID {detalle.id}: {e}")
+        
+        # Guardar cambios
+        if contador_migrados > 0:
+            db.session.commit()
+            print(f"✅ Migración completada: {contador_migrados} detalles actualizados")
+        else:
+            print("✅ No hay detalles para migrar")
+            
+        return contador_migrados
+        
+    except Exception as e:
+        print(f"❌ Error en migración: {e}")
+        db.session.rollback()
+        return 0
+
+
+# ==================== PASO 4: FUNCIÓN PARA VERIFICAR IVA POR DETALLE ====================
+
+@app.route('/api/verificar_iva_detalle/<int:factura_id>')
+def verificar_iva_detalle(factura_id):
+    """Verificar que los detalles tengan IVA individual correcto"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        factura = Factura.query.get_or_404(factura_id)
+        
+        detalles_info = []
+        total_iva_calculado = 0
+        
+        for detalle in factura.detalles:
+            # IVA guardado en BD
+            iva_bd = float(detalle.importe_iva) if detalle.importe_iva else 0
+            porcentaje_bd = float(detalle.porcentaje_iva) if detalle.porcentaje_iva else 0
+            
+            # IVA recalculado
+            subtotal = float(detalle.subtotal)
+            porcentaje_producto = float(detalle.producto.iva) if detalle.producto else 21.0
+            iva_recalculado = round((subtotal * porcentaje_producto / 100), 2)
+            
+            total_iva_calculado += iva_recalculado
+            
+            detalle_info = {
+                'id': detalle.id,
+                'producto': detalle.producto.nombre if detalle.producto else 'Sin producto',
+                'subtotal': subtotal,
+                'porcentaje_bd': porcentaje_bd,
+                'porcentaje_producto': porcentaje_producto,
+                'iva_bd': iva_bd,
+                'iva_recalculado': iva_recalculado,
+                'coincide': abs(iva_bd - iva_recalculado) < 0.01
+            }
+            
+            detalles_info.append(detalle_info)
+        
+        # Comparar con total de factura
+        iva_factura = float(factura.iva)
+        
+        return jsonify({
+            'success': True,
+            'factura_numero': factura.numero,
+            'iva_factura': iva_factura,
+            'iva_calculado_suma': round(total_iva_calculado, 2),
+            'total_coincide': abs(iva_factura - total_iva_calculado) < 0.01,
+            'detalles': detalles_info
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# ==================== PASO 5: RUTA PARA MIGRACIÓN MANUAL ====================
+
+@app.route('/migrar_iva_detalles', methods=['POST'])
+def migrar_iva_detalles_endpoint():
+    """Endpoint para ejecutar migración de IVA en detalles"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        contador = migrar_detalle_facturas_con_iva()
+        
+        return jsonify({
+            'success': True,
+            'mensaje': f'Migración completada: {contador} detalles actualizados',
+            'detalles_migrados': contador
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Error en migración: {str(e)}'
         }), 500
 
 app.run(debug=True, host='0.0.0.0', port=5000)

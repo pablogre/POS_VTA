@@ -392,6 +392,9 @@
                                 <button type="button" class="btn btn-outline-info" onclick="completarConTarjeta('debito')">
                                     <i class="fas fa-credit-card"></i> Completar con Débito
                                 </button>
+                                <button type="button" class="btn btn-outline-warning" onclick="completarConMercadoPago()">
+                                    <i class="fas fa-mobile-alt"></i> Completar con Mercado Pago
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -452,19 +455,24 @@
         </div>
     </div>
 </div>
+
 {% endblock %}
+
+<!-- 1. VERIFICAR QUE EL JAVASCRIPT ESTÉ EN EL LUGAR CORRECTO -->
+
 
 {% block scripts %}
 <script>
+// Variables globales
 let itemsVenta = [];
 let contadorItems = 0;
 let timeoutBusqueda = null;
 let productoSeleccionado = null;
-
-// Variables globales para medios de pago
 let mediosPagoIngresados = [];
 let contadorMediosPago = 0;
 let totalVenta = 0;
+
+console.log('🚀 JavaScript de nueva_venta.html cargado correctamente');
 
 // ✅ FUNCIÓN CORRECTA: Cálculo IVA método AFIP
 function calcularIVAAFIP() {
@@ -489,10 +497,6 @@ function calcularIVAAFIP() {
     
     return Math.round(ivaTotal * 100) / 100;
 }
-
-// ===========================================
-// FUNCIONES DE BÚSQUEDA MEJORADA
-// ===========================================
 
 function buscarProductos(termino) {
     if (termino.length < 2) {
@@ -794,31 +798,6 @@ function actualizarEtiquetaIVA() {
     }
 }
 
-function actualizarTipoComprobante() {
-    const clienteSelect = document.getElementById('cliente_select');
-    const tipoComprobante = document.getElementById('tipo_comprobante');
-    const infoCliente = document.getElementById('info_cliente');
-    
-    const selectedOption = clienteSelect.selectedOptions[0];
-    const condicionIva = selectedOption.getAttribute('data-condicion');
-    const nombreCliente = selectedOption.text;
-    
-    // Actualizar información del cliente
-    infoCliente.innerHTML = `${nombreCliente}<br><small class="text-muted">Condición: ${condicionIva.replace('_', ' ')}</small>`;
-    
-    // Lógica para determinar tipo de comprobante según condición IVA
-    if (condicionIva === 'IVA_RESPONSABLE_INSCRIPTO') {
-        tipoComprobante.value = '01'; // Factura A
-    } else if (condicionIva === 'MONOTRIBUTISTA') {
-        tipoComprobante.value = '06'; // Factura B
-    } else {
-        tipoComprobante.value = '11'; // Factura C
-    }
-}
-
-// ===========================================
-// FUNCIÓN PRINCIPAL DE PROCESAMIENTO
-// ===========================================
 function procesarVenta() {
     if (itemsVenta.length === 0) {
         mostrarError('Debe agregar al menos un producto a la venta');
@@ -826,409 +805,19 @@ function procesarVenta() {
     }
     
     const subtotal = itemsVenta.reduce((sum, item) => sum + item.subtotal, 0);
-    
-    // *** NUEVO: Calcular IVA con redondeo correcto POR ITEM ***
-    const iva = itemsVenta.reduce((sum, item) => {
-        const ivaItem = Math.round((item.subtotal * item.iva / 100) * 100) / 100;
-        return sum + ivaItem;
-    }, 0);
-    
+    const iva = calcularIVAAFIP();
     totalVenta = subtotal + iva;
     
-    // Mostrar modal de medios de pago en lugar de procesar directamente
+    // Limpiar medios de pago anteriores
+    mediosPagoIngresados = [];
+    contadorMediosPago = 0;
+    
+    // Mostrar modal de medios de pago (COMO ESTABA ANTES)
     mostrarModalMediosPago();
 }
-
-function procesarVentaConMediosPago() {
-    const clienteId = document.getElementById('cliente_select').value;
-    const tipoComprobante = document.getElementById('tipo_comprobante').value;
-    
-    const subtotal = itemsVenta.reduce((sum, item) => sum + item.subtotal, 0);
-    
-    // ✅ USAR método AFIP consistente
-    const iva = calcularIVAAFIP();
-    const total = subtotal + iva;
-    
-    const imprimirAuto = document.getElementById('imprimir_automatico');
-    
-    // *** NUEVO: Preparar items con detalle de IVA para AFIP ***
-    const itemsDetallados = itemsVenta.map(item => ({
-        producto_id: item.producto_id,
-        cantidad: item.cantidad,
-        precio_unitario: item.precio_unitario,
-        subtotal: item.subtotal,
-        iva_porcentaje: item.iva  // ✅ CLAVE: Porcentaje de IVA individual
-    }));
-    
-    const ventaData = {
-        cliente_id: parseInt(clienteId),
-        tipo_comprobante: tipoComprobante,
-        items: itemsDetallados,  // Items para la BD
-        items_detalle: itemsDetallados,  // *** NUEVO: Items detallados para AFIP ***
-        subtotal: subtotal,
-        iva: iva,
-        total: total,
-        medios_pago: mediosPagoIngresados.map(mp => ({
-            medio_pago: mp.medio,
-            importe: mp.importe
-        })),
-        imprimir_automatico: imprimirAuto ? imprimirAuto.checked : true
-    };
-    
-    // 🔍 DEBUG final
-    console.log('📤 Enviando a AFIP con items detallados:', ventaData);
-    console.log('🧮 Items con IVA individual:', itemsDetallados);
-    
-    // Deshabilitar botón y mostrar loading
-    const btnProcesar = document.getElementById('btn_procesar');
-    btnProcesar.disabled = true;
-    btnProcesar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
-    
-    fetch('/procesar_venta', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(ventaData)
-    })
-    .then(response => response.json())
-    .then(result => {
-        btnProcesar.disabled = false;
-        btnProcesar.innerHTML = '<i class="fas fa-check-circle"></i> Procesar Venta';
-        
-        if (result.success) {
-            mostrarResultadoVenta(result);
-        } else {
-            mostrarError('Error al procesar la venta: ' + result.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        btnProcesar.disabled = false;
-        btnProcesar.innerHTML = '<i class="fas fa-check-circle"></i> Procesar Venta';
-        mostrarError('Error al procesar la venta');
-    });
-}
-
-
-/* function procesarVenta() {
-    if (itemsVenta.length === 0) {
-        mostrarError('Debe agregar al menos un producto a la venta');
-        return;
-    }
-    
-    const clienteId = document.getElementById('cliente_select').value;
-    const tipoComprobante = document.getElementById('tipo_comprobante').value;
-    
-    const subtotal = itemsVenta.reduce((sum, item) => sum + item.subtotal, 0);
-    const iva = itemsVenta.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0);
-    const total = subtotal + iva;
-    
-    const imprimirAuto = document.getElementById('imprimir_automatico');
-    
-    const ventaData = {
-        cliente_id: parseInt(clienteId),
-        tipo_comprobante: tipoComprobante,
-        items: itemsVenta.map(item => ({
-            producto_id: item.producto_id,
-            cantidad: item.cantidad,
-            precio_unitario: item.precio_unitario,
-            subtotal: item.subtotal
-        })),
-        subtotal: subtotal,
-        iva: iva,
-        total: total,
-        imprimir_automatico: imprimirAuto ? imprimirAuto.checked : true
-    };
-    
-    // Deshabilitar botón y mostrar loading
-    const btnProcesar = document.getElementById('btn_procesar');
-    btnProcesar.disabled = true;
-    btnProcesar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
-    
-    fetch('/procesar_venta', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(ventaData)
-    })
-    .then(response => response.json())
-    .then(result => {
-        btnProcesar.disabled = false;
-        btnProcesar.innerHTML = '<i class="fas fa-check-circle"></i> Procesar Venta';
-        
-        if (result.success) {
-            mostrarResultadoVenta(result);
-        } else {
-            mostrarError('Error al procesar la venta: ' + result.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        btnProcesar.disabled = false;
-        btnProcesar.innerHTML = '<i class="fas fa-check-circle"></i> Procesar Venta';
-        mostrarError('Error al procesar la venta');
-    });
-}
- */
-function mostrarResultadoVenta(resultado) {
-    const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
-    const contenido = document.getElementById('resultado_venta');
-    
-    let estadoHtml = '';
-    
-    if (resultado.estado === 'autorizada') {
-        estadoHtml = `<div class="alert alert-success">
-            <i class="fas fa-check-circle"></i> <strong>¡Factura autorizada por ARCA!</strong>
-            <br><strong>CAE:</strong> ${resultado.cae}
-            <br><small class="text-success">✅ Código QR ARCA disponible</small>
-        </div>`;
-    } else if (resultado.estado === 'error_afip') {
-        estadoHtml = `<div class="alert alert-warning">
-            <i class="fas fa-exclamation-triangle"></i> <strong>Venta procesada localmente</strong>
-            <br>Error de conexión con ARCA - La factura se guardó localmente
-            <br><small class="text-warning">⚠️ QR ARCA no disponible</small>
-        </div>`;
-    } else {
-        estadoHtml = `<div class="alert alert-info">
-            <i class="fas fa-info-circle"></i> <strong>Venta procesada</strong>
-        </div>`;
-    }
-    
-    const subtotalFinal = itemsVenta.reduce((sum, item) => sum + item.subtotal, 0);
-     // *** NUEVO: Calcular IVA con redondeo correcto POR ITEM ***
-    const ivaFinal = itemsVenta.reduce((sum, item) => {
-        const ivaItem = Math.round((item.subtotal * item.iva / 100) * 100) / 100;
-        return sum + ivaItem;
-    }, 0);
-
-    const totalFinal = subtotalFinal + ivaFinal;
-    
-    contenido.innerHTML = `
-        ${estadoHtml}
-        <div class="row">
-            <div class="col-md-6">
-                <p><strong>Número de Factura:</strong><br><code>${resultado.numero}</code></p>
-                <p><strong>Cliente:</strong><br>${document.getElementById('cliente_select').selectedOptions[0].text}</p>
-            </div>
-            <div class="col-md-6">
-                <p><strong>Subtotal:</strong> ${subtotalFinal.toFixed(2)}</p>
-                <p><strong>IVA:</strong> ${ivaFinal.toFixed(2)}</p>
-                <p><strong>Total:</strong> <span class="h5 text-success">${totalFinal.toFixed(2)}</span></p>
-            </div>
-        </div>
-    `;
-    
-    // Guardar ID de factura para imprimir y QR
-    window.ultimaFacturaId = resultado.factura_id;
-    
-    modal.show();
-}
-
-// ===========================================
-// FUNCIONES DE IMPRESIÓN
-// ===========================================
-
-function imprimirFactura() {
-    if (!window.ultimaFacturaId) {
-        mostrarError('No hay factura para imprimir');
-        return;
-    }
-    
-    // Deshabilitar botón mientras imprime
-    const btnImprimir = event.target;
-    const textoOriginal = btnImprimir.innerHTML;
-    btnImprimir.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Imprimiendo...';
-    btnImprimir.disabled = true;
-    
-    fetch(`/imprimir_factura/${window.ultimaFacturaId}`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            mostrarMensajeExito('✅ ' + data.mensaje);
-        } else {
-            mostrarError('❌ Error al imprimir: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        mostrarError('❌ Error de conexión al imprimir: ' + error.message);
-    })
-    .finally(() => {
-        // Restaurar botón
-        btnImprimir.innerHTML = textoOriginal;
-        btnImprimir.disabled = false;
-    });
-}
-
-function testImpresion() {
-    const btn = event.target;
-    const textoOriginal = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
-    btn.disabled = true;
-    
-    fetch('/test_impresion', {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            mostrarMensajeExito('✅ ' + data.mensaje);
-        } else {
-            mostrarError('❌ Error: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        mostrarError('❌ Error de conexión: ' + error.message);
-    })
-    .finally(() => {
-        btn.innerHTML = textoOriginal;
-        btn.disabled = false;
-    });
-}
-
-function verificarEstadoImpresora() {
-    fetch('/estado_impresora')
-    .then(response => response.json())
-    .then(data => {
-        let mensaje = '';
-        if (data.disponible) {
-            mensaje = `
-                <div class="alert alert-success">
-                    <i class="fas fa-printer"></i> <strong>Sistema de impresión disponible</strong><br>
-                    <small>
-                        Impresora: ${data.nombre || 'No detectada'}<br>
-                        Formato: ${data.ancho_mm}mm (${data.caracteres_linea} caracteres)<br>
-                        Estado: ${data.estado || 'Desconocido'}
-                    </small>
-                </div>
-            `;
-        } else {
-            mensaje = `
-                <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle"></i> <strong>Sistema de impresión no disponible</strong><br>
-                    <small>Error: ${data.error || 'Sistema no disponible'}</small><br>
-                    <small class="text-muted">Para Windows: pip install pywin32</small>
-                </div>
-            `;
-        }
-        
-        // Mostrar en modal
-        const modal = new bootstrap.Modal(document.getElementById('modalInfo'));
-        document.getElementById('mensaje_info').innerHTML = mensaje;
-        modal.show();
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        
-        const mensaje = `
-            <div class="alert alert-danger">
-                <i class="fas fa-times-circle"></i> <strong>Error de conexión</strong><br>
-                <small>No se pudo verificar el estado de la impresora</small><br>
-                <small class="text-muted">Error: ${error.message}</small>
-            </div>
-        `;
-        
-        const modal = new bootstrap.Modal(document.getElementById('modalInfo'));
-        document.getElementById('mensaje_info').innerHTML = mensaje;
-        modal.show();
-    });
-}
-
-// ===========================================
-// FUNCIONES DE QR AFIP
-// ===========================================
-
-function mostrarQRFactura() {
-    if (!window.ultimaFacturaId) {
-        mostrarError('No hay factura para mostrar QR');
-        return;
-    }
-    
-    // Abrir QR en nueva ventana
-    window.open(`/mostrar_qr/${window.ultimaFacturaId}`, '_blank', 'width=600,height=800');
-}
-
-function validarQRFactura() {
-    if (!window.ultimaFacturaId) {
-        mostrarError('No hay factura para validar');
-        return;
-    }
-    
-    fetch(`/validar_qr/${window.ultimaFacturaId}`)
-    .then(response => response.json())
-    .then(data => {
-        let mensaje = '';
-        
-        if (data.qr_valido) {
-            mensaje = `
-                <div class="alert alert-success">
-                    <h5><i class="fas fa-check-circle"></i> QR ARCA Válido</h5>
-                    <p><strong>Factura:</strong> ${data.numero}</p>
-                    <p><strong>Estado:</strong> ${data.mensaje}</p>
-                    <small><strong>URL QR:</strong><br>
-                    <code style="font-size: 0.8em; word-break: break-all;">${data.qr_url}</code></small>
-                </div>
-            `;
-        } else {
-            mensaje = `
-                <div class="alert alert-warning">
-                    <h5><i class="fas fa-exclamation-triangle"></i> QR No Disponible</h5>
-                    <p><strong>Motivo:</strong> ${data.mensaje}</p>
-                    ${data.errores && data.errores.length > 0 ? 
-                        '<p><strong>Errores:</strong><br>' + data.errores.join('<br>') + '</p>' 
-                        : ''}
-                </div>
-            `;
-        }
-        
-        // Mostrar en modal
-        const modal = new bootstrap.Modal(document.getElementById('modalInfo'));
-        document.getElementById('mensaje_info').innerHTML = mensaje;
-        modal.show();
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        mostrarError('Error al validar QR: ' + error.message);
-    });
-}
-
-function abrirQREnAFIP() {
-    if (!window.ultimaFacturaId) {
-        mostrarError('No hay factura disponible');
-        return;
-    }
-    
-    // Primero obtener la URL del QR
-    fetch(`/validar_qr/${window.ultimaFacturaId}`)
-    .then(response => response.json())
-    .then(data => {
-        if (data.qr_valido && data.qr_url) {
-            // Abrir directamente en AFIP
-            window.open(data.qr_url, '_blank');
-        } else {
-            mostrarError('QR no disponible: ' + data.mensaje);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        mostrarError('Error al abrir QR: ' + error.message);
-    });
-}
-
-// ===========================================
-// FUNCIONES DE MEDIOS DE PAGO
-// ===========================================
+// ==========================================
+// FUNCIONES DE MEDIOS DE PAGO QUE FALTAN
+// ==========================================
 
 function mostrarModalMediosPago() {
     // Resetear datos
@@ -1432,6 +1021,20 @@ function completarConTarjeta(tipoTarjeta) {
     document.getElementById('importe_pago').focus();
 }
 
+function completarConMercadoPago() {
+    const totalIngresado = mediosPagoIngresados.reduce((sum, mp) => sum + mp.importe, 0);
+    const faltante = totalVenta - totalIngresado;
+    
+    if (faltante <= 0) {
+        mostrarError('El pago ya está completo');
+        return;
+    }
+    
+    document.getElementById('medio_pago_select').value = 'mercado_pago';
+    document.getElementById('importe_pago').value = faltante.toFixed(2);
+    document.getElementById('importe_pago').focus();
+}
+
 function limpiarMediosPago() {
     if (mediosPagoIngresados.length > 0) {
         if (confirm('¿Limpiar todos los medios de pago ingresados?')) {
@@ -1454,7 +1057,6 @@ function confirmarMediosPago() {
     }
     
     const totalIngresado = mediosPagoIngresados.reduce((sum, mp) => sum + mp.importe, 0);
-     // *** CORREGIR COMPARACIÓN CON TOLERANCIA ***
     const diferencia = Math.abs(totalIngresado - totalVenta);
     
     if (diferencia > 0.01) { // Tolerancia de 1 centavo
@@ -1462,25 +1064,14 @@ function confirmarMediosPago() {
         return;
     }
     
-    // *** DEBUG TEMPORAL ***
-    console.log('💰 DEBUG Medios de Pago:');
-    console.log('  Total Venta:', totalVenta);
-    console.log('  Total Ingresado:', totalIngresado);
-    console.log('  Diferencia:', diferencia);
-    
-
-    //if (totalIngresado < totalVenta) {
-    //    mostrarError('El total ingresado es menor al total de la venta');
-    //    return;
-    // }
-    
     // Cerrar modal de medios de pago
     const modal = bootstrap.Modal.getInstance(document.getElementById('modalMediosPago'));
     modal.hide();
     
-    // Solo llamar a la función que hace todo
+    // Procesar venta
     procesarVentaConMediosPago();
 }
+
 function getMedioNombre(codigo) {
     const medios = {
         'efectivo': 'Efectivo',
@@ -1505,78 +1096,6 @@ function getMedioIcono(codigo) {
     return iconos[codigo] || 'fas fa-credit-card';
 }
 
-// ===========================================
-// FUNCIONES DE UTILIDAD Y AUXILIARES
-// ===========================================
-
-function mostrarError(mensaje) {
-    const modal = new bootstrap.Modal(document.getElementById('modalError'));
-    const contenido = document.getElementById('mensaje_error');
-    contenido.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${mensaje}</div>`;
-    modal.show();
-}
-
-function mostrarMensajeExito(mensaje) {
-    // Crear toast de éxito temporal
-    const toast = document.createElement('div');
-    toast.className = 'position-fixed top-0 end-0 m-3 alert alert-success alert-dismissible fade show';
-    toast.style.zIndex = '9999';
-    toast.innerHTML = `
-        <i class="fas fa-check-circle"></i> ${mensaje}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    document.body.appendChild(toast);
-    
-    // Auto-remover después de 3 segundos
-    setTimeout(() => {
-        if (toast.parentNode) {
-            toast.parentNode.removeChild(toast);
-        }
-    }, 3000);
-}
-
-function nuevaVenta() {
-    limpiarVenta();
-    const modal = bootstrap.Modal.getInstance(document.getElementById('modalConfirmacion'));
-    modal.hide();
-}
-
-function limpiarVenta() {
-    if (itemsVenta.length > 0) {
-        if (!confirm('¿Está seguro de limpiar toda la venta?')) {
-            return;
-        }
-    }
-    
-    itemsVenta = [];
-    contadorItems = 0;
-    productoSeleccionado = null;
-    actualizarTablaVenta();
-    calcularTotales();
-    document.getElementById('cliente_select').value = '1';
-    document.getElementById('tipo_comprobante').value = '11';
-    document.getElementById('buscar_producto').value = '';
-    document.getElementById('cantidad').value = '1';
-    actualizarTipoComprobante();
-    ocultarSugerencias();
-    document.getElementById('buscar_producto').focus();
-}
-
-function guardarBorrador() {
-    if (itemsVenta.length === 0) {
-        mostrarError('No hay productos en la venta para guardar');
-        return;
-    }
-    
-    // Implementar guardado de borrador
-    alert('Función guardarBorrador en desarrollo');
-}
-
-// Función para compatibilidad hacia atrás
-function seleccionarProducto(codigo, nombre, precio, id, stock) {
-    seleccionarProductoPorId(id);
-}
-
 // Formatear números como moneda
 function formatearMoneda(valor) {
     return new Intl.NumberFormat('es-AR', {
@@ -1585,144 +1104,304 @@ function formatearMoneda(valor) {
     }).format(valor);
 }
 
-// Validar stock antes de agregar
-function validarStock(productoId, cantidadSolicitada) {
-    // Esta función podría hacer una consulta al servidor para verificar stock actual
-    return true; // Por ahora, siempre devolver true
+// ==========================================
+// FUNCIONES ADICIONALES QUE FALTAN
+// ==========================================
+
+function actualizarTipoComprobante() {
+    const clienteSelect = document.getElementById('cliente_select');
+    const tipoComprobante = document.getElementById('tipo_comprobante');
+    const infoCliente = document.getElementById('info_cliente');
+    
+    const selectedOption = clienteSelect.selectedOptions[0];
+    const condicionIva = selectedOption.getAttribute('data-condicion');
+    const nombreCliente = selectedOption.text;
+    
+    // Actualizar información del cliente
+    infoCliente.innerHTML = `${nombreCliente}<br><small class="text-muted">Condición: ${condicionIva.replace('_', ' ')}</small>`;
+    
+    // Lógica para determinar tipo de comprobante según condición IVA
+    if (condicionIva === 'IVA_RESPONSABLE_INSCRIPTO') {
+        tipoComprobante.value = '01'; // Factura A
+    } else if (condicionIva === 'MONOTRIBUTISTA') {
+        tipoComprobante.value = '06'; // Factura B
+    } else {
+        tipoComprobante.value = '11'; // Factura C
+    }
 }
 
-// Debug: mostrar estado actual
-function debugEstado() {
-    console.log('Items en venta:', itemsVenta);
-    console.log('Producto seleccionado:', productoSeleccionado);
-    console.log('Total items:', itemsVenta.length);
-}
-
-// Función para exportar venta (futuro)
-function exportarVenta() {
+function guardarBorrador() {
     if (itemsVenta.length === 0) {
-        mostrarError('No hay productos para exportar');
+        mostrarError('No hay productos en la venta para guardar');
         return;
     }
     
-    const datosVenta = {
-        cliente: document.getElementById('cliente_select').selectedOptions[0].text,
-        fecha: new Date().toLocaleString(),
-        items: itemsVenta,
-        totales: {
-            subtotal: itemsVenta.reduce((sum, item) => sum + item.subtotal, 0),
-            iva: itemsVenta.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0),
-            total: itemsVenta.reduce((sum, item) => sum + item.subtotal, 0) + itemsVenta.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0)
-        }
-    };
-    
-    // Crear archivo JSON para descargar
-    const dataStr = JSON.stringify(datosVenta, null, 2);
-    const dataBlob = new Blob([dataStr], {type: 'application/json'});
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `venta_${new Date().getTime()}.json`;
-    link.click();
+    alert('Función guardarBorrador en desarrollo');
 }
 
-// ===========================================
-// EVENT LISTENERS Y INICIALIZACIÓN
-// ===========================================
+function imprimirFactura() {
+    if (!window.ultimaFacturaId) {
+        mostrarError('No hay factura para imprimir');
+        return;
+    }
+    
+    // Deshabilitar botón mientras imprime
+    const btnImprimir = event.target;
+    const textoOriginal = btnImprimir.innerHTML;
+    btnImprimir.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Imprimiendo...';
+    btnImprimir.disabled = true;
+    
+    fetch(`/imprimir_factura/${window.ultimaFacturaId}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            mostrarMensajeExito('✅ ' + data.mensaje);
+        } else {
+            mostrarError('❌ Error al imprimir: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarError('❌ Error de conexión al imprimir: ' + error.message);
+    })
+    .finally(() => {
+        // Restaurar botón
+        btnImprimir.innerHTML = textoOriginal;
+        btnImprimir.disabled = false;
+    });
+}
 
+// *** NUEVAS FUNCIONES DE IMPRESIÓN ***
+function testImpresion() {
+    const btn = event.target;
+    const textoOriginal = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+    btn.disabled = true;
+    
+    fetch('/test_impresion', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            mostrarMensajeExito('✅ ' + data.mensaje);
+        } else {
+            mostrarError('❌ Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarError('❌ Error de conexión: ' + error.message);
+    })
+    .finally(() => {
+        btn.innerHTML = textoOriginal;
+        btn.disabled = false;
+    });
+}
+
+
+function verificarEstadoImpresora() {
+    fetch('/estado_impresora')
+    .then(response => response.json())
+    .then(data => {
+        let mensaje = '';
+        if (data.disponible) {
+            mensaje = `
+                <div class="alert alert-success">
+                    <i class="fas fa-printer"></i> <strong>Sistema de impresión disponible</strong><br>
+                    <small>
+                        Impresora: ${data.nombre || 'No detectada'}<br>
+                        Formato: ${data.ancho_mm}mm (${data.caracteres_linea} caracteres)<br>
+                        Estado: ${data.estado || 'Desconocido'}
+                    </small>
+                </div>
+            `;
+        } else {
+            mensaje = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i> <strong>Sistema de impresión no disponible</strong><br>
+                    <small>Error: ${data.error || 'Sistema no disponible'}</small><br>
+                    <small class="text-muted">Para Windows: pip install pywin32</small>
+                </div>
+            `;
+        }
+        
+        // Mostrar en modal
+        const modal = new bootstrap.Modal(document.getElementById('modalInfo'));
+        document.getElementById('mensaje_info').innerHTML = mensaje;
+        modal.show();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        
+        const mensaje = `
+            <div class="alert alert-danger">
+                <i class="fas fa-times-circle"></i> <strong>Error de conexión</strong><br>
+                <small>No se pudo verificar el estado de la impresora</small><br>
+                <small class="text-muted">Error: ${error.message}</small>
+            </div>
+        `;
+        
+        const modal = new bootstrap.Modal(document.getElementById('modalInfo'));
+        document.getElementById('mensaje_info').innerHTML = mensaje;
+        modal.show();
+    });
+}
+
+function mostrarError(mensaje) {
+    const modal = new bootstrap.Modal(document.getElementById('modalError'));
+    const contenido = document.getElementById('mensaje_error');
+    contenido.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${mensaje}</div>`;
+    modal.show();
+}
+
+
+function mostrarQRFactura() {
+    if (!window.ultimaFacturaId) {
+        mostrarError('No hay factura para mostrar QR');
+        return;
+    }
+    
+    // Abrir QR en nueva ventana
+    window.open(`/mostrar_qr/${window.ultimaFacturaId}`, '_blank', 'width=600,height=800');
+}
+
+function validarQRFactura() {
+    if (!window.ultimaFacturaId) {
+        mostrarError('No hay factura para validar');
+        return;
+    }
+    
+    fetch(`/validar_qr/${window.ultimaFacturaId}`)
+    .then(response => response.json())
+    .then(data => {
+        let mensaje = '';
+        
+        if (data.qr_valido) {
+            mensaje = `
+                <div class="alert alert-success">
+                    <h5><i class="fas fa-check-circle"></i> QR AFIP Válido</h5>
+                    <p><strong>Factura:</strong> ${data.numero}</p>
+                    <p><strong>Estado:</strong> ${data.mensaje}</p>
+                    <small><strong>URL QR:</strong><br>
+                    <code style="font-size: 0.8em; word-break: break-all;">${data.qr_url}</code></small>
+                </div>
+            `;
+        } else {
+            mensaje = `
+                <div class="alert alert-warning">
+                    <h5><i class="fas fa-exclamation-triangle"></i> QR No Disponible</h5>
+                    <p><strong>Motivo:</strong> ${data.mensaje}</p>
+                    ${data.errores && data.errores.length > 0 ? 
+                        '<p><strong>Errores:</strong><br>' + data.errores.join('<br>') + '</p>' 
+                        : ''}
+                </div>
+            `;
+        }
+        
+        // Mostrar en modal
+        const modal = new bootstrap.Modal(document.getElementById('modalInfo'));
+        document.getElementById('mensaje_info').innerHTML = mensaje;
+        modal.show();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarError('Error al validar QR: ' + error.message);
+    });
+}
+
+
+function validarQRFactura() {
+    if (!window.ultimaFacturaId) {
+        mostrarError('No hay factura para validar');
+        return;
+    }
+    
+    fetch(`/validar_qr/${window.ultimaFacturaId}`)
+    .then(response => response.json())
+    .then(data => {
+        let mensaje = '';
+        
+        if (data.qr_valido) {
+            mensaje = `
+                <div class="alert alert-success">
+                    <h5><i class="fas fa-check-circle"></i> QR AFIP Válido</h5>
+                    <p><strong>Factura:</strong> ${data.numero}</p>
+                    <p><strong>Estado:</strong> ${data.mensaje}</p>
+                    <small><strong>URL QR:</strong><br>
+                    <code style="font-size: 0.8em; word-break: break-all;">${data.qr_url}</code></small>
+                </div>
+            `;
+        } else {
+            mensaje = `
+                <div class="alert alert-warning">
+                    <h5><i class="fas fa-exclamation-triangle"></i> QR No Disponible</h5>
+                    <p><strong>Motivo:</strong> ${data.mensaje}</p>
+                    ${data.errores && data.errores.length > 0 ? 
+                        '<p><strong>Errores:</strong><br>' + data.errores.join('<br>') + '</p>' 
+                        : ''}
+                </div>
+            `;
+        }
+        
+        // Mostrar en modal
+        const modal = new bootstrap.Modal(document.getElementById('modalInfo'));
+        document.getElementById('mensaje_info').innerHTML = mensaje;
+        modal.show();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarError('Error al validar QR: ' + error.message);
+    });
+}
+
+
+function abrirQREnAFIP() {
+    if (!window.ultimaFacturaId) {
+        mostrarError('No hay factura disponible');
+        return;
+    }
+    
+    // Primero obtener la URL del QR
+    fetch(`/validar_qr/${window.ultimaFacturaId}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.qr_valido && data.qr_url) {
+            // Abrir directamente en AFIP
+            window.open(data.qr_url, '_blank');
+        } else {
+            mostrarError('QR no disponible: ' + data.mensaje);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarError('Error al abrir QR: ' + error.message);
+    });
+}
+
+
+function nuevaVenta() {
+    // Cerrar el modal primero
+    const modal = bootstrap.Modal.getInstance(document.getElementById('modalConfirmacion'));
+    if (modal) {
+        modal.hide();
+    }
+    
+    // Limpiar venta sin confirmación (ya procesamos exitosamente)
+    limpiarVentaSinConfirmacion();
+}
+
+
+// Event listeners adicionales para medios de pago
 document.addEventListener('DOMContentLoaded', function() {
-    const inputBuscar = document.getElementById('buscar_producto');
-    
-    // Búsqueda en tiempo real
-    inputBuscar.addEventListener('input', function() {
-        clearTimeout(timeoutBusqueda);
-        const termino = this.value.trim();
-        
-        if (termino.length < 2) {
-            ocultarSugerencias();
-            productoSeleccionado = null;
-            return;
-        }
-        
-        timeoutBusqueda = setTimeout(() => {
-            buscarProductos(termino);
-        }, 300); // Esperar 300ms después de que el usuario deje de escribir
-    });
-    
-    // Navegación con teclado
-    inputBuscar.addEventListener('keydown', function(e) {
-        const sugerencias = document.querySelectorAll('.sugerencia-item');
-        const sugerenciasVisibles = document.getElementById('sugerencias').style.display !== 'none';
-        
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            
-            if (sugerenciasVisibles && sugerencias.length > 0) {
-                // Si hay sugerencias visibles, seleccionar la primera
-                const primeraSugerencia = sugerencias[0];
-                const productoId = primeraSugerencia.getAttribute('onclick').match(/\d+/)[0];
-                seleccionarProductoSugerencia(parseInt(productoId));
-            } else {
-                // Si no hay sugerencias, agregar por código
-                agregarProducto();
-            }
-        } else if (e.key === 'Escape') {
-            ocultarSugerencias();
-            productoSeleccionado = null;
-        } else if (e.key === 'ArrowDown' && sugerenciasVisibles && sugerencias.length > 0) {
-            e.preventDefault();
-            // Enfocar primera sugerencia
-            sugerencias[0].style.backgroundColor = '#e9ecef';
-        } else if (e.key === 'ArrowUp' && sugerenciasVisibles && sugerencias.length > 0) {
-            e.preventDefault();
-            // Enfocar última sugerencia
-            sugerencias[sugerencias.length - 1].style.backgroundColor = '#e9ecef';
-        }
-    });
-    
-    // Ocultar sugerencias al hacer clic fuera
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('#buscar_producto') && !e.target.closest('#sugerencias')) {
-            ocultarSugerencias();
-        }
-    });
-    
-    // Eventos para cantidad
-    const inputCantidad = document.getElementById('cantidad');
-    inputCantidad.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            agregarProducto();
-        }
-    });
-    
-    // Shortcuts de teclado
-    document.addEventListener('keydown', function(e) {
-        // F2 para nueva venta
-        if (e.key === 'F2') {
-            e.preventDefault();
-            limpiarVenta();
-        }
-        
-        // F9 para procesar venta
-        if (e.key === 'F9') {
-            e.preventDefault();
-            if (itemsVenta.length > 0) {
-                procesarVenta();
-            }
-        }
-        
-        // Escape para cancelar
-        if (e.key === 'Escape') {
-            ocultarSugerencias();
-            
-            // Si no hay productos, enfocar búsqueda
-            if (itemsVenta.length === 0) {
-                document.getElementById('buscar_producto').focus();
-            }
-        }
-    });
-    
     // Event listeners para medios de pago
     const importeInput = document.getElementById('importe_pago');
     if (importeInput) {
@@ -1744,19 +1423,256 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Actualizar tipo de comprobante inicial
+    actualizarTipoComprobante();
+});
+
+function procesarVentaConMediosPago() {
+    const clienteId = document.getElementById('cliente_select').value;
+    const tipoComprobante = document.getElementById('tipo_comprobante').value;
+    
+    const subtotal = itemsVenta.reduce((sum, item) => sum + item.subtotal, 0);
+    const iva = calcularIVAAFIP();
+    const total = subtotal + iva;
+    
+    const imprimirAuto = document.getElementById('imprimir_automatico');
+    
+    // Items básicos para BD
+    const itemsParaBD = itemsVenta.map(item => ({
+        producto_id: item.producto_id,
+        cantidad: item.cantidad,
+        precio_unitario: item.precio_unitario,
+        subtotal: item.subtotal
+    }));
+    
+    // *** CRÍTICO: Items detallados CON IVA INDIVIDUAL ***
+    const itemsDetallados = itemsVenta.map(item => ({
+        producto_id: item.producto_id,
+        codigo: item.codigo,
+        nombre: item.nombre,
+        cantidad: item.cantidad,
+        precio_unitario: item.precio_unitario,
+        subtotal: item.subtotal,
+        iva_porcentaje: item.iva,  // ← ESTO es lo que faltaba
+        iva_importe: Math.round((item.subtotal * item.iva / 100) * 100) / 100
+    }));
+    
+    const ventaData = {
+        cliente_id: parseInt(clienteId),
+        tipo_comprobante: tipoComprobante,
+        items: itemsParaBD,
+        items_detalle: itemsDetallados,  // ← ENVIAR DATOS CON IVA
+        subtotal: subtotal,
+        iva: iva,
+        total: total,
+        medios_pago: mediosPagoIngresados.map(mp => ({
+            medio_pago: mp.medio,
+            importe: mp.importe
+        })),
+        imprimir_automatico: imprimirAuto ? imprimirAuto.checked : true
+    };
+    
+    console.log('📤 Enviando datos a servidor:', ventaData);
+    
+    // Deshabilitar botón y mostrar loading
+    const btnProcesar = document.getElementById('btn_procesar');
+    btnProcesar.disabled = true;
+    btnProcesar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+    
+    fetch('/procesar_venta', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(ventaData)
+    })
+    .then(response => response.json())
+    .then(result => {
+        btnProcesar.disabled = false;
+        btnProcesar.innerHTML = '<i class="fas fa-check-circle"></i> Procesar Venta';
+        
+        if (result.success) {
+            mostrarResultadoVenta(result);
+        } else {
+            mostrarError('Error al procesar la venta: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        btnProcesar.disabled = false;
+        btnProcesar.innerHTML = '<i class="fas fa-check-circle"></i> Procesar Venta';
+        mostrarError('Error al procesar la venta');
+    });
+}
+
+function mostrarResultadoVenta(resultado) {
+    const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
+    const contenido = document.getElementById('resultado_venta');
+    
+    let estadoHtml = '';
+    
+    if (resultado.estado === 'autorizada') {
+        estadoHtml = `<div class="alert alert-success">
+            <i class="fas fa-check-circle"></i> <strong>¡Factura autorizada por AFIP!</strong>
+            <br><strong>CAE:</strong> ${resultado.cae}
+            <br><small class="text-success">✅ Código QR AFIP disponible</small>
+        </div>`;
+    } else if (resultado.estado === 'error_afip') {
+        estadoHtml = `<div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i> <strong>Venta procesada localmente</strong>
+            <br>Error de conexión con AFIP - La factura se guardó localmente
+            <br><small class="text-warning">⚠️ QR AFIP no disponible</small>
+        </div>`;
+    } else {
+        estadoHtml = `<div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> <strong>Venta procesada</strong>
+        </div>`;
+    }
+    
+    const subtotalFinal = itemsVenta.reduce((sum, item) => sum + item.subtotal, 0);
+    const ivaFinal = itemsVenta.reduce((sum, item) => sum + (item.subtotal * item.iva / 100), 0);
+    const totalFinal = subtotalFinal + ivaFinal;
+    
+    contenido.innerHTML = `
+        ${estadoHtml}
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>Número de Factura:</strong><br><code>${resultado.numero}</code></p>
+                <p><strong>Cliente:</strong><br>${document.getElementById('cliente_select').selectedOptions[0].text}</p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>Subtotal:</strong> $${subtotalFinal.toFixed(2)}</p>
+                <p><strong>IVA:</strong> $${ivaFinal.toFixed(2)}</p>
+                <p><strong>Total:</strong> <span class="h5 text-success">$${totalFinal.toFixed(2)}</span></p>
+            </div>
+        </div>
+    `;
+    
+    // Guardar ID de factura para imprimir y QR
+    window.ultimaFacturaId = resultado.factura_id;
+    
+    modal.show();
+}
+
+/* function mostrarResultadoVenta(resultado) {
+    console.log('🎉 Resultado de venta:', resultado);
+    alert(`✅ ¡Venta procesada exitosamente!\n\nFactura: ${resultado.numero}\nEstado: ${resultado.estado}${resultado.cae ? '\nCAE: ' + resultado.cae : ''}`);
+    
+    // Limpiar venta
+    itemsVenta = [];
+    contadorItems = 0;
+    mediosPagoIngresados = [];
+    actualizarTablaVenta();
+    calcularTotales();
+}
+ */
+function mostrarError(mensaje) {
+    console.error('❌ Error:', mensaje);
+    alert('❌ Error: ' + mensaje);
+}
+
+function mostrarMensajeExito(mensaje) {
+    console.log('✅ Éxito:', mensaje);
+}
+
+
+// Nueva función para limpiar sin confirmación
+function limpiarVentaSinConfirmacion() {
+    itemsVenta = [];
+    contadorItems = 0;
+    productoSeleccionado = null;
+    mediosPagoIngresados = [];
+    actualizarTablaVenta();
+    calcularTotales();
+    document.getElementById('cliente_select').value = '1';
+    document.getElementById('tipo_comprobante').value = '11';
+    document.getElementById('buscar_producto').value = '';
+    document.getElementById('cantidad').value = '1';
+    ocultarSugerencias();
+    actualizarTipoComprobante();
+    document.getElementById('buscar_producto').focus();
+}
+
+function limpiarVenta() {
+    if (itemsVenta.length > 0) {
+        if (!confirm('¿Está seguro de limpiar toda la venta?')) {
+            return;
+        }
+    }
+    
+    itemsVenta = [];
+    contadorItems = 0;
+    productoSeleccionado = null;
+    actualizarTablaVenta();
+    calcularTotales();
+    document.getElementById('cliente_select').value = '1';
+    document.getElementById('tipo_comprobante').value = '11';
+    document.getElementById('buscar_producto').value = '';
+    document.getElementById('cantidad').value = '1';
+    ocultarSugerencias();
+    document.getElementById('buscar_producto').focus();
+}
+
+// Event listeners y inicialización
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 DOM cargado, inicializando nueva_venta...');
+    
+    const inputBuscar = document.getElementById('buscar_producto');
+    
+    // Búsqueda en tiempo real
+    inputBuscar.addEventListener('input', function() {
+        clearTimeout(timeoutBusqueda);
+        const termino = this.value.trim();
+        
+        if (termino.length < 2) {
+            ocultarSugerencias();
+            productoSeleccionado = null;
+            return;
+        }
+        
+        timeoutBusqueda = setTimeout(() => {
+            buscarProductos(termino);
+        }, 300);
+    });
+    
+    // Navegación con teclado
+    inputBuscar.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            agregarProducto();
+        } else if (e.key === 'Escape') {
+            ocultarSugerencias();
+            productoSeleccionado = null;
+        }
+    });
+    
+    // Ocultar sugerencias al hacer clic fuera
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#buscar_producto') && !e.target.closest('#sugerencias')) {
+            ocultarSugerencias();
+        }
+    });
+    
+    // Eventos para cantidad
+    const inputCantidad = document.getElementById('cantidad');
+    inputCantidad.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            agregarProducto();
+        }
+    });
+    
     // Inicializar
     actualizarTablaVenta();
     calcularTotales();
-    actualizarTipoComprobante();
     
     // Focus inicial
     document.getElementById('buscar_producto').focus();
     
-    console.log('🚀 Sistema POS cargado correctamente');
-    console.log('💡 Shortcuts: F2=Nueva Venta, F9=Procesar, Escape=Cancelar');
+    console.log('✅ Sistema POS cargado correctamente');
 });
-
 </script>
+{% endblock %}
 
 <style>
 /* Estilos para la búsqueda mejorada */
@@ -1897,4 +1813,3 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 </style>
 
-{% endblock %}

@@ -199,17 +199,55 @@ class ImpresoraTermica:
             
             lineas.append(self.linea_separadora())
             
-            # TOTALES
+            # TOTALES CON IVA DISCRIMINADO
             try:
                 subtotal = float(getattr(factura, 'subtotal', 0))
-                iva = float(getattr(factura, 'iva', 0))
+                iva_total = float(getattr(factura, 'iva', 0))
                 total = float(getattr(factura, 'total', 0))
                 
                 lineas.append(self.justificar_texto("SUBTOTAL:", f"${subtotal:,.2f}"))
-                if iva > 0:
-                    lineas.append(self.justificar_texto("IVA 21%:", f"${iva:,.2f}"))
+                
+                # *** DISCRIMINAR IVA POR ALÍCUOTA ***
+                if hasattr(factura, 'detalles') and factura.detalles:
+                    # Agrupar por porcentaje de IVA
+                    iva_por_alicuota = {}
+                    
+                    for detalle in factura.detalles:
+                        # Obtener porcentaje de IVA del detalle
+                        if hasattr(detalle, 'porcentaje_iva') and detalle.porcentaje_iva is not None:
+                            porcentaje = float(detalle.porcentaje_iva)
+                        else:
+                            # Fallback: obtener del producto
+                            porcentaje = float(detalle.producto.iva) if hasattr(detalle, 'producto') and detalle.producto else 21.0
+                        
+                        # Calcular IVA del detalle
+                        subtotal_detalle = float(detalle.subtotal)
+                        iva_detalle = round((subtotal_detalle * porcentaje / 100), 2)
+                        
+                        # Agrupar por alícuota
+                        if porcentaje not in iva_por_alicuota:
+                            iva_por_alicuota[porcentaje] = 0
+                        iva_por_alicuota[porcentaje] += iva_detalle
+                    
+                    # Mostrar cada alícuota de IVA
+                    for porcentaje in sorted(iva_por_alicuota.keys()):
+                        importe_iva = iva_por_alicuota[porcentaje]
+                        if importe_iva > 0:
+                            if porcentaje == 0:
+                                etiqueta = "EXENTO:"
+                            else:
+                                etiqueta = f"IVA {porcentaje:g}%:"
+                            lineas.append(self.justificar_texto(etiqueta, f"${importe_iva:,.2f}"))
+                    
+                    print(f"🧮 IVA discriminado: {iva_por_alicuota}")
+                else:
+                    # Fallback: mostrar IVA total si no hay detalles
+                    if iva_total > 0:
+                        lineas.append(self.justificar_texto("IVA 21%:", f"${iva_total:,.2f}"))
+                
                 lineas.append(self.linea_separadora())
                 lineas.append(self.justificar_texto("TOTAL:", f"${total:,.2f}"))
+                
             except (ValueError, AttributeError) as e:
                 print(f"⚠️ Error formateando totales: {e}")
                 lineas.append(self.justificar_texto("TOTAL:", "$0.00"))
