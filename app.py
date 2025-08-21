@@ -1520,7 +1520,7 @@ def toggle_producto(producto_id):
 # 3. ACTUALIZAR LA RUTA /buscar_productos_admin
 @app.route('/buscar_productos_admin')
 def buscar_productos_admin():
-    """Buscar productos con filtros para administración - INCLUYE COSTO Y MARGEN"""
+    """Buscar productos con filtros para administración - INCLUYE FILTROS PARA COMBOS"""
     if 'user_id' not in session:
         return jsonify({'error': 'No autorizado'}), 401
     
@@ -1530,10 +1530,26 @@ def buscar_productos_admin():
         categoria = request.args.get('categoria', '').strip()
         filtro_stock = request.args.get('stock', '').strip()
         
+        # ✅ NUEVOS PARÁMETROS PARA COMBOS
+        solo_combos = request.args.get('solo_combos', '').strip().lower() == 'true'
+        estado = request.args.get('estado', '').strip()  # activo, inactivo
+        descuento = request.args.get('descuento', '').strip()  # alto, medio, bajo
+        
+        print(f"🔍 Búsqueda productos admin:")
+        print(f"   Buscar: '{buscar}'")
+        print(f"   Solo combos: {solo_combos}")
+        print(f"   Estado: '{estado}'")
+        print(f"   Descuento: '{descuento}'")
+        
         # Construir query base
         query = Producto.query
         
-        # Aplicar filtros
+        # ✅ FILTRO PARA SOLO COMBOS
+        if solo_combos:
+            query = query.filter(Producto.es_combo == True)
+            print("   Filtro aplicado: Solo combos")
+        
+        # Aplicar filtros generales
         if buscar:
             query = query.filter(
                 or_(
@@ -1542,17 +1558,53 @@ def buscar_productos_admin():
                     Producto.descripcion.ilike(f'%{buscar}%')
                 )
             )
+            print(f"   Filtro aplicado: Búsqueda '{buscar}'")
         
         if categoria:
             query = query.filter(Producto.categoria == categoria)
+            print(f"   Filtro aplicado: Categoría '{categoria}'")
         
         if filtro_stock == 'bajo':
             query = query.filter(Producto.stock < 10)
         elif filtro_stock == 'sin_stock':
             query = query.filter(Producto.stock <= 0)
         
-        # Obtener resultados
+        # ✅ FILTRO DE ESTADO (ACTIVO/INACTIVO)
+        if estado == 'activo':
+            query = query.filter(Producto.activo == True)
+            print("   Filtro aplicado: Solo activos")
+        elif estado == 'inactivo':
+            query = query.filter(Producto.activo == False)
+            print("   Filtro aplicado: Solo inactivos")
+        
+        # Obtener resultados SIN filtro de descuento primero
         productos = query.order_by(Producto.codigo).all()
+        print(f"   Productos encontrados (antes filtro descuento): {len(productos)}")
+        
+        # ✅ APLICAR FILTRO DE DESCUENTO DESPUÉS (solo para combos)
+        if descuento and solo_combos:
+            productos_filtrados = []
+            
+            for producto in productos:
+                if producto.es_combo and producto.producto_base:
+                    # Calcular descuento del combo
+                    precio_normal = float(producto.producto_base.precio) * float(producto.cantidad_combo)
+                    precio_combo = float(producto.precio)
+                    descuento_porcentaje = ((precio_normal - precio_combo) / precio_normal) * 100 if precio_normal > 0 else 0
+                    
+                    # Aplicar filtro según nivel de descuento
+                    if descuento == 'alto' and descuento_porcentaje > 30:
+                        productos_filtrados.append(producto)
+                    elif descuento == 'medio' and 15 <= descuento_porcentaje <= 30:
+                        productos_filtrados.append(producto)
+                    elif descuento == 'bajo' and descuento_porcentaje < 15:
+                        productos_filtrados.append(producto)
+                else:
+                    # Si no es combo, incluir sin filtro de descuento
+                    productos_filtrados.append(producto)
+            
+            productos = productos_filtrados
+            print(f"   Productos después filtro descuento '{descuento}': {len(productos)}")
         
         # Formatear respuesta
         resultado = []
@@ -1565,7 +1617,7 @@ def buscar_productos_admin():
             if costo == 0.0 and producto.precio > 0 and margen > 0:
                 costo = float(producto.precio) / (1 + (margen / 100))
             
-            resultado.append({
+            producto_dict = {
                 'id': producto.id,
                 'codigo': producto.codigo,
                 'nombre': producto.nombre,
@@ -1576,17 +1628,49 @@ def buscar_productos_admin():
                 'stock': producto.stock,
                 'categoria': producto.categoria,
                 'iva': float(producto.iva),
-                'activo': producto.activo
-            })
+                'activo': producto.activo,
+                'es_combo': producto.es_combo
+            }
+            
+            # ✅ AGREGAR INFORMACIÓN ESPECÍFICA PARA COMBOS
+            if producto.es_combo:
+                producto_dict.update({
+                    'producto_base_id': producto.producto_base_id,
+                    'cantidad_combo': float(producto.cantidad_combo) if producto.cantidad_combo else 1.0,
+                    'precio_unitario_base': float(producto.precio_unitario_base) if producto.precio_unitario_base else 0.0
+                })
+                
+                # Información del producto base
+                if producto.producto_base:
+                    producto_dict['producto_base'] = {
+                        'id': producto.producto_base.id,
+                        'codigo': producto.producto_base.codigo,
+                        'nombre': producto.producto_base.nombre,
+                        'precio': float(producto.producto_base.precio)
+                    }
+            
+            resultado.append(producto_dict)
+        
+        print(f"✅ Búsqueda completada: {len(resultado)} productos")
         
         return jsonify({
             'success': True,
             'productos': resultado,
-            'total': len(resultado)
+            'total': len(resultado),
+            'filtros_aplicados': {
+                'buscar': buscar,
+                'solo_combos': solo_combos,
+                'estado': estado,
+                'descuento': descuento,
+                'categoria': categoria,
+                'filtro_stock': filtro_stock
+            }
         })
         
     except Exception as e:
-        print(f"Error buscando productos: {str(e)}")
+        print(f"❌ Error buscando productos: {str(e)}")
+        import traceback
+        print(f"📋 Stack trace: {traceback.format_exc()}")
         return jsonify({'error': f'Error en la búsqueda: {str(e)}'}), 500
 
 # FUNCIÓN PARA ACTUALIZAR PRODUCTOS EXISTENTES CON COSTO CALCULADO
@@ -3871,6 +3955,153 @@ def detectar_categoria(descripcion):
     
     return 'GENERAL'  # Categoría por defecto
 
+# AGREGAR esta nueva ruta en app.py:
+
+@app.route('/api/eliminar_combo/<int:combo_id>', methods=['DELETE'])
+def eliminar_combo(combo_id):
+    """Eliminar un combo con validaciones de seguridad"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Verificar que el producto existe y es un combo
+        combo = Producto.query.get_or_404(combo_id)
+        
+        if not combo.es_combo:
+            return jsonify({
+                'success': False,
+                'error': 'El producto no es un combo'
+            }), 400
+        
+        print(f"🗑️ Solicitud de eliminación para combo: {combo.codigo} - {combo.nombre}")
+        
+        # VALIDACIÓN 1: Verificar si el combo se vendió alguna vez
+        ventas_combo = DetalleFactura.query.filter_by(producto_id=combo_id).count()
+        
+        if ventas_combo > 0:
+            print(f"❌ Combo {combo.codigo} tiene {ventas_combo} ventas registradas")
+            return jsonify({
+                'success': False,
+                'error': f'No se puede eliminar el combo porque tiene {ventas_combo} ventas registradas. Solo puedes desactivarlo.',
+                'motivo': 'tiene_ventas',
+                'ventas_count': ventas_combo,
+                'sugerencia': 'Usa el botón de desactivar en lugar de eliminar'
+            }), 400
+        
+        # VALIDACIÓN 2: Verificar si está en facturas pendientes o con errores
+        facturas_pendientes = db.session.query(DetalleFactura).join(
+            Factura, DetalleFactura.factura_id == Factura.id
+        ).filter(
+            and_(
+                DetalleFactura.producto_id == combo_id,
+                or_(
+                    Factura.estado == 'pendiente',
+                    Factura.estado == 'error_afip'
+                )
+            )
+        ).count()
+        
+        if facturas_pendientes > 0:
+            print(f"❌ Combo {combo.codigo} está en {facturas_pendientes} facturas pendientes")
+            return jsonify({
+                'success': False,
+                'error': f'No se puede eliminar el combo porque está en {facturas_pendientes} facturas pendientes de autorización.',
+                'motivo': 'facturas_pendientes',
+                'facturas_count': facturas_pendientes
+            }), 400
+        
+        # VALIDACIÓN 3: Verificar si tiene stock (opcional - puedes eliminarlo igual)
+        if combo.stock > 0:
+            print(f"⚠️ Advertencia: Combo {combo.codigo} tiene stock {combo.stock}")
+            # No bloquear, solo advertir
+        
+        # SI LLEGAMOS AQUÍ: Es seguro eliminar
+        print(f"✅ Combo {combo.codigo} puede eliminarse de forma segura")
+        
+        # Eliminar el combo de la base de datos
+        nombre_combo = combo.nombre
+        codigo_combo = combo.codigo
+        
+        db.session.delete(combo)
+        db.session.commit()
+        
+        print(f"🗑️ Combo eliminado exitosamente: {codigo_combo}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Combo "{nombre_combo}" eliminado correctamente',
+            'codigo_eliminado': codigo_combo,
+            'motivo': 'eliminacion_segura'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error eliminando combo: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error interno al eliminar combo: {str(e)}'
+        }), 500
 
 
-app.run(debug=True, host='0.0.0.0', port=5000)
+@app.route('/api/verificar_eliminacion_combo/<int:combo_id>')
+def verificar_eliminacion_combo(combo_id):
+    """Verificar si un combo puede ser eliminado de forma segura"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        combo = Producto.query.get_or_404(combo_id)
+        
+        if not combo.es_combo:
+            return jsonify({
+                'puede_eliminar': False,
+                'motivo': 'no_es_combo'
+            })
+        
+        # Verificar ventas
+        ventas_count = DetalleFactura.query.filter_by(producto_id=combo_id).count()
+        
+        # Verificar facturas pendientes
+        facturas_pendientes = db.session.query(DetalleFactura).join(
+            Factura, DetalleFactura.factura_id == Factura.id
+        ).filter(
+            and_(
+                DetalleFactura.producto_id == combo_id,
+                or_(
+                    Factura.estado == 'pendiente',
+                    Factura.estado == 'error_afip'
+                )
+            )
+        ).count()
+        
+        puede_eliminar = (ventas_count == 0 and facturas_pendientes == 0)
+        
+        resultado = {
+            'puede_eliminar': puede_eliminar,
+            'ventas_count': ventas_count,
+            'facturas_pendientes': facturas_pendientes,
+            'stock': combo.stock,
+            'codigo': combo.codigo,
+            'nombre': combo.nombre
+        }
+        
+        if not puede_eliminar:
+            if ventas_count > 0:
+                resultado['motivo'] = 'tiene_ventas'
+                resultado['mensaje'] = f'El combo tiene {ventas_count} ventas registradas'
+            elif facturas_pendientes > 0:
+                resultado['motivo'] = 'facturas_pendientes'
+                resultado['mensaje'] = f'El combo está en {facturas_pendientes} facturas pendientes'
+        else:
+            resultado['motivo'] = 'puede_eliminar'
+            resultado['mensaje'] = 'El combo puede eliminarse de forma segura'
+        
+        return jsonify(resultado)
+        
+    except Exception as e:
+        return jsonify({
+            'puede_eliminar': False,
+            'error': str(e)
+        }), 500
+
+app.run(debug=True, host='0.0.0.0', port=5080)

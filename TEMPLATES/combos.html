@@ -257,6 +257,9 @@
                                 <button class="btn btn-secondary" onclick="duplicarCombo({{ combo.id }})" title="Duplicar">
                                     <i class="fas fa-copy"></i>
                                 </button>
+                                <button class="btn btn-outline-danger" onclick="eliminarCombo({{ combo.id }})" title="Eliminar Definitivamente">
+                                    <i class="fas fa-trash"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -906,37 +909,93 @@ function aplicarFiltrosCombos() {
     const estado = document.getElementById('filtroEstado').value;
     const descuento = document.getElementById('filtroDescuento').value;
     
+    console.log('🔍 Aplicando filtros combos:');
+    console.log('   Buscar:', buscar);
+    console.log('   Estado:', estado);
+    console.log('   Descuento:', descuento);
+    
     // Construir URL con parámetros
     const params = new URLSearchParams();
     if (buscar) params.append('buscar', buscar);
     if (estado) params.append('estado', estado);
     if (descuento) params.append('descuento', descuento);
+    
+    // ✅ IMPORTANTE: Siempre agregar el filtro solo_combos=true
     params.append('solo_combos', 'true');
     
+    console.log('📤 URL de búsqueda:', `/buscar_productos_admin?${params.toString()}`);
+    
+    // Mostrar indicador de carga
+    const tbody = document.querySelector('#tablaCombos tbody');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="11" class="text-center py-4">
+                <i class="fas fa-spinner fa-spin fa-2x"></i><br>
+                <span class="text-muted">Buscando combos...</span>
+            </td>
+        </tr>
+    `;
+    
     fetch(`/buscar_productos_admin?${params.toString()}`)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
         .then(data => {
+            console.log('📥 Respuesta recibida:', data);
+            
             if (data.success) {
                 actualizarTablaCombos(data.productos);
+                console.log(`✅ Filtros aplicados: ${data.total} combos encontrados`);
             } else {
+                console.error('❌ Error en respuesta:', data.error);
                 alert('Error en la búsqueda: ' + (data.error || 'Error desconocido'));
+                
+                // Mostrar mensaje de error en la tabla
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="11" class="text-center text-danger py-4">
+                            <i class="fas fa-exclamation-triangle fa-2x mb-2"></i><br>
+                            Error en la búsqueda: ${data.error || 'Error desconocido'}
+                        </td>
+                    </tr>
+                `;
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            alert('Error de conexión en la búsqueda');
+            console.error('❌ Error de conexión:', error);
+            alert('Error de conexión en la búsqueda: ' + error.message);
+            
+            // Mostrar mensaje de error en la tabla
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="11" class="text-center text-danger py-4">
+                        <i class="fas fa-wifi fa-2x mb-2"></i><br>
+                        Error de conexión: ${error.message}
+                    </td>
+                </tr>
+            `;
         });
 }
 
+
 function limpiarFiltrosCombos() {
+    console.log('🧹 Limpiando filtros');
+    
     document.getElementById('buscarCombo').value = '';
     document.getElementById('filtroEstado').value = '';
     document.getElementById('filtroDescuento').value = '';
+    
+    // Aplicar filtros vacíos (mostrará todos los combos)
     aplicarFiltrosCombos();
 }
 
 function actualizarTablaCombos(combos) {
     const tbody = document.querySelector('#tablaCombos tbody');
+    
+    console.log(`📊 Actualizando tabla con ${combos.length} combos`);
     
     if (combos.length === 0) {
         tbody.innerHTML = `
@@ -951,6 +1010,9 @@ function actualizarTablaCombos(combos) {
     }
     
     tbody.innerHTML = combos.map(combo => {
+        // Guardar el ID para posible uso en toggleCombo desde eliminar
+        window.lastComboId = combo.id;
+        
         const stockBadge = getStockBadge(combo.stock);
         const estadoBadge = combo.activo ? 
             '<span class="badge bg-success">Activo</span>' : 
@@ -959,8 +1021,9 @@ function actualizarTablaCombos(combos) {
         // Calcular descuento y ahorro
         let descuentoHtml = '<span class="text-muted">-</span>';
         let ahorroHtml = '<span class="text-muted">-</span>';
+        let precioNormalHtml = '<span class="text-muted">-</span>';
         
-        if (combo.producto_base) {
+        if (combo.producto_base && combo.cantidad_combo) {
             const precioNormal = combo.producto_base.precio * combo.cantidad_combo;
             const descuento = ((precioNormal - combo.precio) / precioNormal * 100);
             const ahorro = precioNormal - combo.precio;
@@ -970,7 +1033,8 @@ function actualizarTablaCombos(combos) {
             else if (descuento > 15) badgeClass = 'bg-warning text-dark';
             
             descuentoHtml = `<span class="badge ${badgeClass}">-${descuento.toFixed(1)}%</span>`;
-            ahorroHtml = `<span class="text-success"><strong>${ahorro.toFixed(0)}</strong></span>`;
+            ahorroHtml = `<span class="text-success"><strong>$${ahorro.toFixed(0)}</strong></span>`;
+            precioNormalHtml = `<span class="text-muted">$${precioNormal.toFixed(2)}</span>`;
         }
         
         return `
@@ -988,21 +1052,16 @@ function actualizarTablaCombos(combos) {
                     ${combo.producto_base ? 
                         `<strong>${combo.producto_base.codigo}</strong><br>
                          <small class="text-muted">${combo.producto_base.nombre}</small><br>
-                         <span class="badge bg-info">${combo.producto_base.precio.toFixed(2)}</span>` :
+                         <span class="badge bg-info">$${combo.producto_base.precio.toFixed(2)}</span>` :
                         '<span class="text-muted">Sin base</span>'
                     }
                 </td>
                 <td class="text-center">
-                    <span class="badge bg-info">${combo.cantidad_combo}x</span>
+                    <span class="badge bg-info">${combo.cantidad_combo || 1}x</span>
                 </td>
+                <td class="text-end">${precioNormalHtml}</td>
                 <td class="text-end">
-                    ${combo.producto_base ? 
-                        `<span class="text-muted">${(combo.producto_base.precio * combo.cantidad_combo).toFixed(2)}</span>` :
-                        '<span class="text-muted">-</span>'
-                    }
-                </td>
-                <td class="text-end">
-                    <strong class="text-success">${combo.precio.toFixed(2)}</strong>
+                    <strong class="text-success">$${combo.precio.toFixed(2)}</strong>
                 </td>
                 <td class="text-center">${descuentoHtml}</td>
                 <td class="text-center">${ahorroHtml}</td>
@@ -1022,11 +1081,16 @@ function actualizarTablaCombos(combos) {
                         <button class="btn btn-secondary" onclick="duplicarCombo(${combo.id})" title="Duplicar">
                             <i class="fas fa-copy"></i>
                         </button>
+                        <button class="btn btn-outline-danger" onclick="eliminarCombo(${combo.id})" title="Eliminar Definitivamente">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
                 </td>
             </tr>
         `;
     }).join('');
+    
+    console.log('✅ Tabla actualizada correctamente con botón eliminar');
 }
 
 // Función auxiliar para obtener el badge de stock
@@ -1047,6 +1111,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Cargar productos base para combos
     cargarProductosBase();
+    
+    // ✅ APLICAR FILTROS INICIAL PARA MOSTRAR SOLO COMBOS
+    console.log('🔄 Cargando combos iniciales...');
+    aplicarFiltrosCombos();
     
     // Cambiar ayuda según tipo de movimiento de stock
     document.getElementById('tipoMovimiento').addEventListener('change', function() {
@@ -1070,33 +1138,125 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Búsqueda en tiempo real
+    // Búsqueda en tiempo real con debounce
     const inputBuscar = document.getElementById('buscarCombo');
     let timeoutBusqueda;
     
     inputBuscar.addEventListener('input', function() {
         clearTimeout(timeoutBusqueda);
         timeoutBusqueda = setTimeout(() => {
+            console.log('🔍 Búsqueda en tiempo real activada');
             aplicarFiltrosCombos();
         }, 500);
     });
     
     // Aplicar filtros cuando cambien los selects
-    document.getElementById('filtroEstado').addEventListener('change', aplicarFiltrosCombos);
-    document.getElementById('filtroDescuento').addEventListener('change', aplicarFiltrosCombos);
+    document.getElementById('filtroEstado').addEventListener('change', function() {
+        console.log('📊 Filtro estado cambiado:', this.value);
+        aplicarFiltrosCombos();
+    });
+    
+    document.getElementById('filtroDescuento').addEventListener('change', function() {
+        console.log('💰 Filtro descuento cambiado:', this.value);
+        aplicarFiltrosCombos();
+    });
     
     console.log('✅ Página de combos inicializada correctamente');
 });
 
-// Debug: Verificar que las funciones estén disponibles globalmente
-window.mostrarModalCrearCombo = mostrarModalCrearCombo;
-window.crearCombo = crearCombo;
-window.editarCombo = editarCombo;
-window.toggleCombo = toggleCombo;
-window.duplicarCombo = duplicarCombo;
-window.ajustarStock = ajustarStock;
-window.guardarStock = guardarStock;
+function eliminarCombo(comboId) {
+    console.log(`🗑️ Solicitando eliminación de combo ID: ${comboId}`);
+    
+    // Primero verificar si se puede eliminar
+    fetch(`/api/verificar_eliminacion_combo/${comboId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.puede_eliminar) {
+                // Es seguro eliminar - mostrar confirmación
+                mostrarConfirmacionEliminacion(comboId, data);
+            } else {
+                // No se puede eliminar - mostrar por qué
+                mostrarRazonNoEliminacion(data);
+            }
+        })
+        .catch(error => {
+            console.error('Error verificando eliminación:', error);
+            alert('Error al verificar si el combo puede eliminarse');
+        });
+}
 
-console.log('🔧 Funciones de combo registradas globalmente');
+function mostrarConfirmacionEliminacion(comboId, data) {
+    const mensaje = `¿Estás seguro de que quieres ELIMINAR DEFINITIVAMENTE este combo?
+
+📦 Combo: ${data.codigo} - ${data.nombre}
+📊 Stock actual: ${data.stock}
+💡 Esta acción NO se puede deshacer
+
+Si solo quieres ocultarlo temporalmente, usa el botón "Desactivar" en su lugar.`;
+
+    if (confirm(mensaje)) {
+        ejecutarEliminacionCombo(comboId, data);
+    }
+}
+
+function mostrarRazonNoEliminacion(data) {
+    let mensaje = `❌ No se puede eliminar el combo "${data.codigo}":\n\n`;
+    
+    if (data.motivo === 'tiene_ventas') {
+        mensaje += `🛒 El combo tiene ${data.ventas_count} ventas registradas.\n`;
+        mensaje += `💡 Para preservar el historial de ventas, solo puedes DESACTIVARLO.\n\n`;
+        mensaje += `¿Quieres desactivar el combo en su lugar?`;
+        
+        if (confirm(mensaje)) {
+            // Si acepta, desactivar en lugar de eliminar
+            toggleCombo(data.id || parseInt(window.lastComboId));
+        }
+    } else if (data.motivo === 'facturas_pendientes') {
+        mensaje += `📄 El combo está en ${data.facturas_pendientes} facturas pendientes de autorización.\n`;
+        mensaje += `💡 Espera a que se procesen las facturas pendientes e intenta nuevamente.`;
+        alert(mensaje);
+    } else {
+        mensaje += `🤔 Motivo: ${data.mensaje || 'Motivo desconocido'}`;
+        alert(mensaje);
+    }
+}
+
+function ejecutarEliminacionCombo(comboId, data) {
+    console.log(`🗑️ Ejecutando eliminación de combo ${data.codigo}...`);
+    
+    fetch(`/api/eliminar_combo/${comboId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert(`✅ ${result.message}`);
+            
+            // Recargar la página para mostrar cambios
+            window.location.reload();
+        } else {
+            console.error('Error del servidor:', result.error);
+            
+            // Si el error es que tiene ventas, ofrecer desactivar
+            if (result.motivo === 'tiene_ventas') {
+                const mensaje = `${result.error}\n\n¿Quieres desactivar el combo en su lugar?`;
+                if (confirm(mensaje)) {
+                    toggleCombo(comboId);
+                }
+            } else {
+                alert(`❌ ${result.error}`);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error de conexión:', error);
+        alert('❌ Error de conexión al eliminar combo');
+    });
+}
+
+
 </script>
 {% endblock %}
