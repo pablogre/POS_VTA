@@ -3703,4 +3703,174 @@ def migrar_iva_detalles_endpoint():
             'error': f'Error en migración: {str(e)}'
         }), 500
 
+@app.route('/importar_productos')
+def importar_productos_vista():
+    """Vista para importar productos desde Excel"""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    return render_template('importar_productos.html')
+
+@app.route('/api/importar_productos_lote', methods=['POST'])
+def importar_productos_lote():
+    """Importar un lote de productos desde Excel"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        data = request.json
+        productos = data.get('productos', [])
+        opciones = data.get('opciones', {})
+        
+        solo_actualizar = opciones.get('solo_actualizar', False)
+        crear_nuevos = opciones.get('crear_nuevos', True)
+        
+        resultados = {
+            'nuevos': 0,
+            'actualizados': 0,
+            'errores': 0,
+            'detalles_errores': []
+        }
+        
+        print(f"📦 Procesando lote de {len(productos)} productos...")
+        
+        for producto_data in productos:
+            try:
+                codigo = str(producto_data['codigo']).strip().upper()
+                descripcion = str(producto_data['descripcion']).strip()
+                precio = float(producto_data['precio'])
+                
+                # Validaciones básicas
+                if not codigo or not descripcion or precio <= 0:
+                    resultados['errores'] += 1
+                    resultados['detalles_errores'].append({
+                        'error': f'Datos inválidos para código {codigo}',
+                        'codigo': codigo
+                    })
+                    continue
+                
+                # Buscar si el producto ya existe
+                producto_existente = Producto.query.filter_by(codigo=codigo).first()
+                
+                if producto_existente:
+                    # Producto existe - actualizar si está permitido
+                    if solo_actualizar:
+                        # Actualizar precio y descripción
+                        producto_existente.precio = Decimal(str(precio))
+                        producto_existente.nombre = descripcion
+                        producto_existente.descripcion = descripcion
+                        producto_existente.fecha_modificacion = datetime.now()
+                        
+                        # Si no tiene costo, intentar calcularlo con margen por defecto
+                        if not producto_existente.costo or producto_existente.costo == 0:
+                            margen_defecto = 30.0  # 30% de margen por defecto
+                            costo_calculado = precio / (1 + (margen_defecto / 100))
+                            producto_existente.costo = Decimal(str(costo_calculado))
+                            producto_existente.margen = Decimal(str(margen_defecto))
+                        
+                        resultados['actualizados'] += 1
+                        print(f"✅ Actualizado: {codigo} - {descripcion}")
+                    else:
+                        # Si no se permite actualizar, contar como error
+                        resultados['errores'] += 1
+                        resultados['detalles_errores'].append({
+                            'error': f'Producto {codigo} ya existe (actualización deshabilitada)',
+                            'codigo': codigo
+                        })
+                        continue
+                        
+                else:
+                    # Producto nuevo - crear si está permitido
+                    if crear_nuevos:
+                        # Calcular costo con margen por defecto del 30%
+                        margen_defecto = 30.0
+                        costo_calculado = precio / (1 + (margen_defecto / 100))
+                        
+                        # Detectar categoría básica desde la descripción
+                        categoria = detectar_categoria(descripcion)
+                        
+                        nuevo_producto = Producto(
+                            codigo=codigo,
+                            nombre=descripcion,
+                            descripcion=descripcion,
+                            precio=Decimal(str(precio)),
+                            costo=Decimal(str(costo_calculado)),
+                            margen=Decimal(str(margen_defecto)),
+                            stock=0,  # Stock inicial en 0
+                            categoria=categoria,
+                            iva=Decimal('21.0'),  # IVA por defecto 21%
+                            activo=True,
+                            es_combo=False,
+                            fecha_creacion=datetime.now(),
+                            fecha_modificacion=datetime.now()
+                        )
+                        
+                        db.session.add(nuevo_producto)
+                        resultados['nuevos'] += 1
+                        print(f"🆕 Creado: {codigo} - {descripcion}")
+                    else:
+                        # Si no se permite crear nuevos, contar como error
+                        resultados['errores'] += 1
+                        resultados['detalles_errores'].append({
+                            'error': f'Producto {codigo} no existe (creación deshabilitada)',
+                            'codigo': codigo
+                        })
+                        continue
+                
+            except Exception as e:
+                resultados['errores'] += 1
+                resultados['detalles_errores'].append({
+                    'error': f'Error procesando {producto_data.get("codigo", "UNKNOWN")}: {str(e)}',
+                    'codigo': producto_data.get('codigo', 'UNKNOWN')
+                })
+                print(f"❌ Error en producto {producto_data.get('codigo', 'UNKNOWN')}: {str(e)}")
+        
+        # Confirmar cambios en la base de datos
+        db.session.commit()
+        
+        print(f"✅ Lote completado: {resultados['nuevos']} nuevos, {resultados['actualizados']} actualizados, {resultados['errores']} errores")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Lote procesado correctamente',
+            'nuevos': resultados['nuevos'],
+            'actualizados': resultados['actualizados'],
+            'errores': resultados['errores'],
+            'detalles_errores': resultados['detalles_errores']
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error en importación de lote: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error al procesar lote: {str(e)}'
+        }), 500
+
+def detectar_categoria(descripcion):
+    """Detectar categoría básica desde la descripción del producto"""
+    descripcion_lower = descripcion.lower()
+    
+    # Mapeo de palabras clave a categorías
+    categorias = {
+        'POLLO': ['pollo', 'pechuga', 'muslo', 'ala', 'carcasa'],
+        'CARNE': ['carne', 'bife', 'asado', 'costilla', 'vacio', 'chorizo'],
+        'CERDO': ['cerdo', 'bondiola', 'matambre', 'costilla cerdo'],
+        'PESCADO': ['pescado', 'salmon', 'merluza', 'atun'],
+        'CHACINADOS': ['salame', 'jamon', 'mortadela', 'chorizo', 'morcilla'],
+        'LACTEOS': ['leche', 'queso', 'yogur', 'manteca', 'crema'],
+        'CONGELADOS': ['congelado', 'frozen', 'helado'],
+        'BEBIDAS': ['gaseosa', 'agua', 'jugo', 'cerveza', 'vino'],
+        'PANADERIA': ['pan', 'facturas', 'torta', 'galletas'],
+        'LIMPIEZA': ['detergente', 'lavandina', 'jabon', 'shampoo'],
+        'VERDURAS': ['verdura', 'lechuga', 'tomate', 'cebolla', 'papa']
+    }
+    
+    for categoria, palabras_clave in categorias.items():
+        if any(palabra in descripcion_lower for palabra in palabras_clave):
+            return categoria
+    
+    return 'GENERAL'  # Categoría por defecto
+
+
+
 app.run(debug=True, host='0.0.0.0', port=5000)
