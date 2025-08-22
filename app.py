@@ -2,7 +2,7 @@
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Numeric, or_, and_, func, desc, asc  
+from sqlalchemy import Numeric, or_, and_, func, desc, asc, case  
 #from sqlalchemy import Numeric, or_, and_  # ← IMPORTAR AQUÍ
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
@@ -32,6 +32,7 @@ import urllib3
 from urllib3.util import ssl_
 from requests.adapters import HTTPAdapter
 from requests import Session
+
 
 def configurar_ssl_afip():
     """Configuración SSL compatible para todas las versiones de Python"""
@@ -196,8 +197,8 @@ class Producto(db.Model):
     categoria = db.Column(db.String(100))
     iva = db.Column(Numeric(5, 2), default=21.00)
     activo = db.Column(db.Boolean, default=True)
-    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
-    fecha_modificacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    fecha_creacion = db.Column(db.DateTime, default=datetime.now)
+    fecha_modificacion = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
     costo = db.Column(Numeric(10, 2), default=0.00)  # ← AGREGAR ESTA LÍNEA
     margen = db.Column(Numeric(5, 2), default=30.00)  # ← AGREGAR ESTA LÍNEA
     
@@ -256,7 +257,7 @@ class Producto(db.Model):
         """Actualizar el precio basado en costo y margen"""
         if self.costo and self.margen is not None:
             self.precio = Decimal(str(self.precio_calculado))
-            self.fecha_modificacion = datetime.utcnow()
+            self.fecha_modificacion = datetime.now()
     
     @staticmethod
     def calcular_precio_venta(costo, margen):
@@ -319,7 +320,7 @@ class Factura(db.Model):
     numero = db.Column(db.String(50), unique=True)
     tipo_comprobante = db.Column(db.String(10))  # FA, FB, FC, etc.
     punto_venta = db.Column(db.Integer)
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha = db.Column(db.DateTime, default=datetime.now)  # ← Cambiar de utcnow a now
     cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'))
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'))
     subtotal = db.Column(Numeric(10, 2))
@@ -353,7 +354,7 @@ class MedioPago(db.Model):
     factura_id = db.Column(db.Integer, db.ForeignKey('factura.id'), nullable=False)
     medio_pago = db.Column(db.String(20), nullable=False)  # efectivo, credito, debito, mercado_pago
     importe = db.Column(Numeric(10, 2), nullable=False)
-    fecha_registro = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha_registro = db.Column(db.DateTime, default=datetime.now)
     
     # Relación con Factura
     factura = db.relationship('Factura', backref=db.backref('medios_pago', lazy=True))
@@ -462,7 +463,7 @@ class ARCAClient:
     
     def crear_tra(self):
         """Crear Ticket Request Access"""
-        now = datetime.utcnow()
+        now = datetime.now()
         expire = now + timedelta(hours=12)
         unique_id = int(now.timestamp())
         
@@ -549,7 +550,7 @@ class ARCAClient:
             # *** NUEVO: Cache inteligente de tokens ***
             if hasattr(self, 'token_timestamp') and self.token and self.sign:
                 # Verificar si el token aún es válido (duran 12 horas, usamos 10 horas para estar seguros)
-                tiempo_transcurrido = datetime.utcnow() - self.token_timestamp
+                tiempo_transcurrido = datetime.now() - self.token_timestamp
                 
                 if tiempo_transcurrido < timedelta(hours=10):
                     print(f"🎫 Usando token existente (válido por {10 - tiempo_transcurrido.seconds//3600} horas más)")
@@ -597,7 +598,7 @@ class ARCAClient:
                 self.sign = sign_elem.text
                 
                 # *** NUEVO: Guardar timestamp del token ***
-                self.token_timestamp = datetime.utcnow()
+                self.token_timestamp = datetime.now()
                 
                 print("✅ Ticket de acceso obtenido y guardado en cache")
                 return True
@@ -641,7 +642,7 @@ class ARCAClient:
                         if token_elem is not None and sign_elem is not None:
                             self.token = token_elem.text
                             self.sign = sign_elem.text
-                            self.token_timestamp = datetime.utcnow()
+                            self.token_timestamp = datetime.now()
                             
                             print("✅ Token obtenido exitosamente en segundo intento")
                             return True
@@ -1403,7 +1404,7 @@ def guardar_producto():
         producto.categoria = data.get('categoria', '').strip() or None
         producto.iva = Decimal(str(data.get('iva', 21)))
         producto.activo = bool(data.get('activo', True))
-        producto.fecha_modificacion = datetime.utcnow()
+        producto.fecha_modificacion = datetime.now()
         
         # Solo actualizar stock si es producto nuevo
         if not producto_id:
@@ -1697,7 +1698,7 @@ def actualizar_costos_productos():
                 costo_calculado = float(producto.precio) / (1 + (margen / 100))
                 
                 producto.costo = Decimal(str(round(costo_calculado, 2)))
-                producto.fecha_modificacion = datetime.utcnow()
+                producto.fecha_modificacion = datetime.now()
                 
                 contador_actualizados += 1
                 print(f"📦 Actualizado: {producto.codigo} - Precio=${float(producto.precio):.2f} → Costo=${costo_calculado:.2f}")
@@ -2373,7 +2374,7 @@ def procesar_venta():
                 factura_id=factura.id,
                 medio_pago=medio_data['medio_pago'],
                 importe=Decimal(str(medio_data['importe'])),
-                fecha_registro=datetime.utcnow()
+                fecha_registro=datetime.now()
             )
             db.session.add(medio_pago)
             print(f"💰 Medio agregado: {medio_data['medio_pago']} ${medio_data['importe']}")
@@ -2771,7 +2772,7 @@ def test_afip():
             'mensaje': "✅ Test AFIP exitoso" if resultado_auth else "❌ Test AFIP falló",
             'estado': "success" if resultado_auth else "error",
             'tiene_token': bool(arca_client.token),
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now().isoformat()
         })
         
     except Exception as e:
@@ -2792,7 +2793,7 @@ def debug_afip_simple():
     """Debug simple de AFIP sin verificación de sesión"""
     try:
         resultado = {
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now().isoformat(),
             'tests': {}
         }
         
@@ -2886,7 +2887,7 @@ def debug_afip_simple():
         return jsonify({
             'success': False,
             'error': f'Error general: {str(e)}',
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now().isoformat()
         }), 500
 
 
@@ -2898,8 +2899,8 @@ def reporte_medios_hoy():
         return jsonify({'error': 'No autorizado'}), 401
     
     try:
-        hoy = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        fin_hoy = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
+        hoy = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        fin_hoy = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
         
         reporte = MedioPago.calcular_recaudacion_por_fecha(hoy, fin_hoy)
         
@@ -3053,7 +3054,7 @@ def reporte_ventas():
 
 @app.route('/api/reporte_ventas_productos')
 def api_reporte_ventas_productos():
-    """API para generar reporte de ventas por producto - INCLUYE TODAS LAS FACTURAS"""
+    """API para generar reporte de ventas por producto - CORREGIDO PARA COMBOS"""
     if 'user_id' not in session:
         return jsonify({'error': 'No autorizado'}), 401
     
@@ -3088,20 +3089,29 @@ def api_reporte_ventas_productos():
                 'error': 'El rango de fechas no puede ser mayor a 2 años'
             })
         
-        print(f"📊 Generando reporte de ventas:")
+        print(f"📊 Generando reporte de ventas (CORREGIDO PARA COMBOS):")
         print(f"   Período: {fecha_desde} a {fecha_hasta}")
         print(f"   Categoría: {categoria or 'Todas'}")
         print(f"   Orden: {orden}")
         print(f"   Solo con ventas: {solo_con_ventas}")
         
-        # CLAVE: Query principal SIN FILTRO DE ESTADO (incluye todas las facturas)
+        # ✅ QUERY CORREGIDA: Incluir cantidad_combo en el cálculo
         query = db.session.query(
             Producto.id,
             Producto.codigo,
             Producto.nombre,
             Producto.descripcion,
             Producto.categoria,
-            func.sum(DetalleFactura.cantidad).label('cantidad_vendida'),
+            Producto.es_combo,
+            Producto.cantidad_combo,
+            # *** CLAVE: Multiplicar cantidad por cantidad_combo si es combo ***
+            func.sum(
+                case(
+                    (Producto.es_combo == True, DetalleFactura.cantidad * Producto.cantidad_combo),
+                    else_=DetalleFactura.cantidad
+                )
+            ).label('cantidad_real_vendida'),
+            func.sum(DetalleFactura.cantidad).label('unidades_combos_vendidas'),  # Para mostrar también combos vendidos
             func.sum(DetalleFactura.subtotal).label('total_vendido'),
             func.avg(DetalleFactura.precio_unitario).label('precio_promedio'),
             func.max(Factura.fecha).label('ultima_venta'),
@@ -3114,12 +3124,11 @@ def api_reporte_ventas_productos():
             and_(
                 Factura.fecha >= fecha_desde_dt,
                 Factura.fecha <= fecha_hasta_dt
-                # *** REMOVIDO: Factura.estado == 'autorizada' ***
-                # Ahora incluye TODAS las facturas independientemente del estado
+                # Incluye TODAS las facturas (sin filtro de estado)
             )
         )
         
-        print(f"✅ Query configurada para incluir TODAS las facturas (sin filtro de estado)")
+        print(f"✅ Query configurada con corrección para combos")
         
         # Filtrar por categoría si se especifica
         if categoria:
@@ -3132,14 +3141,16 @@ def api_reporte_ventas_productos():
             Producto.codigo,
             Producto.nombre,
             Producto.descripcion,
-            Producto.categoria
+            Producto.categoria,
+            Producto.es_combo,
+            Producto.cantidad_combo
         )
         
-        # Aplicar ordenamiento
+        # *** APLICAR ORDENAMIENTO USANDO LA CANTIDAD REAL ***
         if orden == 'cantidad_desc':
-            query = query.order_by(desc('cantidad_vendida'))
+            query = query.order_by(desc('cantidad_real_vendida'))
         elif orden == 'cantidad_asc':
-            query = query.order_by(asc('cantidad_vendida'))
+            query = query.order_by(asc('cantidad_real_vendida'))
         elif orden == 'total_desc':
             query = query.order_by(desc('total_vendido'))
         elif orden == 'total_asc':
@@ -3149,7 +3160,7 @@ def api_reporte_ventas_productos():
         elif orden == 'nombre':
             query = query.order_by(Producto.nombre)
         
-        print(f"   Ordenamiento aplicado: {orden}")
+        print(f"   Ordenamiento aplicado: {orden} (usando cantidad real)")
         
         # Ejecutar query
         print(f"🔍 Ejecutando consulta...")
@@ -3179,15 +3190,33 @@ def api_reporte_ventas_productos():
         for estado, info in estados_info.items():
             print(f"   {estado}: {info['cantidad']} facturas (${info['total']:.2f})")
         
-        # Formatear resultados
+        # *** FORMATEAR RESULTADOS CON CANTIDAD REAL ***
         productos = []
-        total_unidades = 0
+        total_unidades_reales = 0
         total_ventas = 0.0
         
         for resultado in resultados:
-            cantidad = int(resultado.cantidad_vendida) if resultado.cantidad_vendida else 0
+            # *** USAR CANTIDAD REAL (ya calculada en SQL) ***
+            cantidad_real = float(resultado.cantidad_real_vendida) if resultado.cantidad_real_vendida else 0.0
+            unidades_combos = int(resultado.unidades_combos_vendidas) if resultado.unidades_combos_vendidas else 0
             total_producto = float(resultado.total_vendido) if resultado.total_vendido else 0.0
             precio_promedio = float(resultado.precio_promedio) if resultado.precio_promedio else 0.0
+            
+            # *** INFORMACIÓN ADICIONAL PARA COMBOS ***
+            info_combo = ""
+            unidad_medida = "unidades"
+            
+            if resultado.es_combo and resultado.cantidad_combo:
+                cantidad_combo = float(resultado.cantidad_combo)
+                info_combo = f" ({unidades_combos} combos de {cantidad_combo:g} c/u)"
+                # Detectar unidad de medida basada en cantidad del combo
+                if cantidad_combo >= 1:
+                    if cantidad_combo == int(cantidad_combo):
+                        unidad_medida = "kg" if cantidad_combo >= 1 else "unidades"
+                    else:
+                        unidad_medida = "kg"
+                
+                print(f"📦 {resultado.codigo}: {unidades_combos} combos × {cantidad_combo:g} = {cantidad_real:g} {unidad_medida}")
             
             productos.append({
                 'id': resultado.id,
@@ -3195,34 +3224,40 @@ def api_reporte_ventas_productos():
                 'nombre': resultado.nombre,
                 'descripcion': resultado.descripcion,
                 'categoria': resultado.categoria,
-                'cantidad_vendida': cantidad,
+                'es_combo': resultado.es_combo,
+                'cantidad_combo': float(resultado.cantidad_combo) if resultado.cantidad_combo else 1.0,
+                'cantidad_vendida': cantidad_real,  # *** CANTIDAD REAL ***
+                'unidades_combos_vendidas': unidades_combos,  # *** COMBOS VENDIDOS ***
+                'info_combo': info_combo,  # *** INFORMACIÓN ADICIONAL ***
+                'unidad_medida': unidad_medida,  # *** UNIDAD DE MEDIDA ***
                 'total_vendido': total_producto,
                 'precio_promedio': precio_promedio,
                 'ultima_venta': resultado.ultima_venta.isoformat() if resultado.ultima_venta else None,
                 'num_transacciones': int(resultado.num_transacciones) if resultado.num_transacciones else 0
             })
             
-            total_unidades += cantidad
+            total_unidades_reales += cantidad_real
             total_ventas += total_producto
         
-        # Calcular resumen
+        # *** RESUMEN CORREGIDO ***
         resumen = {
             'total_productos': len(productos),
-            'total_unidades': total_unidades,
+            'total_unidades_reales': total_unidades_reales,  # *** UNIDADES REALES ***
             'total_ventas': total_ventas,
             'promedio_por_producto': total_ventas / len(productos) if len(productos) > 0 else 0,
             'fecha_desde': fecha_desde,
             'fecha_hasta': fecha_hasta,
             'categoria_filtro': categoria or 'Todas',
-            'incluye_todas_facturas': True,  # ← Nuevo flag
-            'estados_facturas': estados_info  # ← Info de debug
+            'incluye_todas_facturas': True,
+            'estados_facturas': estados_info,
+            'correccion_combos': True  # *** FLAG PARA INDICAR CORRECCIÓN ***
         }
         
-        print(f"✅ Reporte generado exitosamente:")
+        print(f"✅ Reporte generado exitosamente (CON CORRECCIÓN DE COMBOS):")
         print(f"   Productos: {resumen['total_productos']}")
-        print(f"   Unidades: {resumen['total_unidades']}")
+        print(f"   Unidades REALES: {resumen['total_unidades_reales']:g}")
         print(f"   Total: ${resumen['total_ventas']:.2f}")
-        print(f"   Incluye todas las facturas: SÍ")
+        print(f"   Incluye corrección de combos: SÍ")
         
         return jsonify({
             'success': True,
@@ -3234,7 +3269,8 @@ def api_reporte_ventas_productos():
                 'categoria': categoria,
                 'orden': orden,
                 'solo_con_ventas': solo_con_ventas,
-                'incluye_todas_facturas': True
+                'incluye_todas_facturas': True,
+                'correccion_combos_aplicada': True
             }
         })
         
@@ -3250,7 +3286,7 @@ def api_reporte_ventas_productos():
 
 @app.route('/exportar_reporte_ventas')
 def exportar_reporte_ventas():
-    """Exportar reporte de ventas a Excel o CSV - INCLUYE TODAS LAS FACTURAS"""
+    """Exportar reporte de ventas a Excel o CSV - CORREGIDO PARA COMBOS"""
     if 'user_id' not in session:
         return jsonify({'error': 'No autorizado'}), 401
     
@@ -3268,13 +3304,22 @@ def exportar_reporte_ventas():
         
         print(f"📤 Exportando reporte a {formato.upper()}: {fecha_desde} a {fecha_hasta}")
         
-        # Query principal (MISMA del reporte - SIN filtro de estado)
+        # *** QUERY CORREGIDA (MISMA DEL REPORTE) ***
         query = db.session.query(
             Producto.codigo,
             Producto.nombre,
             Producto.descripcion,
             Producto.categoria,
-            func.sum(DetalleFactura.cantidad).label('cantidad_vendida'),
+            Producto.es_combo,
+            Producto.cantidad_combo,
+            # *** CANTIDAD REAL CALCULADA ***
+            func.sum(
+                case(
+                    (Producto.es_combo == True, DetalleFactura.cantidad * Producto.cantidad_combo),
+                    else_=DetalleFactura.cantidad
+                )
+            ).label('cantidad_real_vendida'),
+            func.sum(DetalleFactura.cantidad).label('unidades_combos_vendidas'),
             func.sum(DetalleFactura.subtotal).label('total_vendido'),
             func.avg(DetalleFactura.precio_unitario).label('precio_promedio'),
             func.max(Factura.fecha).label('ultima_venta'),
@@ -3299,14 +3344,16 @@ def exportar_reporte_ventas():
             Producto.codigo,
             Producto.nombre,
             Producto.descripcion,
-            Producto.categoria
+            Producto.categoria,
+            Producto.es_combo,
+            Producto.cantidad_combo
         )
         
-        # Aplicar ordenamiento
+        # *** ORDENAMIENTO USANDO CANTIDAD REAL ***
         if orden == 'cantidad_desc':
-            query = query.order_by(desc('cantidad_vendida'))
+            query = query.order_by(desc('cantidad_real_vendida'))
         elif orden == 'cantidad_asc':
-            query = query.order_by(asc('cantidad_vendida'))
+            query = query.order_by(asc('cantidad_real_vendida'))
         elif orden == 'total_desc':
             query = query.order_by(desc('total_vendido'))
         elif orden == 'total_asc':
@@ -3319,14 +3366,16 @@ def exportar_reporte_ventas():
         resultados = query.all()
         print(f"📊 Exportando {len(resultados)} productos")
         
-        # Preparar datos para exportación
+        # *** PREPARAR DATOS PARA EXPORTACIÓN CON INFORMACIÓN DE COMBOS ***
         datos_exportacion = []
         encabezados = [
             'Código',
             'Producto',
             'Descripción',
             'Categoría',
-            'Cantidad Vendida',
+            'Tipo',  # *** NUEVO: Producto Base / Combo
+            'Cantidad Real Vendida',  # *** CORREGIDO ***
+            'Unidades/Combos',  # *** NUEVO: Detalle de combos ***
             'Precio Promedio',
             'Total Vendido',
             'Última Venta',
@@ -3336,14 +3385,29 @@ def exportar_reporte_ventas():
         # Agregar encabezados
         datos_exportacion.append(encabezados)
         
-        # Agregar datos
+        # *** AGREGAR DATOS CON INFORMACIÓN DE COMBOS ***
         for resultado in resultados:
+            # Calcular cantidad real y información de combo
+            cantidad_real = float(resultado.cantidad_real_vendida) if resultado.cantidad_real_vendida else 0.0
+            unidades_combos = int(resultado.unidades_combos_vendidas) if resultado.unidades_combos_vendidas else 0
+            
+            # Información del tipo de producto
+            if resultado.es_combo:
+                tipo_producto = "Combo/Oferta"
+                cantidad_combo = float(resultado.cantidad_combo) if resultado.cantidad_combo else 1.0
+                detalle_unidades = f"{unidades_combos} combos × {cantidad_combo:g} c/u"
+            else:
+                tipo_producto = "Producto Base"
+                detalle_unidades = f"{int(cantidad_real)} unidades"
+            
             fila = [
                 resultado.codigo,
                 resultado.nombre,
                 resultado.descripcion or '',
                 resultado.categoria or 'Sin categoría',
-                int(resultado.cantidad_vendida) if resultado.cantidad_vendida else 0,
+                tipo_producto,  # *** NUEVO ***
+                f"{cantidad_real:g}",  # *** CANTIDAD REAL ***
+                detalle_unidades,  # *** DETALLE ***
                 f"{float(resultado.precio_promedio):.2f}" if resultado.precio_promedio else "0.00",
                 f"{float(resultado.total_vendido):.2f}" if resultado.total_vendido else "0.00",
                 resultado.ultima_venta.strftime('%d/%m/%Y') if resultado.ultima_venta else 'N/A',
@@ -3360,7 +3424,7 @@ def exportar_reporte_ventas():
     except Exception as e:
         print(f"❌ Error exportando reporte: {str(e)}")
         return jsonify({'error': f'Error al exportar: {str(e)}'}), 500
-
+        
 
 def generar_csv_reporte(datos, fecha_desde, fecha_hasta):
     """Generar archivo CSV del reporte"""
@@ -3454,7 +3518,7 @@ def api_top_productos_vendidos():
     
     try:
         # Últimos 30 días
-        fecha_hasta = datetime.utcnow()
+        fecha_hasta = datetime.now()
         fecha_desde = fecha_hasta - timedelta(days=30)
         
         # Query para top productos

@@ -72,19 +72,24 @@
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
                         <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                            Facturas Emitidas
+                            Sistema Activo
                         </div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800">15</div>
+                        <div class="h6 mb-0 font-weight-bold text-gray-800" id="fecha_hoy">
+                            <!-- Fecha se carga aquí -->
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-success" id="hora_actual">
+                            <!-- Hora se carga aquí -->
+                        </div>
                     </div>
                     <div class="col-auto">
-                        <i class="fas fa-file-invoice fa-2x text-gray-300"></i>
+                        <i class="fas fa-clock fa-2x text-gray-300"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- <div class="col-xl-3 col-md-6 mb-4">
+    <!--<div class="col-xl-3 col-md-6 mb-4">
         <div class="card border-left-info shadow h-100 py-2">
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
@@ -214,11 +219,20 @@
     
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5>Últimas Ventas</h5>
+                <button class="btn btn-outline-primary btn-sm" onclick="cargarUltimasVentas()">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
             </div>
             <div class="card-body">
-                <div class="table-responsive">
+                <!-- Loading -->
+                <div id="ventas_loading" class="text-center py-3" style="display: none;">
+                    <i class="fas fa-spinner fa-spin"></i> Cargando...
+                </div>
+                
+                <!-- Tabla -->
+                <div class="table-responsive" id="ventas_tabla">
                     <table class="table table-sm">
                         <thead>
                             <tr>
@@ -228,18 +242,12 @@
                                 <th>Estado</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="ventas_tbody">
+                            <!-- Los datos se cargarán aquí -->
                             <tr>
-                                <td>0001-00000001</td>
-                                <td>Juan Pérez</td>
-                                <td>$1,250.00</td>
-                                <td><span class="badge bg-success">Autorizada</span></td>
-                            </tr>
-                            <tr>
-                                <td>0001-00000002</td>
-                                <td>María González</td>
-                                <td>$850.50</td>
-                                <td><span class="badge bg-success">Autorizada</span></td>
+                                <td colspan="4" class="text-center text-muted">
+                                    <small>Cargando ventas...</small>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -929,6 +937,140 @@ document.addEventListener('DOMContentLoaded', function() {
 // Hacer disponible globalmente para debugging desde consola
 window.actualizarDashboardManual = actualizarDashboardManual;
 window.cargarDatosDebug = cargarDatosDebug;
+
+function cargarUltimasVentas() {
+    console.log('📋 Cargando últimas ventas...');
+    
+    // Mostrar loading
+    document.getElementById('ventas_loading').style.display = 'block';
+    document.getElementById('ventas_tabla').style.opacity = '0.5';
+    
+    fetch('/api/buscar_facturas?limite=5')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarVentasEnTabla(data.facturas);
+            } else {
+                console.error('Error:', data.error);
+                mostrarErrorVentas();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarErrorVentas();
+        })
+        .finally(() => {
+            // Ocultar loading
+            document.getElementById('ventas_loading').style.display = 'none';
+            document.getElementById('ventas_tabla').style.opacity = '1';
+        });
+}
+
+function mostrarVentasEnTabla(facturas) {
+    const tbody = document.getElementById('ventas_tbody');
+    
+    if (facturas.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-muted">
+                    <small>No hay ventas registradas</small>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    let html = '';
+    facturas.forEach(factura => {
+        // Badge de estado
+        let estadoBadge = '';
+        switch(factura.estado) {
+            case 'autorizada':
+                estadoBadge = '<span class="badge bg-success">Autorizada</span>';
+                break;
+            case 'pendiente':
+                estadoBadge = '<span class="badge bg-warning">Pendiente</span>';
+                break;
+            case 'error_afip':
+                estadoBadge = '<span class="badge bg-danger">Error</span>';
+                break;
+            default:
+                estadoBadge = `<span class="badge bg-secondary">${factura.estado}</span>`;
+        }
+        
+        // Truncar nombre del cliente si es muy largo
+        const clienteNombre = factura.cliente.nombre.length > 15 
+            ? factura.cliente.nombre.substring(0, 15) + '...'
+            : factura.cliente.nombre;
+        
+        html += `
+            <tr title="Ver factura ${factura.numero}" style="cursor: pointer;" onclick="window.open('/factura/${factura.id}', '_blank')">
+                <td><code>${factura.numero}</code></td>
+                <td>${clienteNombre}</td>
+                <td><strong>$${parseFloat(factura.total).toLocaleString()}</strong></td>
+                <td>${estadoBadge}</td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    console.log('✅ Ventas cargadas en tabla');
+}
+
+function mostrarErrorVentas() {
+    const tbody = document.getElementById('ventas_tbody');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="4" class="text-center text-warning">
+                <small><i class="fas fa-exclamation-triangle"></i> Error cargando ventas</small>
+            </td>
+        </tr>
+    `;
+}
+
+// Cargar ventas al inicializar la página
+document.addEventListener('DOMContentLoaded', function() {
+    // Esperar un poco para que cargue todo
+    setTimeout(cargarUltimasVentas, 1000);
+});
+
+// Auto-actualizar cada 2 minutos
+setInterval(cargarUltimasVentas, 2 * 60 * 1000);
+
+// Función para actualizar fecha y hora
+function actualizarRelojDashboard() {
+    const ahora = new Date();
+    
+    // Fecha corta: "Lun 25/12"
+    const fecha = ahora.toLocaleDateString('es-AR', {
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit'
+    });
+    
+    // Hora: "14:30:25"
+    const hora = ahora.toLocaleTimeString('es-AR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+    
+    // Actualizar elementos
+    const fechaElement = document.getElementById('fecha_hoy');
+    const horaElement = document.getElementById('hora_actual');
+    
+    if (fechaElement) fechaElement.textContent = fecha;
+    if (horaElement) horaElement.textContent = hora;
+}
+
+// Actualizar cada segundo
+setInterval(actualizarRelojDashboard, 1000);
+
+// Inicializar inmediatamente
+document.addEventListener('DOMContentLoaded', function() {
+    actualizarRelojDashboard();
+});
 
 </script>
 

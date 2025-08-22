@@ -100,6 +100,8 @@
 </div>
 
 <!-- Estadísticas rápidas -->
+<!-- Estadísticas rápidas CORREGIDAS - Compatible Jinja2 - VERSIÓN SEGURA -->
+<!-- Estadísticas rápidas CORREGIDAS - Compatible Jinja2 - VERSIÓN SEGURA -->
 <div class="row mb-4">
     <div class="col-md-3">
         <div class="card bg-warning text-dark">
@@ -107,7 +109,10 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h5 class="card-title mb-0">Total Ofertas</h5>
-                        <h3 class="mb-0">{{ combos|length }}</h3>
+                        <h3 class="mb-0">
+                            {% set total_combos = combos|selectattr('es_combo')|list|length %}
+                            {{ total_combos }}
+                        </h3>
                     </div>
                     <div class="align-self-center">
                         <i class="fas fa-tags fa-2x opacity-75"></i>
@@ -122,7 +127,10 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h5 class="card-title mb-0">Ofertas Activas</h5>
-                        <h3 class="mb-0">{{ combos|selectattr('activo')|list|length }}</h3>
+                        <h3 class="mb-0">
+                            {% set ofertas_activas = combos|selectattr('es_combo')|selectattr('activo')|list|length %}
+                            {{ ofertas_activas }}
+                        </h3>
                     </div>
                     <div class="align-self-center">
                         <i class="fas fa-check-circle fa-2x opacity-75"></i>
@@ -138,22 +146,23 @@
                     <div>
                         <h5 class="card-title mb-0">Descuento Promedio</h5>
                         <h3 class="mb-0">
-                            {% if combos %}
-                                {% set total_descuento = 0 %}
-                                {% set count = 0 %}
-                                {% for combo in combos if combo.producto_base %}
+                            {% set descuentos_validos = [] %}
+                            
+                            {% for combo in combos %}
+                                {% if combo.es_combo and combo.producto_base and combo.cantidad_combo and combo.activo %}
                                     {% set precio_normal = combo.producto_base.precio * combo.cantidad_combo %}
-                                    {% set descuento = ((precio_normal - combo.precio) / precio_normal * 100) %}
-                                    {% set total_descuento = total_descuento + descuento %}
-                                    {% set count = count + 1 %}
-                                {% endfor %}
-                                {% if count > 0 %}
-                                    {{ "%.1f"|format(total_descuento / count) }}%
-                                {% else %}
-                                    0%
+                                    {% if precio_normal > 0 and combo.precio < precio_normal %}
+                                        {% set descuento_porcentaje = ((precio_normal - combo.precio) / precio_normal * 100) %}
+                                        {% if descuentos_validos.append(descuento_porcentaje) %}{% endif %}
+                                    {% endif %}
                                 {% endif %}
+                            {% endfor %}
+                            
+                            {% if descuentos_validos|length > 0 %}
+                                {% set suma_descuentos = descuentos_validos|sum %}
+                                {{ "%.1f"|format(suma_descuentos / descuentos_validos|length) }}%
                             {% else %}
-                                0%
+                                0.0%
                             {% endif %}
                         </h3>
                     </div>
@@ -171,13 +180,23 @@
                     <div>
                         <h5 class="card-title mb-0">Ahorro Total</h5>
                         <h3 class="mb-0">
-                            {% set total_ahorro = 0 %}
-                            {% for combo in combos if combo.producto_base %}
-                                {% set precio_normal = combo.producto_base.precio * combo.cantidad_combo %}
-                                {% set ahorro = precio_normal - combo.precio %}
-                                {% set total_ahorro = total_ahorro + ahorro %}
+                            {% set ahorros_validos = [] %}
+                            
+                            {% for combo in combos %}
+                                {% if combo.es_combo and combo.producto_base and combo.cantidad_combo and combo.activo %}
+                                    {% set precio_normal = combo.producto_base.precio * combo.cantidad_combo %}
+                                    {% if precio_normal > 0 and combo.precio < precio_normal %}
+                                        {% set ahorro_total = precio_normal - combo.precio %}
+                                        {% if ahorros_validos.append(ahorro_total) %}{% endif %}
+                                    {% endif %}
+                                {% endif %}
                             {% endfor %}
-                            ${{ "%.0f"|format(total_ahorro) }}
+                            
+                            {% if ahorros_validos|length > 0 %}
+                                ${{ "%.0f"|format(ahorros_validos|sum) }}
+                            {% else %}
+                                $0
+                            {% endif %}
                         </h3>
                     </div>
                     <div class="align-self-center">

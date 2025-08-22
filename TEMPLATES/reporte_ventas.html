@@ -273,15 +273,24 @@ function generarReporte() {
 
 // Función para mostrar el reporte
 function mostrarReporte(data) {
-    // Mostrar resumen
+    // Mostrar resumen (actualizado para mostrar unidades reales)
     document.getElementById('totalProductos').textContent = data.resumen.total_productos;
-    document.getElementById('totalUnidades').textContent = data.resumen.total_unidades.toLocaleString();
+    
+    // *** USAR UNIDADES REALES EN LUGAR DE TOTAL_UNIDADES ***
+    const unidadesReales = data.resumen.total_unidades_reales || data.resumen.total_unidades;
+    document.getElementById('totalUnidades').textContent = unidadesReales.toLocaleString();
+    
     document.getElementById('totalVentas').textContent = '$' + data.resumen.total_ventas.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     document.getElementById('promedioVenta').textContent = '$' + data.resumen.promedio_por_producto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     
     // Mostrar información sobre estados de facturas si está disponible
     if (data.resumen.estados_facturas && Object.keys(data.resumen.estados_facturas).length > 1) {
         mostrarInfoEstadosFacturas(data.resumen.estados_facturas);
+    }
+    
+    // *** MOSTRAR INFORMACIÓN DE CORRECCIÓN DE COMBOS ***
+    if (data.resumen.correccion_combos) {
+        mostrarInfoCorreccionCombos();
     }
     
     // Mostrar tabla
@@ -308,11 +317,32 @@ function mostrarReporte(data) {
                 new Date(producto.ultima_venta).toLocaleDateString('es-AR') : 
                 'N/A';
             
+            // *** FORMATEAR CANTIDAD VENDIDA CON INFORMACIÓN DE COMBO ***
+            let cantidadDisplay = `<span class="badge bg-primary fs-6">${producto.cantidad_vendida}</span>`;
+            let tipoProducto = '';
+            
+            if (producto.es_combo) {
+                tipoProducto = '<br><small class="text-info"><i class="fas fa-tags"></i> Combo/Oferta</small>';
+                
+                // Mostrar información adicional del combo
+                if (producto.info_combo) {
+                    cantidadDisplay += `<br><small class="text-muted">${producto.info_combo}</small>`;
+                }
+                
+                // Agregar unidad de medida si está disponible
+                if (producto.unidad_medida && producto.unidad_medida !== 'unidades') {
+                    cantidadDisplay = `<span class="badge bg-success fs-6">${producto.cantidad_vendida} ${producto.unidad_medida}</span>`;
+                    if (producto.info_combo) {
+                        cantidadDisplay += `<br><small class="text-muted">${producto.info_combo}</small>`;
+                    }
+                }
+            }
+            
             fila.innerHTML = `
                 <td><strong>${index + 1}</strong></td>
                 <td><code>${producto.codigo}</code></td>
                 <td>
-                    <strong>${producto.nombre}</strong>
+                    <strong>${producto.nombre}</strong>${tipoProducto}
                     ${producto.descripcion ? `<br><small class="text-muted">${producto.descripcion.substring(0, 50)}${producto.descripcion.length > 50 ? '...' : ''}</small>` : ''}
                 </td>
                 <td>
@@ -320,7 +350,7 @@ function mostrarReporte(data) {
                 </td>
                 <td class="text-end">$${producto.precio_promedio.toFixed(2)}</td>
                 <td class="text-center">
-                    <span class="badge bg-primary fs-6">${producto.cantidad_vendida}</span>
+                    ${cantidadDisplay}
                 </td>
                 <td class="text-end">
                     <strong>$${producto.total_vendido.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
@@ -345,6 +375,38 @@ function mostrarReporte(data) {
     
     console.log('✅ Reporte mostrado correctamente - Botones de exportación habilitados');
     console.log(`📊 Incluye todas las facturas: ${data.resumen.incluye_todas_facturas ? 'SÍ' : 'NO'}`);
+    console.log(`🔧 Corrección de combos aplicada: ${data.resumen.correccion_combos ? 'SÍ' : 'NO'}`);
+}
+
+// *** NUEVA FUNCIÓN PARA MOSTRAR INFO DE CORRECCIÓN DE COMBOS ***
+function mostrarInfoCorreccionCombos() {
+    const cardResumen = document.getElementById('cardResumen');
+    
+    // Remover info anterior si existe
+    const infoAnterior = cardResumen.querySelector('.info-correccion-combos');
+    if (infoAnterior) {
+        infoAnterior.remove();
+    }
+    
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'info-correccion-combos mt-3 p-3 bg-success bg-opacity-10 border border-success rounded';
+    infoDiv.innerHTML = `
+        <div class="row">
+            <div class="col-12">
+                <h6><i class="fas fa-check-circle text-success"></i> Corrección de Combos Aplicada</h6>
+                <p class="mb-0">
+                    <small class="text-success">
+                        <i class="fas fa-tags"></i> Las cantidades de combos han sido convertidas a la cantidad real del producto base.<br>
+                        <strong>Ejemplo:</strong> Si vendiste 2 combos de 3kg c/u, se muestra "6 kg vendidos" en lugar de "2 combos".
+                    </small>
+                </p>
+            </div>
+        </div>
+    `;
+    
+    cardResumen.querySelector('.card-body').appendChild(infoDiv);
+    
+    console.log('✅ Info de corrección de combos agregada al reporte');
 }
 
 // Función para mostrar información sobre estados de facturas
@@ -724,5 +786,35 @@ code {
 #totalProductos, #totalUnidades, #totalVentas, #promedioVenta {
     animation: countUp 0.5s ease-out;
 }
+
+/* Estilos para la información de corrección de combos */
+.info-correccion-combos {
+    border-left: 4px solid #28a745;
+    animation: slideIn 0.3s ease-in-out;
+}
+
+/* Mejoras para badges de cantidad en combos */
+.badge.bg-success {
+    background-color: #28a745 !important;
+}
+
+/* Estilo para información de combo */
+.text-info small {
+    font-weight: 500;
+}
+
+/* Mejoras para la tabla cuando hay combos */
+.table tbody tr:hover {
+    background-color: rgba(0,123,255,0.05) !important;
+    cursor: pointer;
+}
+
+/* Estilos para información adicional de combos */
+.badge + small {
+    display: block;
+    margin-top: 2px;
+    font-style: italic;
+}
+
 </style>
 {% endblock %}
