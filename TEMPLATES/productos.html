@@ -72,6 +72,7 @@
                         <th>Stock</th>
                         <th>IVA %</th>
                         <th>Estado</th>
+                        <th><i class="fas fa-bolt" title="Acceso Rápido"></i></th> <!-- Nueva columna -->
                         <th>Acciones</th>
                     </tr>
                 </thead>
@@ -120,6 +121,18 @@
                                 <span class="badge bg-success">Activo</span>
                             {% else %}
                                 <span class="badge bg-secondary">Inactivo</span>
+                            {% endif %}
+                        </td>
+                        <!-- Nueva columna de Acceso Rápido -->
+                        <td class="text-center">
+                            {% if hasattr(producto, 'acceso_rapido') and producto.acceso_rapido %}
+                                <span class="badge bg-warning text-dark" title="Producto en acceso rápido (posición {{ producto.orden_acceso_rapido or 0 }})">
+                                    <i class="fas fa-bolt"></i> #{{ producto.orden_acceso_rapido or 0 }}
+                                </span>
+                            {% else %}
+                                <button class="btn btn-outline-warning btn-sm" onclick="toggleAccesoRapidoDirecto({{ producto.id }})" title="Agregar a acceso rápido">
+                                    <i class="fas fa-plus"></i>
+                                </button>
                             {% endif %}
                         </td>
                         <td>
@@ -252,6 +265,151 @@
                 <i class="fas fa-tags fa-3x mb-3 opacity-50"></i>
                 <h5>No hay combos/ofertas creados</h5>
                 <p>Usa el botón "Crear Nueva Oferta" para crear tu primera oferta</p>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- ===== SECCIÓN DE GESTIÓN DE ACCESO RÁPIDO ===== -->
+<div class="card mt-4">
+    <div class="card-header bg-success text-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-bolt"></i> Gestión de Acceso Rápido</h5>
+            <span class="badge bg-light text-dark" id="contador_acceso_rapido">0/8</span>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- Información -->
+        <div class="alert alert-info mb-3">
+            <i class="fas fa-info-circle"></i>
+            <strong>Acceso Rápido:</strong> Selecciona hasta 8 productos que aparecerán como botones de acceso rápido en la pantalla de ventas.
+            Los usuarios podrán agregar estos productos al carrito con un solo clic.
+        </div>
+        
+        <!-- Controles -->
+        <div class="mb-3">
+            <button type="button" class="btn btn-primary" onclick="mostrarModalAccesoRapido()">
+                <i class="fas fa-cog"></i> Configurar Acceso Rápido
+            </button>
+            <button type="button" class="btn btn-info" onclick="previewAccesoRapido()">
+                <i class="fas fa-eye"></i> Vista Previa
+            </button>
+            <button type="button" class="btn btn-warning" onclick="reordenarAccesoRapido()">
+                <i class="fas fa-sort"></i> Reordenar
+            </button>
+        </div>
+        
+        <!-- Lista actual de productos en acceso rápido -->
+        <div id="lista_acceso_rapido">
+            <h6><i class="fas fa-list"></i> Productos en Acceso Rápido:</h6>
+            <div class="row" id="productos_acceso_rapido_grid">
+                <!-- Se llena dinámicamente -->
+            </div>
+            
+            <div id="mensaje_sin_acceso_rapido" class="text-center text-muted py-4">
+                <i class="fas fa-bolt fa-3x mb-3 opacity-50"></i>
+                <h5>No hay productos configurados para acceso rápido</h5>
+                <p>Usa el botón "Configurar Acceso Rápido" para seleccionar productos</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Configurar Acceso Rápido -->
+<div class="modal fade" id="modalAccesoRapido" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-bolt"></i> Configurar Productos de Acceso Rápido
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Información y límites -->
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Límite:</strong> Máximo 8 productos. 
+                    <span id="seleccionados_count">0</span> seleccionados.
+                </div>
+                
+                <!-- Filtros -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <input type="text" class="form-control" id="buscar_para_acceso" 
+                               placeholder="Buscar productos...">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="filtro_categoria_acceso">
+                            <option value="">Todas las categorías</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-secondary w-100" onclick="limpiarSeleccionAccesoRapido()">
+                            <i class="fas fa-times"></i> Quitar Todos
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Lista de productos para seleccionar -->
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-hover table-sm">
+                        <thead class="table-success sticky-top">
+                            <tr>
+                                <th width="50">
+                                    <input type="checkbox" id="select_all_acceso" onchange="toggleTodosAccesoRapido()">
+                                </th>
+                                <th>Código</th>
+                                <th>Producto</th>
+                                <th>Precio</th>
+                                <th>Stock</th>
+                                <th>Categoría</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla_productos_acceso_rapido">
+                            <!-- Se llena dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-success" onclick="guardarConfiguracionAccesoRapido()">
+                    <i class="fas fa-save"></i> Guardar Configuración
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Reordenar -->
+<div class="modal fade" id="modalReordenar" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="fas fa-sort"></i> Reordenar Acceso Rápido
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    Arrastra los productos para cambiar el orden en que aparecen en el acceso rápido.
+                </div>
+                
+                <div id="lista_reordenar">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-warning" onclick="guardarNuevoOrden()">
+                    <i class="fas fa-save"></i> Guardar Orden
+                </button>
             </div>
         </div>
     </div>
@@ -918,6 +1076,493 @@ function cargarCategorias() {
 }
 
 
+// Variables globales para acceso rápido
+let productosSeleccionados = new Set();
+let productosAccesoRapidoActuales = [];
+
+// ===== FUNCIONES DE ACCESO RÁPIDO =====
+
+function cargarProductosAccesoRapido() {
+    fetch('/api/productos_acceso_rapido')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                productosAccesoRapidoActuales = data.productos;
+                actualizarVistaAccesoRapido(data.productos);
+                actualizarContadorAccesoRapido(data.productos.length);
+            }
+        })
+        .catch(error => {
+            console.error('Error cargando productos de acceso rápido:', error);
+        });
+}
+
+function actualizarVistaAccesoRapido(productos) {
+    const grid = document.getElementById('productos_acceso_rapido_grid');
+    const mensaje = document.getElementById('mensaje_sin_acceso_rapido');
+    
+    if (productos.length === 0) {
+        grid.innerHTML = '';
+        mensaje.style.display = 'block';
+        return;
+    }
+    
+    mensaje.style.display = 'none';
+    
+    grid.innerHTML = productos.map((producto, index) => `
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card border-success">
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge bg-success">#${index + 1}</span>
+                        <button class="btn btn-danger btn-sm" onclick="quitarDeAccesoRapido(${producto.id})" title="Quitar">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <h6 class="card-title text-primary mb-1">${producto.codigo}</h6>
+                    <p class="card-text small mb-2">${producto.nombre.length > 30 ? producto.nombre.substring(0, 30) + '...' : producto.nombre}</p>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-success fw-bold">$${producto.precio.toFixed(2)}</span>
+                        <span class="badge bg-${producto.stock > 10 ? 'success' : producto.stock > 0 ? 'warning' : 'danger'}">
+                            ${producto.stock}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function actualizarContadorAccesoRapido(cantidad) {
+    const contador = document.getElementById('contador_acceso_rapido');
+    contador.textContent = `${cantidad}/8`;
+    contador.className = `badge ${cantidad >= 8 ? 'bg-danger' : 'bg-light'} text-dark`;
+}
+
+function mostrarModalAccesoRapido() {
+    // Cargar productos activos
+    fetch('/buscar_productos_admin?estado=activo')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Inicializar selección con productos actuales
+                productosSeleccionados.clear();
+                productosAccesoRapidoActuales.forEach(p => productosSeleccionados.add(p.id));
+                
+                mostrarProductosEnModal(data.productos);
+                actualizarContadorSeleccionados();
+                
+                // Mostrar modal
+                new bootstrap.Modal(document.getElementById('modalAccesoRapido')).show();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error al cargar productos');
+        });
+}
+
+function mostrarProductosEnModal(productos) {
+    const tbody = document.getElementById('tabla_productos_acceso_rapido');
+    
+    tbody.innerHTML = productos.map(producto => `
+        <tr>
+            <td>
+                <input type="checkbox" class="form-check-input" 
+                       ${productosSeleccionados.has(producto.id) ? 'checked' : ''}
+                       onchange="toggleProductoAccesoRapido(${producto.id}, this.checked)">
+            </td>
+            <td><code>${producto.codigo}</code></td>
+            <td>
+                <strong>${producto.nombre}</strong>
+                ${producto.es_combo ? '<br><span class="badge bg-warning text-dark">OFERTA</span>' : ''}
+            </td>
+            <td class="text-end">$${producto.precio.toFixed(2)}</td>
+            <td class="text-center">
+                <span class="badge bg-${producto.stock > 10 ? 'success' : producto.stock > 0 ? 'warning' : 'danger'}">
+                    ${producto.stock}
+                </span>
+            </td>
+            <td><span class="badge bg-info">${producto.categoria || 'Sin categoría'}</span></td>
+        </tr>
+    `).join('');
+}
+
+function toggleProductoAccesoRapido(productoId, seleccionado) {
+    if (seleccionado) {
+        if (productosSeleccionados.size >= 8) {
+            alert('Máximo 8 productos permitidos');
+            // Desmarcar el checkbox
+            event.target.checked = false;
+            return;
+        }
+        productosSeleccionados.add(productoId);
+    } else {
+        productosSeleccionados.delete(productoId);
+    }
+    
+    actualizarContadorSeleccionados();
+}
+
+function actualizarContadorSeleccionados() {
+    const contador = document.getElementById('seleccionados_count');
+    contador.textContent = productosSeleccionados.size;
+    
+    // Actualizar checkbox maestro
+    const selectAll = document.getElementById('select_all_acceso');
+    const checkboxes = document.querySelectorAll('#tabla_productos_acceso_rapido input[type="checkbox"]');
+    const checkedCount = document.querySelectorAll('#tabla_productos_acceso_rapido input[type="checkbox"]:checked').length;
+    
+    selectAll.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+    selectAll.checked = checkedCount === checkboxes.length && checkboxes.length > 0;
+}
+
+function toggleTodosAccesoRapido() {
+    const selectAll = document.getElementById('select_all_acceso');
+    const checkboxes = document.querySelectorAll('#tabla_productos_acceso_rapido input[type="checkbox"]');
+    
+    if (selectAll.checked) {
+        // Seleccionar todos (máximo 8)
+        productosSeleccionados.clear();
+        let count = 0;
+        checkboxes.forEach(checkbox => {
+            if (count < 8) {
+                checkbox.checked = true;
+                const productoId = parseInt(checkbox.onchange.toString().match(/\d+/)[0]);
+                productosSeleccionados.add(productoId);
+                count++;
+            } else {
+                checkbox.checked = false;
+            }
+        });
+    } else {
+        // Deseleccionar todos
+        productosSeleccionados.clear();
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+    }
+    
+    actualizarContadorSeleccionados();
+}
+
+function limpiarSeleccionAccesoRapido() {
+    if (confirm('¿Quitar todos los productos del acceso rápido?')) {
+        productosSeleccionados.clear();
+        
+        // Desmarcar todos los checkboxes
+        const checkboxes = document.querySelectorAll('#tabla_productos_acceso_rapido input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        
+        actualizarContadorSeleccionados();
+    }
+}
+
+function guardarConfiguracionAccesoRapido() {
+    if (productosSeleccionados.size === 0) {
+        if (!confirm('¿Guardar configuración sin productos en acceso rápido?')) {
+            return;
+        }
+    }
+    
+    const productosArray = Array.from(productosSeleccionados);
+    
+    // Mostrar loading
+    const btnGuardar = document.querySelector('#modalAccesoRapido .btn-success');
+    const textoOriginal = btnGuardar.innerHTML;
+    btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+    btnGuardar.disabled = true;
+    
+    // Guardar configuración
+    Promise.all(
+        // Primero quitar todos los actuales
+        productosAccesoRapidoActuales.map(p => 
+            fetch(`/api/toggle_acceso_rapido/${p.id}`, { method: 'POST' })
+        )
+    ).then(() => {
+        // Luego agregar los nuevos seleccionados
+        return Promise.all(
+            productosArray.map(id => 
+                fetch(`/api/toggle_acceso_rapido/${id}`, { method: 'POST' })
+            )
+        );
+    }).then(() => {
+        // Recargar vista
+        cargarProductosAccesoRapido();
+        
+        // Cerrar modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalAccesoRapido'));
+        modal.hide();
+        
+        alert('Configuración de acceso rápido guardada correctamente');
+        
+    }).catch(error => {
+        console.error('Error:', error);
+        alert('Error al guardar configuración');
+    }).finally(() => {
+        // Restaurar botón
+        btnGuardar.innerHTML = textoOriginal;
+        btnGuardar.disabled = false;
+    });
+}
+
+function quitarDeAccesoRapido(productoId) {
+    if (confirm('¿Quitar este producto del acceso rápido?')) {
+        fetch(`/api/toggle_acceso_rapido/${productoId}`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                cargarProductosAccesoRapido();
+                alert(data.message);
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error de conexión');
+        });
+    }
+}
+
+function previewAccesoRapido() {
+    if (productosAccesoRapidoActuales.length === 0) {
+        alert('No hay productos configurados en acceso rápido');
+        return;
+    }
+    
+    // Crear ventana de preview
+    const preview = window.open('', '_blank', 'width=800,height=600');
+    preview.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Vista Previa - Acceso Rápido</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+            <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+        </head>
+        <body class="bg-light">
+            <div class="container mt-4">
+                <h4><i class="fas fa-bolt text-warning"></i> Vista Previa - Acceso Rápido</h4>
+                <div class="row">
+                    ${productosAccesoRapidoActuales.map(producto => `
+                        <div class="col-md-3 col-sm-6 mb-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm w-100 text-start">
+                                <div><strong>${producto.codigo}</strong></div>
+                                <div><small>${producto.nombre.length > 20 ? producto.nombre.substring(0, 20) + '...' : producto.nombre}</small></div>
+                                <div><strong>$${producto.precio.toFixed(2)}</strong></div>
+                                <div><small class="text-muted">Stock: ${producto.stock}</small></div>
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-secondary" onclick="window.close()">Cerrar</button>
+                </div>
+            </div>
+        </body>
+        </html>
+    `);
+}
+
+
+
+function toggleAccesoRapidoDirecto(productoId) {
+    fetch(`/api/toggle_acceso_rapido/${productoId}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            // Recargar página para mostrar cambios
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error de conexión');
+    });
+}
+
+// Actualizar la función actualizarTablaProductos para incluir la nueva columna
+function actualizarTablaProductos(productos) {
+    const tbody = document.querySelector('#tablaProductos tbody');
+    
+    if (productos.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="11" class="text-center text-muted">
+                    <i class="fas fa-search"></i> No se encontraron productos
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = productos.map(producto => {
+        const stockBadge = getStockBadge(producto.stock);
+        const estadoBadge = producto.activo ? 
+            '<span class="badge bg-success">Activo</span>' : 
+            '<span class="badge bg-secondary">Inactivo</span>';
+        
+        const btnToggleClass = producto.activo ? 'btn-danger' : 'btn-success';
+        const btnToggleTitle = producto.activo ? 'Desactivar' : 'Activar';
+        
+        // Calcular margen si no existe
+        const costo = producto.costo || 0;
+        const precio = producto.precio || 0;
+        let margen = producto.margen || 0;
+        
+        // Si no hay margen guardado, calcularlo desde precio y costo
+        if (!producto.margen && costo > 0) {
+            margen = ((precio / costo) - 1) * 100;
+        }
+        
+        const editFunction = producto.es_combo ? 'editarCombo' : 'editarProducto';
+        
+        // Nueva columna de acceso rápido
+        const accesoRapidoColumn = producto.acceso_rapido ? 
+            `<span class="badge bg-warning text-dark" title="Producto en acceso rápido (posición ${producto.orden_acceso_rapido || 0})">
+                <i class="fas fa-bolt"></i> #${producto.orden_acceso_rapido || 0}
+            </span>` :
+            `<button class="btn btn-outline-warning btn-sm" onclick="toggleAccesoRapidoDirecto(${producto.id})" title="Agregar a acceso rápido">
+                <i class="fas fa-plus"></i>
+            </button>`;
+        
+        return `
+            <tr>
+                <td><code>${producto.codigo}</code></td>
+                <td>
+                    <strong>${producto.nombre}</strong>
+                    ${producto.es_combo ? '<br><span class="badge bg-warning text-dark">OFERTA</span>' : ''}
+                    ${producto.descripcion ? 
+                        `<br><small class="text-muted">${producto.descripcion.substring(0, 50)}${producto.descripcion.length > 50 ? '...' : ''}</small>` : 
+                        ''
+                    }
+                </td>
+                <td>
+                    <span class="badge bg-info">${producto.categoria || 'Sin categoría'}</span>
+                </td>
+                <td class="text-end">
+                    <small class="text-muted">$</small><strong>${costo.toFixed(2)}</strong>
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-warning text-dark">${margen.toFixed(1)}%</span>
+                </td>
+                <td class="text-end">
+                    <strong>${precio.toFixed(2)}</strong>
+                </td>
+                <td class="text-center">${stockBadge}</td>
+                <td class="text-center">${Math.round(producto.iva)}%</td>
+                <td>${estadoBadge}</td>
+                <td class="text-center">${accesoRapidoColumn}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-warning" onclick="${editFunction}(${producto.id})" title="Editar">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-info" onclick="ajustarStock(${producto.id})" title="Ajustar Stock">
+                            <i class="fas fa-boxes"></i>
+                        </button>
+                        <button class="btn ${btnToggleClass}" onclick="toggleProducto(${producto.id})" title="${btnToggleTitle}">
+                            <i class="fas fa-power-off"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function reordenarAccesoRapido() {
+    if (productosAccesoRapidoActuales.length === 0) {
+        alert('No hay productos en acceso rápido para reordenar');
+        return;
+    }
+    
+    // Llenar modal de reordenar
+    const lista = document.getElementById('lista_reordenar');
+    lista.innerHTML = `
+        <div class="list-group" id="sortable-list">
+            ${productosAccesoRapidoActuales.map((producto, index) => `
+                <div class="list-group-item d-flex justify-content-between align-items-center" data-id="${producto.id}">
+                    <div>
+                        <i class="fas fa-grip-vertical text-muted me-2"></i>
+                        <strong>${producto.codigo}</strong> - ${producto.nombre}
+                        <span class="badge bg-primary ms-2">#${index + 1}</span>
+                    </div>
+                    <div>
+                        <span class="text-success fw-bold">${producto.precio.toFixed(2)}</span>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        <div class="mt-3">
+            <small class="text-muted">
+                <i class="fas fa-info-circle"></i> Arrastra los elementos para cambiar el orden
+            </small>
+        </div>
+    `;
+    
+    // Mostrar modal
+    new bootstrap.Modal(document.getElementById('modalReordenar')).show();
+    
+    // Hacer la lista sorteable (requerirá una librería adicional como Sortable.js)
+    // Por simplicidad, usaremos botones arriba/abajo
+    lista.innerHTML += `
+        <div class="mt-3">
+            <div class="btn-group w-100">
+                <button class="btn btn-secondary" onclick="moverArriba()">
+                    <i class="fas fa-arrow-up"></i> Mover Arriba
+                </button>
+                <button class="btn btn-secondary" onclick="moverAbajo()">
+                    <i class="fas fa-arrow-down"></i> Mover Abajo
+                </button>
+            </div>
+            <div class="form-text">Selecciona un elemento y usa los botones para moverlo</div>
+        </div>
+    `;
+}
+
+function guardarNuevoOrden() {
+    // Obtener nuevo orden de IDs
+    const elementos = document.querySelectorAll('#lista_reordenar .list-group-item');
+    const nuevoOrden = Array.from(elementos).map(elem => parseInt(elem.dataset.id));
+    
+    fetch('/api/reordenar_acceso_rapido', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            productos_orden: nuevoOrden
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Orden actualizado correctamente');
+            cargarProductosAccesoRapido();
+            
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalReordenar'));
+            modal.hide();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error de conexión');
+    });
+}
 
 // ===== EVENT LISTENERS =====
 
@@ -1031,6 +1676,9 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('✅ Página de productos inicializada correctamente');
 });
 
+cargarProductosAccesoRapido();
+    
+console.log('✅ Gestión de acceso rápido inicializada');
 
 </script>
 {% endblock %}

@@ -120,6 +120,8 @@ def crear_session_afip():
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'tu_clave_secreta_aqui'
 
+app.jinja_env.globals['hasattr'] = hasattr
+
 # Intentar cargar configuración local, si no existe usar por defecto
 try:
     from config_local import Config, ARCAConfig
@@ -196,7 +198,6 @@ class Producto(db.Model):
     activo = db.Column(db.Boolean, default=True)
     fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
     fecha_modificacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    # NUEVAS COLUMNAS AGREGADAS:
     costo = db.Column(Numeric(10, 2), default=0.00)  # ← AGREGAR ESTA LÍNEA
     margen = db.Column(Numeric(5, 2), default=30.00)  # ← AGREGAR ESTA LÍNEA
     
@@ -206,7 +207,9 @@ class Producto(db.Model):
     cantidad_combo = db.Column(Numeric(8, 3), default=1.000)
     precio_unitario_base = db.Column(Numeric(10, 2), nullable=True)
     descuento_porcentaje = db.Column(Numeric(5, 2), default=0.00)
-    
+    acceso_rapido = db.Column(db.Boolean, default=False)  # ← AGREGAR ESTA LÍNEA
+    orden_acceso_rapido = db.Column(db.Integer, default=0)  # ← Y ESTA LÍNEA TAMBIÉN
+
     # ✅ AGREGAR ESTA RELACIÓN:
     producto_base = db.relationship('Producto', remote_side=[id], backref='combos_derivados')
     
@@ -2047,7 +2050,15 @@ def nueva_venta():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
-    productos = Producto.query.filter_by(activo=True).all()
+    # Obtener productos de acceso rápido en lugar de los primeros 8
+    productos = Producto.query.filter_by(
+        acceso_rapido=True,
+        activo=True
+    ).order_by(
+        Producto.orden_acceso_rapido.asc(),
+        Producto.codigo.asc()
+    ).limit(8).all()
+    
     clientes = Cliente.query.all()
     return render_template('nueva_venta.html', productos=productos, clientes=clientes)
 
@@ -4400,6 +4411,181 @@ def anular_factura(factura_id):
         return jsonify({
             'success': False,
             'error': f'Error al anular factura: {str(e)}'
+        }), 500
+
+
+# PASO 2: Nuevas rutas en app.py para gestionar acceso rápido
+
+@app.route('/api/toggle_acceso_rapido/<int:producto_id>', methods=['POST'])
+def toggle_acceso_rapido(producto_id):
+    """Activar/desactivar producto como acceso rápido"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        producto = Producto.query.get_or_404(producto_id)
+        
+        if producto.acceso_rapido:
+            # Quitar de acceso rápido
+            producto.acceso_rapido = False
+            producto.orden_acceso_rapido = 0
+            accion = 'removido de'
+        else:
+            # Verificar límite de 8 productos
+            productos_acceso_rapido = Producto.query.filter_by(
+                acceso_rapido=True, 
+                activo=True
+            ).count()
+            
+            if productos_acceso_rapido >= 8:
+                return jsonify({
+                    'success': False,
+                    'error': 'Máximo 8 productos permitidos en acceso rápido. Quita uno primero.'
+                }), 400
+            
+            # Agregar a acceso rápido
+            producto.acceso_rapido = True
+            # Asignar orden automáticamente
+            max_orden = db.session.query(func.max(Producto.orden_acceso_rapido)).scalar() or 0
+            producto.orden_acceso_rapido = max_orden + 1
+            accion = 'agregado a'
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Producto {accion} acceso rápido',
+            'acceso_rapido': producto.acceso_rapido,
+            'orden': producto.orden_acceso_rapido
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en toggle_acceso_rapido: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error al cambiar acceso rápido: {str(e)}'
+        }), 500
+
+
+@app.route('/api/reordenar_acceso_rapido', methods=['POST'])
+def reordenar_acceso_rapido():
+    """Reordenar productos de acceso rápido"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        data = request.json
+        productos_orden = data.get('productos_orden', [])
+        
+        # productos_orden debe ser una lista de IDs en el orden deseado
+        for i, producto_id in enumerate(productos_orden):
+            producto = Producto.query.get(producto_id)
+            if producto and producto.acceso_rapido:
+                producto.orden_acceso_rapido = i + 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Orden actualizado correctamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': f'Error al reordenar: {str(e)}'
+        }), 500
+
+
+@app.route('/api/productos_acceso_rapido')
+def obtener_productos_acceso_rapido():
+    """Obtener productos marcados como acceso rápido"""
+    try:
+        productos = Producto.query.filter_by(
+            acceso_rapido=True,
+            activo=True
+        ).order_by(
+            Producto.orden_acceso_rapido.asc(),
+            Producto.codigo.asc()
+        ).limit(8).all()
+        
+        productos_data = []
+        for producto in productos:
+            productos_data.append({
+                'id': producto.id,
+                'codigo': producto.codigo,
+                'nombre': producto.nombre,
+                'precio': float(producto.precio),
+                'stock': producto.stock,
+                'iva': float(producto.iva),
+                'orden': producto.orden_acceso_rapido
+            })
+        
+        return jsonify({
+            'success': True,
+            'productos': productos_data,
+            'total': len(productos_data)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+
+def migrar_acceso_rapido():
+    """Migrar productos existentes para agregar funcionalidad de acceso rápido"""
+    try:
+        print("🔄 Migrando productos para acceso rápido...")
+        
+        # Tomar los primeros 8 productos activos como acceso rápido inicial
+        productos_iniciales = Producto.query.filter_by(activo=True).limit(8).all()
+        
+        for i, producto in enumerate(productos_iniciales):
+            producto.acceso_rapido = True
+            producto.orden_acceso_rapido = i + 1
+            print(f"  ✅ {producto.codigo} marcado como acceso rápido (orden {i + 1})")
+        
+        # Marcar el resto como NO acceso rápido
+        productos_restantes = Producto.query.filter(
+            ~Producto.id.in_([p.id for p in productos_iniciales])
+        ).all()
+        
+        for producto in productos_restantes:
+            producto.acceso_rapido = False
+            producto.orden_acceso_rapido = 0
+        
+        db.session.commit()
+        print(f"✅ Migración completada: {len(productos_iniciales)} productos en acceso rápido")
+        
+    except Exception as e:
+        print(f"❌ Error en migración: {e}")
+        db.session.rollback()
+
+
+# PASO 5: Ruta para ejecutar migración
+@app.route('/migrar_acceso_rapido', methods=['POST'])
+def ejecutar_migracion_acceso_rapido():
+    """Endpoint para ejecutar migración de acceso rápido"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        migrar_acceso_rapido()
+        
+        return jsonify({
+            'success': True,
+            'mensaje': 'Migración de acceso rápido completada'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Error en migración: {str(e)}'
         }), 500
 
 app.run(debug=True, host='0.0.0.0', port=5080)
