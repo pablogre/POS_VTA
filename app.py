@@ -2533,11 +2533,14 @@ def estado_impresora():
 
 @app.route('/facturas')
 def facturas():
+    """Página de gestión de facturas (carga dinámica via JavaScript)"""
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
-    facturas = Factura.query.order_by(Factura.fecha.desc()).limit(100).all()
-    return render_template('facturas.html', facturas=facturas)
+    # No cargar facturas aquí - se cargan dinámicamente via JavaScript
+    # Esto mejora significativamente el tiempo de carga de la página
+    
+    return render_template('facturas.html', facturas=[])
 
 @app.route('/factura/<int:factura_id>')
 def ver_factura(factura_id):
@@ -4102,6 +4105,301 @@ def verificar_eliminacion_combo(combo_id):
         return jsonify({
             'puede_eliminar': False,
             'error': str(e)
+        }), 500
+
+# AGREGAR estas rutas en app.py:
+
+@app.route('/api/buscar_facturas')
+def buscar_facturas():
+    """Buscar facturas con filtros avanzados"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Obtener parámetros de búsqueda
+        numero = request.args.get('numero', '').strip()
+        cliente = request.args.get('cliente', '').strip()
+        estado = request.args.get('estado', '').strip()
+        fecha_desde = request.args.get('fecha_desde', '').strip()
+        fecha_hasta = request.args.get('fecha_hasta', '').strip()
+        limite = int(request.args.get('limite', 100))  # Limitar resultados
+        
+        print(f"🔍 Búsqueda de facturas:")
+        print(f"   Número: '{numero}'")
+        print(f"   Cliente: '{cliente}'")
+        print(f"   Estado: '{estado}'")
+        print(f"   Fecha desde: '{fecha_desde}'")
+        print(f"   Fecha hasta: '{fecha_hasta}'")
+        print(f"   Límite: {limite}")
+        
+        # Construir query base con join a cliente
+        query = db.session.query(Factura).join(Cliente, Factura.cliente_id == Cliente.id)
+        
+        # Aplicar filtros
+        if numero:
+            query = query.filter(Factura.numero.ilike(f'%{numero}%'))
+            print(f"   Filtro aplicado: Número contiene '{numero}'")
+        
+        if cliente:
+            query = query.filter(Cliente.nombre.ilike(f'%{cliente}%'))
+            print(f"   Filtro aplicado: Cliente contiene '{cliente}'")
+        
+        if estado:
+            query = query.filter(Factura.estado == estado)
+            print(f"   Filtro aplicado: Estado = '{estado}'")
+        
+        # Filtros de fecha
+        if fecha_desde:
+            try:
+                fecha_desde_dt = datetime.strptime(fecha_desde, '%Y-%m-%d')
+                query = query.filter(Factura.fecha >= fecha_desde_dt)
+                print(f"   Filtro aplicado: Fecha >= {fecha_desde}")
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Formato de fecha desde inválido. Use YYYY-MM-DD'
+                }), 400
+        
+        if fecha_hasta:
+            try:
+                fecha_hasta_dt = datetime.strptime(fecha_hasta, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+                query = query.filter(Factura.fecha <= fecha_hasta_dt)
+                print(f"   Filtro aplicado: Fecha <= {fecha_hasta}")
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Formato de fecha hasta inválido. Use YYYY-MM-DD'
+                }), 400
+        
+        # Ordenar por fecha descendente (más recientes primero)
+        query = query.order_by(Factura.fecha.desc())
+        
+        # Aplicar límite
+        facturas = query.limit(limite).all()
+        
+        print(f"   Facturas encontradas: {len(facturas)}")
+        
+        # Formatear resultados
+        resultado = []
+        for factura in facturas:
+            # Obtener información de medios de pago
+            medios_pago = []
+            for medio in factura.medios_pago:
+                medios_pago.append({
+                    'medio_pago': medio.medio_pago,
+                    'importe': float(medio.importe)
+                })
+            
+            factura_dict = {
+                'id': factura.id,
+                'numero': factura.numero,
+                'fecha': factura.fecha.strftime('%d/%m/%Y %H:%M'),
+                'fecha_iso': factura.fecha.isoformat(),
+                'cliente': {
+                    'id': factura.cliente.id,
+                    'nombre': factura.cliente.nombre,
+                    'documento': factura.cliente.documento,
+                    'tipo_documento': factura.cliente.tipo_documento
+                },
+                'tipo_comprobante': factura.tipo_comprobante,
+                'tipo_comprobante_nombre': obtener_nombre_comprobante(factura.tipo_comprobante),
+                'subtotal': float(factura.subtotal),
+                'iva': float(factura.iva),
+                'total': float(factura.total),
+                'estado': factura.estado,
+                'estado_descripcion': obtener_descripcion_estado(factura.estado),
+                'cae': factura.cae,
+                'vto_cae': factura.vto_cae.strftime('%d/%m/%Y') if factura.vto_cae else None,
+                'medios_pago': medios_pago,
+                'cantidad_items': len(factura.detalles),
+                'usuario': factura.usuario.nombre if factura.usuario else 'Desconocido'
+            }
+            
+            resultado.append(factura_dict)
+        
+        return jsonify({
+            'success': True,
+            'facturas': resultado,
+            'total': len(resultado),
+            'limite_aplicado': len(facturas) == limite,
+            'filtros_aplicados': {
+                'numero': numero,
+                'cliente': cliente,
+                'estado': estado,
+                'fecha_desde': fecha_desde,
+                'fecha_hasta': fecha_hasta
+            }
+        })
+        
+    except Exception as e:
+        print(f"❌ Error buscando facturas: {str(e)}")
+        import traceback
+        print(f"📋 Stack trace: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': f'Error en la búsqueda: {str(e)}'
+        }), 500
+
+
+def obtener_nombre_comprobante(tipo):
+    """Obtener nombre legible del tipo de comprobante"""
+    tipos = {
+        '01': 'Factura A',
+        '06': 'Factura B', 
+        '11': 'Factura C',
+        '51': 'Factura M'
+    }
+    return tipos.get(str(tipo), f'Tipo {tipo}')
+
+
+def obtener_descripcion_estado(estado):
+    """Obtener descripción legible del estado"""
+    estados = {
+        'autorizada': 'Autorizada por AFIP',
+        'pendiente': 'Pendiente de autorización',
+        'error_afip': 'Error en AFIP',
+        'anulada': 'Anulada'
+    }
+    return estados.get(estado, estado.title())
+
+
+@app.route('/api/reintentar_afip/<int:factura_id>', methods=['POST'])
+def reintentar_afip(factura_id):
+    """Reintentar autorización AFIP para una factura pendiente"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        factura = Factura.query.get_or_404(factura_id)
+        
+        if factura.estado not in ['pendiente', 'error_afip']:
+            return jsonify({
+                'success': False,
+                'error': f'No se puede reintentar. Estado actual: {factura.estado}'
+            }), 400
+        
+        print(f"🔄 Reintentando autorización AFIP para factura {factura.numero}")
+        
+        # Preparar datos para AFIP
+        cliente = factura.cliente
+        
+        # Obtener items con IVA detallado
+        items_detalle = []
+        for detalle in factura.detalles:
+            items_detalle.append({
+                'subtotal': float(detalle.subtotal),
+                'iva_porcentaje': float(detalle.porcentaje_iva) if detalle.porcentaje_iva else 21.0
+            })
+        
+        datos_comprobante = {
+            'tipo_comprobante': int(factura.tipo_comprobante),
+            'punto_venta': factura.punto_venta,
+            'importe_neto': float(factura.subtotal),
+            'importe_iva': float(factura.iva),
+            'items_detalle': items_detalle,
+            'doc_tipo': 99,  # Sin identificar por defecto
+            'doc_nro': 0
+        }
+        
+        # Agregar datos del cliente si existen
+        if cliente and cliente.documento:
+            if cliente.tipo_documento == 'CUIT' and len(cliente.documento) == 11:
+                datos_comprobante['doc_tipo'] = 80  # CUIT
+                datos_comprobante['doc_nro'] = int(cliente.documento)
+            elif cliente.tipo_documento == 'DNI' and len(cliente.documento) >= 7:
+                datos_comprobante['doc_tipo'] = 96  # DNI
+                datos_comprobante['doc_nro'] = int(cliente.documento)
+        
+        # Intentar autorizar en AFIP
+        resultado_afip = arca_client.autorizar_comprobante(datos_comprobante)
+        
+        if resultado_afip['success']:
+            # Actualizar factura con datos de AFIP
+            numero_afip = resultado_afip['numero']
+            
+            # Verificar si el número de AFIP ya existe
+            factura_existente = Factura.query.filter(
+                and_(Factura.numero == numero_afip, Factura.id != factura.id)
+            ).first()
+            
+            if not factura_existente:
+                factura.numero = numero_afip
+            
+            factura.cae = resultado_afip['cae']
+            factura.vto_cae = resultado_afip['vto_cae']
+            factura.estado = 'autorizada'
+            
+            db.session.commit()
+            
+            print(f"✅ Reintento exitoso. CAE: {factura.cae}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Factura autorizada exitosamente',
+                'numero': factura.numero,
+                'cae': factura.cae,
+                'estado': factura.estado
+            })
+        else:
+            # Actualizar estado a error
+            factura.estado = 'error_afip'
+            db.session.commit()
+            
+            print(f"❌ Reintento falló: {resultado_afip.get('error', 'Error desconocido')}")
+            
+            return jsonify({
+                'success': False,
+                'error': f"Error AFIP: {resultado_afip.get('error', 'Error desconocido')}",
+                'estado': factura.estado
+            })
+        
+    except Exception as e:
+        print(f"❌ Error en reintento AFIP: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error interno: {str(e)}'
+        }), 500
+
+
+@app.route('/api/anular_factura/<int:factura_id>', methods=['POST'])
+def anular_factura(factura_id):
+    """Anular una factura (marcar como anulada)"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        factura = Factura.query.get_or_404(factura_id)
+        
+        if factura.estado == 'anulada':
+            return jsonify({
+                'success': False,
+                'error': 'La factura ya está anulada'
+            }), 400
+        
+        motivo = request.json.get('motivo', '').strip() if request.json else ''
+        
+        print(f"❌ Anulando factura {factura.numero}. Motivo: {motivo}")
+        
+        # Marcar como anulada
+        factura.estado = 'anulada'
+        
+        # TODO: Aquí podrías agregar una tabla de motivos de anulación
+        # y restaurar stock si es necesario
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Factura {factura.numero} anulada correctamente',
+            'estado': factura.estado
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error anulando factura: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error al anular factura: {str(e)}'
         }), 500
 
 app.run(debug=True, host='0.0.0.0', port=5080)
