@@ -124,11 +124,18 @@
                             {% endif %}
                         </td>
                         <!-- Nueva columna de Acceso Rápido -->
+                        <!-- Nueva columna de Acceso Rápido CORREGIDA -->
                         <td class="text-center">
                             {% if hasattr(producto, 'acceso_rapido') and producto.acceso_rapido %}
-                                <span class="badge bg-warning text-dark" title="Producto en acceso rápido (posición {{ producto.orden_acceso_rapido or 0 }})">
-                                    <i class="fas fa-bolt"></i> #{{ producto.orden_acceso_rapido or 0 }}
-                                </span>
+                                <div class="text-center">
+                                    <span class="badge bg-warning text-dark mb-1" title="Producto en acceso rápido (posición {{ producto.orden_acceso_rapido or 0 }})">
+                                        <i class="fas fa-bolt"></i> #{{ producto.orden_acceso_rapido or 0 }}
+                                    </span>
+                                    <br>
+                                    <button class="btn btn-outline-danger btn-sm" onclick="toggleAccesoRapidoDirecto({{ producto.id }})" title="Quitar de acceso rápido">
+                                        <i class="fas fa-minus"></i>
+                                    </button>
+                                </div>
                             {% else %}
                                 <button class="btn btn-outline-warning btn-sm" onclick="toggleAccesoRapidoDirecto({{ producto.id }})" title="Agregar a acceso rápido">
                                     <i class="fas fa-plus"></i>
@@ -1427,11 +1434,17 @@ function actualizarTablaProductos(productos) {
         
         const editFunction = producto.es_combo ? 'editarCombo' : 'editarProducto';
         
-        // Nueva columna de acceso rápido
-        const accesoRapidoColumn = producto.acceso_rapido ? 
-            `<span class="badge bg-warning text-dark" title="Producto en acceso rápido (posición ${producto.orden_acceso_rapido || 0})">
-                <i class="fas fa-bolt"></i> #${producto.orden_acceso_rapido || 0}
-            </span>` :
+        // ✅ COLUMNA DE ACCESO RÁPIDO CORREGIDA - Con opción de quitar
+        const accesoRapidoColumn = (producto.acceso_rapido || (typeof producto.acceso_rapido !== 'undefined' && producto.orden_acceso_rapido)) ? 
+            `<div class="text-center">
+                <span class="badge bg-warning text-dark mb-1" title="Producto en acceso rápido (posición ${producto.orden_acceso_rapido || 0})">
+                    <i class="fas fa-bolt"></i> #${producto.orden_acceso_rapido || 0}
+                </span>
+                <br>
+                <button class="btn btn-outline-danger btn-sm" onclick="toggleAccesoRapidoDirecto(${producto.id})" title="Quitar de acceso rápido">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>` :
             `<button class="btn btn-outline-warning btn-sm" onclick="toggleAccesoRapidoDirecto(${producto.id})" title="Agregar a acceso rápido">
                 <i class="fas fa-plus"></i>
             </button>`;
@@ -1457,7 +1470,14 @@ function actualizarTablaProductos(productos) {
                     <span class="badge bg-warning text-dark">${margen.toFixed(1)}%</span>
                 </td>
                 <td class="text-end">
-                    <strong>${precio.toFixed(2)}</strong>
+                    <strong>$${precio.toFixed(2)}</strong>
+                    ${producto.es_combo && producto.producto_base ? 
+                        (() => {
+                            const precio_normal = producto.producto_base.precio * producto.cantidad_combo;
+                            const descuento = ((precio_normal - producto.precio) / precio_normal * 100);
+                            return `<br><small class="text-danger">-${descuento.toFixed(1)}%</small>`;
+                        })() : ''
+                    }
                 </td>
                 <td class="text-center">${stockBadge}</td>
                 <td class="text-center">${Math.round(producto.iva)}%</td>
