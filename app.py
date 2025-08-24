@@ -421,6 +421,245 @@ class MedioPago(db.Model):
             print(f"Error calculando recaudación: {e}")
             return None
 
+# Agregar este modelo después de la clase MedioPago en tu app.py
+
+class Gasto(db.Model):
+    """Modelo para registrar gastos y egresos del negocio"""
+    __tablename__ = 'gastos'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.Date, nullable=False)
+    descripcion = db.Column(db.Text, nullable=False)
+    monto = db.Column(Numeric(10, 2), nullable=False)
+    categoria = db.Column(db.String(50), nullable=False, default='general')
+    metodo_pago = db.Column(db.String(30), nullable=False, default='efectivo')
+    notas = db.Column(db.Text)
+    fecha_creacion = db.Column(db.DateTime, default=datetime.now)
+    fecha_modificacion = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    activo = db.Column(db.Boolean, default=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'))  # Usuario que registró el gasto
+    
+    # Relación con Usuario
+    usuario = db.relationship('Usuario', backref=db.backref('gastos', lazy=True))
+    
+    def __repr__(self):
+        return f'<Gasto {self.descripcion}: ${self.monto}>'
+    
+    def to_dict(self):
+        """Convertir gasto a diccionario para JSON"""
+        return {
+            'id': self.id,
+            'fecha': self.fecha.strftime('%Y-%m-%d') if self.fecha else None,
+            'descripcion': self.descripcion,
+            'monto': float(self.monto),
+            'categoria': self.categoria,
+            'metodo_pago': self.metodo_pago,
+            'notas': self.notas,
+            'fecha_creacion': self.fecha_creacion.strftime('%Y-%m-%d %H:%M:%S') if self.fecha_creacion else None,
+            'fecha_modificacion': self.fecha_modificacion.strftime('%Y-%m-%d %H:%M:%S') if self.fecha_modificacion else None,
+            'activo': self.activo,
+            'usuario': self.usuario.nombre if self.usuario else None
+        }
+    
+    @staticmethod
+    def obtener_categorias_disponibles():
+        """Retorna las categorías de gastos disponibles"""
+        return [
+            {'codigo': 'general', 'nombre': 'General'},
+            {'codigo': 'insumos', 'nombre': 'Insumos y Materiales'},
+            {'codigo': 'servicios', 'nombre': 'Servicios (Luz, Gas, Internet)'},
+            {'codigo': 'transporte', 'nombre': 'Transporte y Combustible'},
+            {'codigo': 'personal', 'nombre': 'Gastos de Personal'},
+            {'codigo': 'mantenimiento', 'nombre': 'Mantenimiento'},
+            {'codigo': 'impuestos', 'nombre': 'Impuestos y Tasas'},
+            {'codigo': 'otros', 'nombre': 'Otros'}
+        ]
+    
+    @staticmethod
+    def calcular_gastos_por_fecha(fecha_desde, fecha_hasta):
+        """Calcular gastos por categoría en un rango de fechas"""
+        try:
+            resultado = db.session.query(
+                Gasto.categoria,
+                func.sum(Gasto.monto).label('total'),
+                func.count(Gasto.id).label('cantidad_gastos')
+            ).filter(
+                and_(
+                    Gasto.fecha >= fecha_desde,
+                    Gasto.fecha <= fecha_hasta,
+                    Gasto.activo == True
+                )
+            ).group_by(Gasto.categoria).all()
+            
+            # Convertir a diccionario
+            gastos_por_categoria = {}
+            total_general = 0
+            
+            for categoria, total, cantidad in resultado:
+                gastos_por_categoria[categoria] = {
+                    'total': float(total),
+                    'cantidad_gastos': cantidad
+                }
+                total_general += float(total)
+            
+            return {
+                'gastos_por_categoria': gastos_por_categoria,
+                'total_general': total_general,
+                'fecha_desde': fecha_desde.strftime('%Y-%m-%d'),
+                'fecha_hasta': fecha_hasta.strftime('%Y-%m-%d')
+            }
+            
+        except Exception as e:
+            print(f"Error calculando gastos: {e}")
+            return None
+    
+    @staticmethod
+    def obtener_gastos_por_medio_pago(fecha_desde, fecha_hasta):
+        """Obtener gastos agrupados por medio de pago"""
+        try:
+            resultado = db.session.query(
+                Gasto.metodo_pago,
+                func.sum(Gasto.monto).label('total'),
+                func.count(Gasto.id).label('cantidad')
+            ).filter(
+                and_(
+                    Gasto.fecha >= fecha_desde,
+                    Gasto.fecha <= fecha_hasta,
+                    Gasto.activo == True
+                )
+            ).group_by(Gasto.metodo_pago).all()
+            
+            gastos_por_medio = {}
+            for medio, total, cantidad in resultado:
+                gastos_por_medio[medio] = {
+                    'total': float(total),
+                    'cantidad': cantidad
+                }
+            
+            return gastos_por_medio
+            
+        except Exception as e:
+            print(f"Error obteniendo gastos por medio: {e}")
+            return {}
+# ================== RUTAS API PARA REPORTES ==================
+
+
+@app.route('/api/reporte_medios_pago')
+def api_reporte_medios_pago():
+    try:
+        fecha_desde = request.args.get('desde')
+        fecha_hasta = request.args.get('hasta')
+
+        if not fecha_desde or not fecha_hasta:
+            return jsonify({'success': False, 'error': 'Fechas requeridas'})
+
+        desde = datetime.strptime(fecha_desde, "%Y-%m-%d")
+        hasta = datetime.strptime(fecha_hasta, "%Y-%m-%d") + timedelta(days=1)
+
+        datos = MedioPago.calcular_recaudacion_por_fecha(desde, hasta)
+
+        medios_pago = []
+        if datos and 'recaudacion_por_medio' in datos:
+            for medio, valores in datos['recaudacion_por_medio'].items():
+                medios_pago.append({
+                    'medio_pago': medio,
+                    'total': valores['total'],
+                    'cantidad': valores['cantidad_operaciones']
+                })
+
+        return jsonify({
+            'success': True,
+            'reporte': {
+                'medios_pago': medios_pago,
+                'total_general': datos['total_general'] if datos else 0
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/reporte_gastos')
+def api_reporte_gastos():
+    try:
+        fecha_desde = request.args.get('desde')
+        fecha_hasta = request.args.get('hasta')
+
+        if not fecha_desde or not fecha_hasta:
+            return jsonify({'success': False, 'error': 'Fechas requeridas'})
+
+        desde = datetime.strptime(fecha_desde, "%Y-%m-%d")
+        hasta = datetime.strptime(fecha_hasta, "%Y-%m-%d") + timedelta(days=1)
+
+        datos = Gasto.calcular_gastos_por_fecha(desde, hasta)
+
+        gastos = []
+        if datos and 'gastos_por_categoria' in datos:
+            for categoria, valores in datos['gastos_por_categoria'].items():
+                gastos.append({
+                    'categoria': categoria,
+                    'total': valores['total'],
+                    'cantidad': valores['cantidad_gastos']
+                })
+
+        return jsonify({
+            'success': True,
+            'reporte': {
+                'gastos': gastos,
+                'total_general': datos['total_general'] if datos else 0
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/reporte_caja_diaria')
+def api_reporte_caja_diaria():
+    print(">>> API reporte_caja_diaria llamada")
+    try:
+        fecha_desde = request.args.get('desde')
+        fecha_hasta = request.args.get('hasta')
+
+        if not fecha_desde or not fecha_hasta:
+            return jsonify({'success': False, 'error': 'Fechas requeridas'})
+
+        desde = datetime.strptime(fecha_desde, "%Y-%m-%d")
+        hasta = datetime.strptime(fecha_hasta, "%Y-%m-%d") + timedelta(days=1)
+
+        ingresos = MedioPago.calcular_recaudacion_por_fecha(desde, hasta)
+        gastos = Gasto.calcular_gastos_por_fecha(desde, hasta)
+
+        total_ingresos = ingresos['total_general'] if ingresos else 0
+        total_gastos = gastos['total_general'] if gastos else 0
+        balance = total_ingresos - total_gastos
+
+        detalle_ingresos = []
+        if ingresos and 'recaudacion_por_medio' in ingresos:
+            for medio, valores in ingresos['recaudacion_por_medio'].items():
+                detalle_ingresos.append({
+                    'medio_pago': medio,
+                    'total': valores['total'],
+                    'cantidad': valores['cantidad_operaciones']
+                })
+
+        detalle_gastos = []
+        if gastos and 'gastos_por_categoria' in gastos:
+            for categoria, valores in gastos['gastos_por_categoria'].items():
+                detalle_gastos.append({
+                    'categoria': categoria,
+                    'total': valores['total'],
+                    'cantidad': valores['cantidad_gastos']
+                })
+
+        return jsonify({
+            'success': True,
+            'totalIngresos': total_ingresos,
+            'totalGastos': total_gastos,
+            'balance': balance,
+            'detalleIngresos': detalle_ingresos,
+            'detalleGastos': detalle_gastos
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 
 # Clase para manejo de ARCA/AFIP
@@ -1085,6 +1324,24 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for('login'))
+
+    
+@app.route('/api/hora_actual')
+def hora_actual():
+    from datetime import datetime
+    import pytz
+    
+    # Zona horaria de Argentina
+    argentina_tz = pytz.timezone('America/Argentina/Buenos_Aires')
+    ahora = datetime.now(argentina_tz)
+    
+    return jsonify({
+        'success': True,
+        'timestamp': ahora.isoformat(),
+        'fecha_legible': ahora.strftime('%A, %d de %B de %Y'),
+        'hora_legible': ahora.strftime('%H:%M:%S'),
+        'zona_horaria': 'America/Argentina/Buenos_Aires'
+    })
 
 @app.route('/productos')
 def productos():
@@ -4651,5 +4908,457 @@ def ejecutar_migracion_acceso_rapido():
             'success': False,
             'error': f'Error en migración: {str(e)}'
         }), 500
+
+
+@app.route('/reportes')
+def reportes():
+    return render_template('reportes.html')
+
+from flask import render_template
+
+@app.route("/reporte_ventas_parcial")
+def reporte_ventas_parcial():
+    return render_template("reporte_ventas_parcial.html")
+
+# ==================== RUTAS DE GASTOS ====================
+# Agregar estas rutas al final de tu app.py antes del if __name__ == '__main__':
+
+@app.route('/api/gastos', methods=['GET'])
+def obtener_gastos():
+    """Obtener gastos filtrados por fechas"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+        
+    try:
+        fecha_desde = request.args.get('desde')
+        fecha_hasta = request.args.get('hasta')
+        
+        # Validar parámetros
+        if not fecha_desde or not fecha_hasta:
+            return jsonify({
+                'success': False,
+                'error': 'Debe proporcionar fecha_desde y fecha_hasta'
+            }), 400
+        
+        # Validar formato de fechas
+        try:
+            fecha_desde_dt = datetime.strptime(fecha_desde, '%Y-%m-%d').date()
+            fecha_hasta_dt = datetime.strptime(fecha_hasta, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'error': 'Formato de fecha inválido. Use YYYY-MM-DD'
+            }), 400
+        
+        print(f"📋 Obteniendo gastos del {fecha_desde} al {fecha_hasta}")
+        
+        # Consulta principal
+        gastos = Gasto.query.filter(
+            and_(
+                Gasto.fecha >= fecha_desde_dt,
+                Gasto.fecha <= fecha_hasta_dt,
+                Gasto.activo == True
+            )
+        ).order_by(Gasto.fecha.desc(), Gasto.fecha_creacion.desc()).all()
+        
+        # Convertir a lista de diccionarios
+        gastos_list = [gasto.to_dict() for gasto in gastos]
+        
+        # Calcular totales por categoría usando el método del modelo
+        estadisticas = Gasto.calcular_gastos_por_fecha(fecha_desde_dt, fecha_hasta_dt)
+        categorias_dict = estadisticas['gastos_por_categoria'] if estadisticas else {}
+        
+        # Calcular total general
+        total_gastos = sum(gasto['monto'] for gasto in gastos_list)
+        
+        print(f"✅ Gastos obtenidos: {len(gastos_list)} gastos (${total_gastos:.2f})")
+        
+        return jsonify({
+            'success': True,
+            'gastos': gastos_list,
+            'categorias': categorias_dict,
+            'resumen': {
+                'total_gastos': total_gastos,
+                'cantidad_gastos': len(gastos_list),
+                'fecha_desde': fecha_desde,
+                'fecha_hasta': fecha_hasta,
+                'promedio_por_gasto': total_gastos / len(gastos_list) if gastos_list else 0
+            }
+        })
+        
+    except Exception as e:
+        print(f"❌ Error al obtener gastos: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error interno del servidor: {str(e)}'
+        }), 500
+
+
+@app.route('/api/gastos', methods=['POST'])
+def crear_gasto():
+    """Crear un nuevo gasto"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        data = request.get_json()
+        
+        # Validar datos requeridos
+        campos_requeridos = ['descripcion', 'monto', 'fecha']
+        for campo in campos_requeridos:
+            if not data.get(campo):
+                return jsonify({
+                    'success': False,
+                    'error': f'El campo {campo} es requerido'
+                }), 400
+        
+        # Validar monto
+        try:
+            monto = float(data['monto'])
+            if monto <= 0:
+                return jsonify({
+                    'success': False,
+                    'error': 'El monto debe ser mayor a 0'
+                }), 400
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'error': 'Monto inválido'
+            }), 400
+        
+        # Validar fecha
+        try:
+            fecha_obj = datetime.strptime(data['fecha'], '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'error': 'Formato de fecha inválido. Use YYYY-MM-DD'
+            }), 400
+        
+        # Datos del gasto
+        descripcion = data['descripcion'].strip()
+        categoria = data.get('categoria', 'general')
+        metodo_pago = data.get('metodo_pago', 'efectivo')
+        notas = data.get('notas', '').strip()
+        
+        # Validar longitud de campos
+        if len(descripcion) > 200:
+            return jsonify({
+                'success': False,
+                'error': 'La descripción no puede exceder 200 caracteres'
+            }), 400
+        
+        # Crear nuevo gasto
+        gasto = Gasto(
+            fecha=fecha_obj,
+            descripcion=descripcion,
+            monto=Decimal(str(monto)),
+            categoria=categoria,
+            metodo_pago=metodo_pago,
+            notas=notas if notas else None,
+            usuario_id=session['user_id']
+        )
+        
+        db.session.add(gasto)
+        db.session.commit()
+        
+        print(f"✅ Gasto creado: ID {gasto.id} - {descripcion} - ${monto:.2f}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Gasto registrado exitosamente',
+            'gasto': gasto.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error al crear gasto: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error interno del servidor: {str(e)}'
+        }), 500
+
+
+@app.route('/api/gastos/<int:gasto_id>', methods=['DELETE'])
+def eliminar_gasto(gasto_id):
+    """Eliminar un gasto (soft delete)"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        gasto = Gasto.query.get_or_404(gasto_id)
+        
+        if not gasto.activo:
+            return jsonify({
+                'success': False,
+                'error': 'El gasto ya está eliminado'
+            }), 404
+        
+        # Hacer soft delete
+        gasto.activo = False
+        gasto.fecha_modificacion = datetime.now()
+        
+        db.session.commit()
+        
+        print(f"✅ Gasto eliminado: ID {gasto_id} - {gasto.descripcion}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Gasto eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error al eliminar gasto: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error interno del servidor: {str(e)}'
+        }), 500
+
+
+@app.route('/api/gastos/<int:gasto_id>', methods=['PUT'])
+def actualizar_gasto(gasto_id):
+    """Actualizar un gasto existente"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        data = request.get_json()
+        gasto = Gasto.query.get_or_404(gasto_id)
+        
+        if not gasto.activo:
+            return jsonify({
+                'success': False,
+                'error': 'No se puede actualizar un gasto eliminado'
+            }), 400
+        
+        # Actualizar campos proporcionados
+        if 'descripcion' in data:
+            descripcion = data['descripcion'].strip()
+            if not descripcion:
+                return jsonify({
+                    'success': False,
+                    'error': 'La descripción no puede estar vacía'
+                }), 400
+            if len(descripcion) > 200:
+                return jsonify({
+                    'success': False,
+                    'error': 'La descripción no puede exceder 200 caracteres'
+                }), 400
+            gasto.descripcion = descripcion
+        
+        if 'monto' in data:
+            try:
+                monto = float(data['monto'])
+                if monto <= 0:
+                    return jsonify({
+                        'success': False,
+                        'error': 'El monto debe ser mayor a 0'
+                    }), 400
+                gasto.monto = Decimal(str(monto))
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Monto inválido'
+                }), 400
+        
+        if 'fecha' in data:
+            try:
+                gasto.fecha = datetime.strptime(data['fecha'], '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Formato de fecha inválido'
+                }), 400
+        
+        if 'categoria' in data:
+            gasto.categoria = data['categoria']
+        
+        if 'metodo_pago' in data:
+            gasto.metodo_pago = data['metodo_pago']
+        
+        if 'notas' in data:
+            notas = data['notas'].strip()
+            gasto.notas = notas if notas else None
+        
+        gasto.fecha_modificacion = datetime.now()
+        
+        db.session.commit()
+        
+        print(f"✅ Gasto actualizado: ID {gasto_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Gasto actualizado exitosamente',
+            'gasto': gasto.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error al actualizar gasto: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error interno del servidor: {str(e)}'
+        }), 500
+
+
+@app.route('/api/gastos/categorias', methods=['GET'])
+def obtener_categorias_gastos():
+    """Obtener categorías de gastos disponibles y estadísticas de uso"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Obtener categorías disponibles
+        categorias_disponibles = Gasto.obtener_categorias_disponibles()
+        
+        # Obtener estadísticas de uso de categorías
+        categorias_usadas = db.session.query(
+            Gasto.categoria,
+            func.count(Gasto.id).label('cantidad'),
+            func.sum(Gasto.monto).label('total')
+        ).filter(
+            Gasto.activo == True
+        ).group_by(Gasto.categoria).order_by(desc('total')).all()
+        
+        # Combinar información
+        categorias_con_stats = []
+        for cat_info in categorias_disponibles:
+            codigo = cat_info['codigo']
+            
+            # Buscar estadísticas para esta categoría
+            stats = next((cat for cat in categorias_usadas if cat[0] == codigo), None)
+            
+            categoria_completa = {
+                'codigo': codigo,
+                'nombre': cat_info['nombre'],
+                'cantidad_gastos': stats[1] if stats else 0,
+                'total_gastado': float(stats[2]) if stats and stats[2] else 0.0,
+                'en_uso': bool(stats)
+            }
+            
+            categorias_con_stats.append(categoria_completa)
+        
+        return jsonify({
+            'success': True,
+            'categorias': categorias_con_stats
+        })
+        
+    except Exception as e:
+        print(f"❌ Error al obtener categorías: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error interno del servidor: {str(e)}'
+        }), 500
+
+
+@app.route('/api/gastos/medios_pago', methods=['GET'])
+def obtener_medios_pago_gastos():
+    """Obtener medios de pago disponibles para gastos"""
+    try:
+        # Usar los mismos medios de pago que las facturas
+        medios_disponibles = MedioPago.obtener_medios_disponibles()
+        
+        return jsonify({
+            'success': True,
+            'medios_pago': medios_disponibles
+        })
+        
+    except Exception as e:
+        print(f"❌ Error al obtener medios de pago: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error interno del servidor: {str(e)}'
+        }), 500
+
+
+@app.route('/api/gastos/resumen_periodo')
+def resumen_gastos_periodo():
+    """Obtener resumen de gastos para un período específico"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        fecha_desde = request.args.get('desde')
+        fecha_hasta = request.args.get('hasta')
+        
+        if not fecha_desde or not fecha_hasta:
+            return jsonify({
+                'success': False,
+                'error': 'Debe proporcionar fechas desde y hasta'
+            }), 400
+        
+        fecha_desde_dt = datetime.strptime(fecha_desde, '%Y-%m-%d').date()
+        fecha_hasta_dt = datetime.strptime(fecha_hasta, '%Y-%m-%d').date()
+        
+        # Obtener resumen usando método del modelo
+        resumen = Gasto.calcular_gastos_por_fecha(fecha_desde_dt, fecha_hasta_dt)
+        
+        if not resumen:
+            return jsonify({
+                'success': False,
+                'error': 'Error al calcular resumen'
+            }), 500
+        
+        # Obtener gastos por medio de pago
+        gastos_por_medio = Gasto.obtener_gastos_por_medio_pago(fecha_desde_dt, fecha_hasta_dt)
+        
+        # Obtener gasto promedio por día
+        dias_periodo = (fecha_hasta_dt - fecha_desde_dt).days + 1
+        promedio_diario = resumen['total_general'] / dias_periodo if dias_periodo > 0 else 0
+        
+        return jsonify({
+            'success': True,
+            'resumen': {
+                'total_general': resumen['total_general'],
+                'gastos_por_categoria': resumen['gastos_por_categoria'],
+                'gastos_por_medio_pago': gastos_por_medio,
+                'periodo': {
+                    'desde': fecha_desde,
+                    'hasta': fecha_hasta,
+                    'dias': dias_periodo
+                },
+                'promedios': {
+                    'diario': round(promedio_diario, 2)
+                }
+            }
+        })
+        
+    except Exception as e:
+        print(f"❌ Error en resumen de período: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error interno del servidor: {str(e)}'
+        }), 500
+
+
+@app.route('/api/gastos/test_conexion', methods=['GET'])
+def test_conexion_gastos():
+    """Probar que la tabla de gastos funciona correctamente"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Contar gastos activos
+        total_gastos = Gasto.query.filter_by(activo=True).count()
+        
+        # Obtener último gasto
+        ultimo_gasto = Gasto.query.filter_by(activo=True).order_by(Gasto.id.desc()).first()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Conexión con gastos exitosa',
+            'total_gastos': total_gastos,
+            'ultimo_gasto': ultimo_gasto.to_dict() if ultimo_gasto else None,
+            'categorias_disponibles': len(Gasto.obtener_categorias_disponibles())
+        })
+        
+    except Exception as e:
+        print(f"❌ Error test conexión gastos: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 app.run(debug=True, host='0.0.0.0', port=5080)

@@ -1,9 +1,40 @@
-<!-- templates/reporte_ventas.html -->
-{% extends "base.html" %}
+<!-- templates/reporte_ventas_parcial.html -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}FactuFacil{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background-color: #343a40;
+        }
+        .sidebar a {
+            color: #fff;
+            text-decoration: none;
+            padding: 10px 15px;
+            display: block;
+        }
+        .sidebar a:hover {
+            background-color: #495057;
+            color: #fff;
+        }
+        .content {
+            margin-left: 250px;
+            padding: 20px;
+        }
+        @media (max-width: 768px) {
+            .content {
+                margin-left: 0;
+            }
+            .sidebar {
+                display: none;
+            }
+        }
+    </style>
+</head>
 
-{% block title %}Reporte de Ventas - POS Argentina{% endblock %}
-
-{% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2"><i class="fas fa-chart-bar"></i> Reporte de Ventas por Producto</h1>
     <div class="btn-group">
@@ -16,98 +47,77 @@
     </div>
 </div>
 
-<!-- Filtros de Fecha -->
+<!-- Filtros de búsqueda -->
 <div class="card mb-4">
     <div class="card-header bg-primary text-white">
         <h5 class="mb-0"><i class="fas fa-filter"></i> Filtros de Búsqueda</h5>
     </div>
     <div class="card-body">
-        <form id="formFiltros">
-            <div class="row">
-                <div class="col-md-3">
-                    <label for="fechaDesde" class="form-label">Fecha Desde *</label>
-                    <input type="date" class="form-control" id="fechaDesde" required>
-                </div>
-                <div class="col-md-3">
-                    <label for="fechaHasta" class="form-label">Fecha Hasta *</label>
-                    <input type="date" class="form-control" id="fechaHasta" required>
-                </div>
-                <div class="col-md-2">
-                    <label for="filtroCategoria" class="form-label">Categoría</label>
-                    <select class="form-select" id="filtroCategoria">
-                        <option value="">Todas</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label for="filtroOrden" class="form-label">Ordenar por</label>
-                    <select class="form-select" id="filtroOrden">
-                        <option value="cantidad_desc">Cantidad (Mayor a Menor)</option>
-                        <option value="cantidad_asc">Cantidad (Menor a Mayor)</option>
-                        <option value="total_desc">Total Vendido (Mayor a Menor)</option>
-                        <option value="total_asc">Total Vendido (Menor a Mayor)</option>
-                        <option value="codigo">Código</option>
-                        <option value="nombre">Nombre</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">&nbsp;</label>
-                    <div class="d-grid">
-                        <button type="button" class="btn btn-primary" onclick="generarReporte()">
-                            <i class="fas fa-search"></i> Generar Reporte
-                        </button>
-                    </div>
+        <form class="row g-3">
+            <div class="col-md-3">
+                <label for="fechaDesde" class="form-label">Desde</label>
+                <input type="date" class="form-control" id="fechaDesde">
+            </div>
+            <div class="col-md-3">
+                <label for="fechaHasta" class="form-label">Hasta</label>
+                <input type="date" class="form-control" id="fechaHasta">
+            </div>
+            <div class="col-md-3">
+                <label for="categoria" class="form-label">Categoría</label>
+                <select id="categoria" class="form-select">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="orden" class="form-label">Ordenar por</label>
+                <select id="orden" class="form-select">
+                    <option value="total_desc">Mayor Venta</option>
+                    <option value="total_asc">Menor Venta</option>
+                    <option value="cantidad_desc">Mayor Cantidad</option>
+                    <option value="cantidad_asc">Menor Cantidad</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" id="soloConVentas">
+                    <label class="form-check-label" for="soloConVentas">Solo productos con ventas</label>
                 </div>
             </div>
-            <div class="row mt-3">
-                <div class="col-md-12">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="soloConVentas" checked>
-                        <label class="form-check-label" for="soloConVentas">
-                            Mostrar solo productos con ventas
-                        </label>
-                    </div>
-                </div>
+            <div class="col-12">
+                <button type="button" class="btn btn-primary" onclick="generarReporte()">
+                    <i class="fas fa-search"></i> Generar Reporte
+                </button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Resumen del Reporte -->
+<!-- Resumen -->
 <div class="card mb-4" id="cardResumen" style="display: none;">
     <div class="card-header bg-info text-white">
         <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Resumen del Período</h5>
     </div>
-    <div class="card-body">
-        <div class="row">
-            <div class="col-md-3">
-                <div class="text-center">
-                    <h4 class="text-primary mb-0" id="totalProductos">0</h4>
-                    <small class="text-muted">Productos Vendidos</small>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="text-center">
-                    <h4 class="text-success mb-0" id="totalUnidades">0</h4>
-                    <small class="text-muted">Total Unidades</small>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="text-center">
-                    <h4 class="text-warning mb-0" id="totalVentas">$0.00</h4>
-                    <small class="text-muted">Total Vendido</small>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="text-center">
-                    <h4 class="text-info mb-0" id="promedioVenta">$0.00</h4>
-                    <small class="text-muted">Promedio por Producto</small>
-                </div>
-            </div>
+    <div class="card-body row text-center">
+        <div class="col-md-3">
+            <h4 id="totalProductos" class="text-primary">0</h4>
+            <small class="text-muted">Productos Diferentes</small>
+        </div>
+        <div class="col-md-3">
+            <h4 id="totalUnidades" class="text-info">0</h4>
+            <small class="text-muted">Unidades Vendidas</small>
+        </div>
+        <div class="col-md-3">
+            <h4 id="totalVentas" class="text-success">$0.00</h4>
+            <small class="text-muted">Total Vendido</small>
+        </div>
+        <div class="col-md-3">
+            <h4 id="promedioVenta" class="text-warning">$0.00</h4>
+            <small class="text-muted">Promedio por Producto</small>
         </div>
     </div>
 </div>
 
-<!-- Tabla de Resultados -->
+<!-- Tabla -->
 <div class="card" id="cardResultados" style="display: none;">
     <div class="card-header">
         <h5 class="mb-0"><i class="fas fa-table"></i> Detalle de Ventas por Producto</h5>
@@ -128,14 +138,13 @@
                         <th>Última Venta</th>
                     </tr>
                 </thead>
-                <tbody id="tablaReporteBody">
-                </tbody>
+                <tbody id="tablaReporteBody"></tbody>
             </table>
         </div>
     </div>
 </div>
 
-<!-- Loading Spinner -->
+<!-- Loading -->
 <div class="text-center my-5" id="loadingSpinner" style="display: none;">
     <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Generando reporte...</span>
@@ -143,14 +152,12 @@
     <p class="mt-2 text-muted">Generando reporte, por favor espere...</p>
 </div>
 
-<!-- Modal de Error -->
+<!-- Modal error -->
 <div class="modal fade" id="modalError" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">
-                    <i class="fas fa-exclamation-triangle"></i> Error
-                </h5>
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle"></i> Error</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -162,7 +169,8 @@
         </div>
     </div>
 </div>
-{% endblock %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 
 {% block scripts %}
 <script>
@@ -172,6 +180,8 @@ let parametrosBusqueda = {};
 
 // Inicializar fechas por defecto
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Inicializando reporte de ventas...');
+    
     // Fecha por defecto: último mes
     const hoy = new Date();
     const haceUnMes = new Date();
@@ -180,28 +190,50 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('fechaHasta').value = hoy.toISOString().split('T')[0];
     document.getElementById('fechaDesde').value = haceUnMes.toISOString().split('T')[0];
     
-    // Cargar categorías
-    cargarCategorias();
+    // Cargar categorías después de que el DOM esté completamente cargado
+    setTimeout(() => {
+        cargarCategorias();
+    }, 100);
+    
+    console.log('✅ DOM cargado, fechas configuradas');
 });
 
-// Función para cargar categorías
+// Función para cargar categorías - CORREGIDA
 function cargarCategorias() {
+    console.log('📂 Cargando categorías...');
+    
+    // Verificar que el elemento existe antes de usarlo
+    const selectCategoria = document.getElementById('categoria');
+    if (!selectCategoria) {
+        console.error('❌ Elemento #categoria no encontrado en el DOM');
+        return;
+    }
+    
     fetch('/obtener_categorias')
-        .then(response => response.json())
+        .then(response => {
+            console.log('📡 Respuesta categorías:', response.status);
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
-                const select = document.getElementById('filtroCategoria');
-                select.innerHTML = '<option value="">Todas las categorías</option>';
+                selectCategoria.innerHTML = '<option value="">Todas las categorías</option>';
                 
                 data.categorias.forEach(categoria => {
                     const option = document.createElement('option');
                     option.value = categoria;
                     option.textContent = categoria;
-                    select.appendChild(option);
+                    selectCategoria.appendChild(option);
                 });
+                
+                console.log(`✅ ${data.categorias.length} categorías cargadas`);
+            } else {
+                console.warn('⚠️ No se pudieron cargar las categorías:', data.error);
             }
         })
-        .catch(error => console.error('Error cargando categorías:', error));
+        .catch(error => {
+            console.error('❌ Error cargando categorías:', error);
+            // No mostrar error al usuario, solo log
+        });
 }
 
 // Función principal para generar reporte
@@ -222,19 +254,19 @@ function generarReporte() {
     
     console.log('📊 Generando reporte de ventas...');
     console.log(`📅 Período: ${fechaDesde} a ${fechaHasta}`);
-    console.log(`📂 Categoría: ${document.getElementById('filtroCategoria').value || 'Todas'}`);
-    console.log(`🔄 Orden: ${document.getElementById('filtroOrden').value}`);
+    console.log(`📂 Categoría: ${document.getElementById('categoria').value || 'Todas'}`);
+    console.log(`🔄 Orden: ${document.getElementById('orden').value}`);
     console.log(`✅ Incluye TODAS las facturas (no solo autorizadas)`);
     
     // Mostrar loading
     mostrarLoading(true);
     
-    // Preparar parámetros
+    // Preparar parámetros - CORREGIDO
     parametrosBusqueda = {
         fecha_desde: fechaDesde,
         fecha_hasta: fechaHasta,
-        categoria: document.getElementById('filtroCategoria').value,
-        orden: document.getElementById('filtroOrden').value,
+        categoria: document.getElementById('categoria').value, // Cambiado de 'filtroCategoria' a 'categoria'
+        orden: document.getElementById('orden').value, // Cambiado de 'filtroOrden' a 'orden'
         solo_con_ventas: document.getElementById('soloConVentas').checked
     };
     
@@ -379,7 +411,6 @@ function mostrarReporte(data) {
 }
 
 // *** NUEVA FUNCIÓN PARA MOSTRAR INFO DE CORRECCIÓN DE COMBOS ***
-
 function mostrarInfoCorreccionCombos() {
     const cardResumen = document.getElementById('cardResumen');
     
@@ -491,7 +522,14 @@ function mostrarLoading(mostrar) {
 // Función para mostrar errores
 function mostrarError(mensaje) {
     document.getElementById('mensajeError').textContent = mensaje;
-    new bootstrap.Modal(document.getElementById('modalError')).show();
+    
+    // Verificar si Bootstrap está disponible
+    if (typeof bootstrap !== 'undefined') {
+        new bootstrap.Modal(document.getElementById('modalError')).show();
+    } else {
+        // Fallback si Bootstrap no está disponible
+        alert('Error: ' + mensaje);
+    }
 }
 
 // Función para mostrar notificaciones
@@ -816,6 +854,5 @@ code {
     margin-top: 2px;
     font-style: italic;
 }
-
 </style>
 {% endblock %}

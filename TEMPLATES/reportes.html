@@ -1,0 +1,1614 @@
+{% extends "base.html" %}
+
+{% block title %}Reportes - FactuFacil{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+<h1 class="h2"><i class="fas fa-chart-line"></i> Centro de Reportes</h1>
+<div class="btn-toolbar mb-2 mb-md-0">
+<button class="btn btn-outline-secondary" onclick="exportarReportes()" type="button">
+<i class="fas fa-download"></i> Exportar
+        </button>
+</div>
+</div>
+<!-- Navegación de pestañas -->
+<ul class="nav nav-tabs" id="reportesTabs" role="tablist">
+<li class="nav-item" role="presentation">
+<button class="nav-link active" data-bs-target="#ventas-producto" data-bs-toggle="tab" id="ventas-producto-tab" role="tab" type="button">
+<i class="fas fa-box"></i> Ventas por Producto
+        </button>
+</li>
+<li class="nav-item" role="presentation">
+<button class="nav-link" data-bs-target="#medios-pago" data-bs-toggle="tab" id="medios-pago-tab" role="tab" type="button">
+<i class="fas fa-credit-card"></i> Medios de Pago
+        </button>
+</li>
+<li class="nav-item" role="presentation">
+<button class="nav-link" data-bs-target="#gastos" data-bs-toggle="tab" id="gastos-tab" role="tab" type="button">
+<i class="fas fa-money-bill-alt"></i> Gastos y Egresos
+        </button>
+</li>
+<li class="nav-item" role="presentation">
+<button class="nav-link" data-bs-target="#caja-diaria" data-bs-toggle="tab" id="caja-diaria-tab" role="tab" type="button">
+<i class="fas fa-calculator"></i> Caja Diaria
+        </button>
+</li>
+</ul>
+<!-- Contenido de las pestañas -->
+<div class="tab-content" id="reportesTabContent">
+<!-- PESTAÑA 1: VENTAS POR PRODUCTO -->
+<div class="tab-pane fade show active" id="ventas-producto" role="tabpanel">
+<div class="card mt-3">
+<div class="card-header bg-primary text-white">
+<h5><i class="fas fa-chart-bar"></i> Reporte de Ventas por Producto</h5>
+</div>
+    <div class="card-body p-0"><iframe src="/reporte_ventas_parcial" style="width:100%; height:900px; border:none;"></iframe></div>
+</div>
+</div>
+<!-- PESTAÑA 2: MEDIOS DE PAGO -->
+<div class="tab-pane fade" id="medios-pago" role="tabpanel">
+<div class="card mt-3">
+<div class="card-header bg-success text-white">
+<h5><i class="fas fa-credit-card"></i> Reporte de Medios de Pago</h5>
+</div>
+<div class="card-body">
+<!-- Filtros -->
+<div class="row mb-3">
+<div class="col-md-3">
+<label class="form-label" for="fecha_medios_desde">Desde:</label>
+<input class="form-control" id="fecha_medios_desde" type="date"/>
+</div>
+<div class="col-md-3">
+<label class="form-label" for="fecha_medios_hasta">Hasta:</label>
+<input class="form-control" id="fecha_medios_hasta" type="date"/>
+</div>
+<div class="col-md-3">
+<label class="form-label"> </label>
+<button class="btn btn-success w-100" onclick="cargarReporteMediosPago()" type="button">
+<i class="fas fa-search"></i> Generar Reporte
+                        </button>
+</div>
+<div class="col-md-3">
+<label class="form-label"> </label>
+<button class="btn btn-outline-secondary w-100" onclick="establecerFechasMediosHoy()" type="button">
+<i class="fas fa-calendar-day"></i> Hoy
+                        </button>
+</div>
+</div>
+<!-- Resultados -->
+<div id="reporte_medios_pago">
+<div class="text-center text-muted py-4">
+<i class="fas fa-chart-pie fa-3x mb-3"></i>
+<h6>Selecciona un rango de fechas para ver el reporte de medios de pago</h6>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- PESTAÑA 3: GASTOS -->
+<div class="tab-pane fade" id="gastos" role="tabpanel">
+<div class="card mt-3">
+<div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+<h5><i class="fas fa-money-bill-alt"></i> Reporte de Gastos y Egresos</h5>
+<button class="btn btn-light btn-sm" data-bs-target="#modalNuevoGasto" data-bs-toggle="modal" type="button">
+<i class="fas fa-plus"></i> Nuevo Gasto
+                </button>
+</div>
+<div class="card-body">
+<!-- Filtros -->
+<div class="row mb-3">
+<div class="col-md-3">
+<label class="form-label" for="fecha_gastos_desde">Desde:</label>
+<input class="form-control" id="fecha_gastos_desde" type="date"/>
+</div>
+<div class="col-md-3">
+<label class="form-label" for="fecha_gastos_hasta">Hasta:</label>
+<input class="form-control" id="fecha_gastos_hasta" type="date"/>
+</div>
+<div class="col-md-3">
+<label class="form-label"> </label>
+<button class="btn btn-danger w-100" onclick="cargarReporteGastos()" type="button">
+<i class="fas fa-search"></i> Generar Reporte
+                        </button>
+</div>
+<div class="col-md-3">
+<label class="form-label"> </label>
+<button class="btn btn-outline-secondary w-100" onclick="establecerFechasGastosHoy()" type="button">
+<i class="fas fa-calendar-day"></i> Hoy
+                        </button>
+</div>
+</div>
+<!-- Resultados de gastos -->
+<div class="row">
+<div class="col-md-8">
+<h6><i class="fas fa-list"></i> Gastos del Período</h6>
+<div id="listaGastos">
+<div class="text-center text-muted py-4">
+<i class="fas fa-receipt fa-3x mb-3"></i>
+<h6>Selecciona un período para ver los gastos</h6>
+</div>
+</div>
+</div>
+<div class="col-md-4">
+<h6><i class="fas fa-chart-pie"></i> Categorías de Gastos</h6>
+<div id="categoriasGastos">
+<div class="text-center text-muted py-4">
+<i class="fas fa-tags fa-2x mb-3"></i>
+<p>Sin datos de categorías</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- PESTAÑA 4: CAJA DIARIA -->
+<div class="tab-pane fade" id="caja-diaria" role="tabpanel">
+<div class="card mt-3">
+<div class="card-header bg-info text-white">
+<h5><i class="fas fa-calculator"></i> Resumen de Caja Diaria</h5>
+</div>
+<div class="card-body">
+<!-- Filtros -->
+<div class="row mb-4">
+<div class="col-md-3">
+<label class="form-label" for="fecha_caja_desde">Desde:</label>
+<input class="form-control" id="fecha_caja_desde" type="date"/>
+</div>
+<div class="col-md-3">
+<label class="form-label" for="fecha_caja_hasta">Hasta:</label>
+<input class="form-control" id="fecha_caja_hasta" type="date"/>
+</div>
+<div class="col-md-3">
+<label class="form-label"> </label>
+<button class="btn btn-info w-100" onclick="cargarCajaDiaria()" type="button">
+<i class="fas fa-calculator"></i> Calcular Caja
+                        </button>
+</div>
+<div class="col-md-3">
+<label class="form-label"> </label>
+<button class="btn btn-outline-secondary w-100" onclick="establecerFechasCajaHoy()" type="button">
+<i class="fas fa-calendar-day"></i> Hoy
+                        </button>
+</div>
+</div>
+<!-- Resumen de Caja -->
+<div class="row mb-4">
+<div class="col-md-3">
+<div class="card bg-success text-white">
+<div class="card-body text-center">
+<h6><i class="fas fa-arrow-up"></i> Total Ingresos</h6>
+<h4 id="totalIngresosCaja">$0.00</h4>
+<small id="detalleIngresos">0 transacciones</small>
+</div>
+</div>
+</div>
+<div class="col-md-3">
+<div class="card bg-danger text-white">
+<div class="card-body text-center">
+<h6><i class="fas fa-arrow-down"></i> Total Gastos</h6>
+<h4 id="totalGastosCaja">$0.00</h4>
+<small id="detalleGastos">0 gastos</small>
+</div>
+</div>
+</div>
+<div class="col-md-3">
+<div class="card bg-primary text-white" id="cardBalance">
+<div class="card-body text-center">
+<h6><i class="fas fa-calculator"></i> Balance Neto</h6>
+<h4 id="balanceCaja">$0.00</h4>
+<small id="porcentajeBalance">0%</small>
+</div>
+</div>
+</div>
+<div class="col-md-3">
+<div class="card bg-warning text-white" id="cardEfectivo">
+<div class="card-body text-center">
+<h6><i class="fas fa-wallet"></i> Efectivo en Caja</h6>
+<h4 id="efectivoCaja">$0.00</h4>
+<small id="detalleEfectivo">Disponible</small>
+</div>
+</div>
+</div>
+</div>
+<!-- Detalle de caja -->
+<div id="detalleCajaDiaria">
+<div class="text-center text-muted py-4">
+<i class="fas fa-cash-register fa-3x mb-3"></i>
+<h6>Selecciona un período para calcular la caja</h6>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Modal para Nuevo Gasto -->
+<div class="modal fade" id="modalNuevoGasto" tabindex="-1">
+<div class="modal-dialog modal-lg">
+<div class="modal-content">
+<div class="modal-header bg-danger text-white">
+<h5 class="modal-title"><i class="fas fa-plus"></i> Registrar Nuevo Gasto</h5>
+<button class="btn-close btn-close-white" data-bs-dismiss="modal" type="button"></button>
+</div>
+<div class="modal-body">
+<form id="formNuevoGasto">
+<div class="row">
+<div class="col-md-8">
+<label class="form-label" for="descripcionGasto">Descripción del Gasto *</label>
+<input class="form-control" id="descripcionGasto" placeholder="Ej: Compra de insumos, Pago de servicios, etc." required="" type="text"/>
+</div>
+<div class="col-md-4">
+<label class="form-label" for="montoGasto">Monto *</label>
+<div class="input-group">
+<span class="input-group-text">$</span>
+<input class="form-control" id="montoGasto" min="0.01" placeholder="0.00" required="" step="0.01" type="number"/>
+</div>
+</div>
+</div>
+<div class="row mt-3">
+<div class="col-md-4">
+<label class="form-label" for="categoriaGasto">Categoría</label>
+<select class="form-control" id="categoriaGasto">
+<option value="general">General</option>
+<option value="insumos">Insumos y Materiales</option>
+<option value="servicios">Servicios (Luz, Gas, Internet)</option>
+<option value="transporte">Transporte y Combustible</option>
+<option value="personal">Gastos de Personal</option>
+<option value="mantenimiento">Mantenimiento</option>
+<option value="impuestos">Impuestos y Tasas</option>
+<option value="otros">Otros</option>
+</select>
+</div>
+<div class="col-md-4">
+<label class="form-label" for="fechaGasto">Fecha</label>
+<input class="form-control" id="fechaGasto" type="date"/>
+</div>
+<div class="col-md-4">
+<label class="form-label" for="metodoPagoGasto">Método de Pago</label>
+<select class="form-control" id="metodoPagoGasto">
+<option value="efectivo">Efectivo</option>
+<option value="credito">Tarjeta de Crédito</option>
+<option value="debito">Tarjeta de Débito</option>
+<option value="transferencia">Transferencia</option>
+<option value="cheque">Cheque</option>
+</select>
+</div>
+</div>
+<div class="mt-3">
+<label class="form-label" for="notasGasto">Notas Adicionales</label>
+<textarea class="form-control" id="notasGasto" placeholder="Información adicional sobre el gasto (opcional)" rows="2"></textarea>
+</div>
+</form>
+</div>
+<div class="modal-footer">
+<button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancelar</button>
+<button class="btn btn-danger" onclick="guardarNuevoGasto()" type="button">
+<i class="fas fa-save"></i> Guardar Gasto
+                </button>
+</div>
+</div>
+</div>
+</div>
+<script>
+
+
+// Función para establecer fechas de hoy para cada sección
+function establecerFechasHoy(prefijo) {
+    const ahora = new Date();
+    const fechaArgentina = new Date(ahora.toLocaleString("en-US", {timeZone: "America/Argentina/Buenos_Aires"}));
+    const hoy = fechaArgentina.toISOString().split('T')[0];
+    
+    // Establecer fechas con verificación
+    const campoDesde = document.getElementById(`fecha_${prefijo}_desde`);
+    const campoHasta = document.getElementById(`fecha_${prefijo}_hasta`);
+    
+    if (campoDesde) campoDesde.value = hoy;
+    if (campoHasta) campoHasta.value = hoy;
+    
+    console.log(`✅ Fechas establecidas para ${prefijo}: ${hoy}`);
+}
+
+function establecerFechasVentasHoy() { establecerFechasHoy('ventas'); }
+function establecerFechasMediosHoy() { establecerFechasHoy('medios'); }
+function establecerFechasGastosHoy() { 
+    establecerFechasHoy('gastos'); 
+    document.getElementById('fechaGasto').value = new Date().toISOString().split('T')[0];
+}
+function establecerFechasCajaHoy() { establecerFechasHoy('caja'); }
+
+
+// REPORTE DE VENTAS POR PRODUCTO
+function cargarReporteVentasProducto() {
+    const fechaDesde = document.getElementById('fecha_ventas_desde').value;
+    const fechaHasta = document.getElementById('fecha_ventas_hasta').value;
+    
+    if (!fechaDesde || !fechaHasta) {
+        mostrarError('reporte_ventas_producto', 'Debe seleccionar ambas fechas');
+        return;
+    }
+    
+    if (fechaDesde > fechaHasta) {
+        mostrarError('reporte_ventas_producto', 'La fecha "desde" no puede ser mayor que la fecha "hasta"');
+        return;
+    }
+    
+    mostrarLoading('reporte_ventas_producto', 'Generando reporte de ventas por producto...');
+    
+    fetch(`/api/reporte_ventas?desde=${fechaDesde}&hasta=${fechaHasta}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarReporteVentasProducto(data, fechaDesde, fechaHasta);
+            } else {
+                mostrarError('reporte_ventas_producto', data.error || 'Error al generar el reporte de ventas');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarError('reporte_ventas_producto', 'Error de conexión al cargar el reporte de ventas');
+        });
+}
+
+function mostrarReporteVentasProducto(data, fechaDesde, fechaHasta) {
+    const contenedor = document.getElementById('reporte_ventas_producto');
+    
+    if (!data.productos || data.productos.length === 0) {
+        contenedor.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                <strong>Sin datos:</strong> No se encontraron ventas de productos en el período seleccionado.
+            </div>
+        `;
+        return;
+    }
+    
+    const totalGeneral = data.productos.reduce((sum, p) => sum + parseFloat(p.total_vendido || 0), 0);
+    const cantidadTotal = data.productos.reduce((sum, p) => sum + parseInt(p.cantidad_vendida || 0), 0);
+    
+    let html = `
+        <div class="alert alert-primary">
+            <div class="row">
+                <div class="col-md-4">
+                    <strong><i class="fas fa-calendar-alt"></i> Período:</strong> ${formatearFecha(fechaDesde)} - ${formatearFecha(fechaHasta)}
+                </div>
+                <div class="col-md-4">
+                    <strong><i class="fas fa-dollar-sign"></i> Total Vendido:</strong> 
+                    <span class="h5 text-success">${formatearPesos(totalGeneral)}</span>
+                </div>
+                <div class="col-md-4">
+                    <strong><i class="fas fa-box"></i> Unidades:</strong> ${cantidadTotal.toLocaleString()} productos
+                </div>
+            </div>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Código</th>
+                        <th>Producto</th>
+                        <th class="text-center">Cantidad Vendida</th>
+                        <th class="text-end">Precio Unitario</th>
+                        <th class="text-end">Total Vendido</th>
+                        <th class="text-end">% del Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    data.productos.forEach(producto => {
+        const totalVendido = parseFloat(producto.total_vendido || 0);
+        const cantidadVendida = parseInt(producto.cantidad_vendida || 0);
+        const precioUnitario = cantidadVendida > 0 ? (totalVendido / cantidadVendida) : 0;
+        const porcentaje = totalGeneral > 0 ? (totalVendido / totalGeneral * 100) : 0;
+        
+        html += `
+            <tr>
+                <td><code>${producto.codigo || 'N/A'}</code></td>
+                <td><strong>${producto.nombre || 'Producto sin nombre'}</strong></td>
+                <td class="text-center">
+                    <span class="badge bg-primary">${cantidadVendida}</span>
+                </td>
+                <td class="text-end">
+                    <small>${formatearPesos(precioUnitario)}</small>
+                </td>
+                <td class="text-end">
+                    <strong>${formatearPesos(totalVendido)}</strong>
+                </td>
+                <td class="text-end">
+                    <span class="badge bg-secondary">${porcentaje.toFixed(1)}%</span>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6><i class="fas fa-info-circle"></i> Estadísticas del Período</h6>
+                        <ul class="list-unstyled mb-0">
+                            <li><strong>Productos diferentes vendidos:</strong> ${data.productos.length}</li>
+                            <li><strong>Total de unidades:</strong> ${cantidadTotal.toLocaleString()}</li>
+                            <li><strong>Promedio por producto:</strong> ${formatearPesos(totalGeneral / data.productos.length)}</li>
+                            <li><strong>Producto más vendido:</strong> ${data.productos[0]?.nombre || 'N/A'}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6><i class="fas fa-clock"></i> Información del Reporte</h6>
+                        <p class="mb-0">
+                            <small class="text-muted">
+                                Reporte generado: ${new Date().toLocaleString('es-AR', {timeZone: 'America/Argentina/Buenos_Aires'})}<br>
+                                Fuente: Base de datos en tiempo real<br>
+                                <a href="/reporte_ventas" target="_blank" class="text-primary">
+                                    <i class="fas fa-external-link-alt"></i> Ver reporte completo
+                                </a>
+                            </small>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    contenedor.innerHTML = html;
+}
+
+// REPORTE DE MEDIOS DE PAGO
+function cargarReporteMediosPago() {
+    const fechaDesde = document.getElementById('fecha_medios_desde').value;
+    const fechaHasta = document.getElementById('fecha_medios_hasta').value;
+    
+    if (!fechaDesde || !fechaHasta) {
+        mostrarError('reporte_medios_pago', 'Debe seleccionar ambas fechas');
+        return;
+    }
+    
+    if (fechaDesde > fechaHasta) {
+        mostrarError('reporte_medios_pago', 'La fecha "desde" no puede ser mayor que la fecha "hasta"');
+        return;
+    }
+    
+    mostrarLoading('reporte_medios_pago', 'Generando reporte de medios de pago...');
+    
+    fetch(`/api/reporte_medios_pago?desde=${fechaDesde}&hasta=${fechaHasta}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarReporteMediosPago(data.reporte, fechaDesde, fechaHasta);
+            } else {
+                mostrarError('reporte_medios_pago', data.error || 'Error al generar el reporte de medios de pago');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarError('reporte_medios_pago', 'Error de conexión al cargar el reporte de medios de pago');
+        });
+}
+
+function mostrarReporteMediosPago(reporte, fechaDesde, fechaHasta) {
+    const contenedor = document.getElementById('reporte_medios_pago');
+    
+    if (!reporte.medios_pago || reporte.medios_pago.length === 0) {
+        contenedor.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                <strong>Sin datos:</strong> No se encontraron transacciones en el período seleccionado.
+            </div>
+        `;
+        return;
+    }
+    
+    const totalGeneral = reporte.medios_pago.reduce((sum, medio) => sum + parseFloat(medio.total), 0);
+    
+    let html = `
+        <div class="alert alert-success">
+            <div class="row">
+                <div class="col-md-6">
+                    <strong><i class="fas fa-calendar-alt"></i> Período:</strong> ${formatearFecha(fechaDesde)} - ${formatearFecha(fechaHasta)}
+                </div>
+                <div class="col-md-6">
+                    <strong><i class="fas fa-dollar-sign"></i> Total General:</strong> 
+                    <span class="h5 text-success">${formatearPesos(totalGeneral)}</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-8">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th><i class="fas fa-credit-card"></i> Medio de Pago</th>
+                                <th class="text-center"><i class="fas fa-hash"></i> Transacciones</th>
+                                <th class="text-end"><i class="fas fa-dollar-sign"></i> Total</th>
+                                <th class="text-<th class="text-end"><i class="fas fa-percentage"></i> % del Total</th>
+                           </tr>
+                       </thead>
+                       <tbody>
+   `;
+   
+   reporte.medios_pago.forEach(medio => {
+       const total = parseFloat(medio.total);
+       const porcentaje = (total / totalGeneral * 100);
+       const icono = obtenerIconoMedioPago(medio.medio_pago);
+       
+       html += `
+           <tr>
+               <td>
+                   <i class="${icono}"></i> ${obtenerNombreMedioPago(medio.medio_pago)}
+               </td>
+               <td class="text-center">
+                   <span class="badge bg-primary">${medio.cantidad}</span>
+               </td>
+               <td class="text-end">
+                   <strong>${formatearPesos(total)}</strong>
+               </td>
+               <td class="text-end">
+                   <span class="badge bg-secondary">${porcentaje.toFixed(1)}%</span>
+               </td>
+           </tr>
+       `;
+   });
+   
+   html += `
+                       </tbody>
+                   </table>
+               </div>
+           </div>
+           <div class="col-md-4">
+               <div class="card">
+                   <div class="card-header">
+                       <h6><i class="fas fa-chart-bar"></i> Distribución Visual</h6>
+                   </div>
+                   <div class="card-body">
+   `;
+   
+   reporte.medios_pago.forEach(medio => {
+       const total = parseFloat(medio.total);
+       const porcentaje = (total / totalGeneral * 100);
+       const anchoBar = Math.max(porcentaje, 5);
+       
+       html += `
+           <div class="mb-3">
+               <div class="d-flex justify-content-between align-items-center mb-1">
+                   <small><strong>${obtenerNombreMedioPago(medio.medio_pago)}</strong></small>
+                   <small class="text-muted">${porcentaje.toFixed(1)}%</small>
+               </div>
+               <div class="progress" style="height: 20px;">
+                   <div class="progress-bar ${obtenerColorMedioPago(medio.medio_pago)}" 
+                        style="width: ${anchoBar}%"
+                        title="${formatearPesos(total)}">
+                   </div>
+               </div>
+           </div>
+       `;
+   });
+   
+   html += `
+                   </div>
+               </div>
+           </div>
+       </div>
+   `;
+   
+   contenedor.innerHTML = html;
+}
+
+// REPORTE DE GASTOS
+function cargarReporteGastos() {
+    const fechaDesde = document.getElementById('fecha_gastos_desde').value;
+    const fechaHasta = document.getElementById('fecha_gastos_hasta').value;
+    
+    // SI NO HAY FECHAS, ESTABLECER HOY AUTOMÁTICAMENTE
+    if (!fechaDesde || !fechaHasta) {
+        console.log('🔄 No hay fechas seleccionadas, estableciendo fecha de hoy...');
+        establecerFechasGastosHoy();
+        
+        // Esperar un momento y reintentar
+        setTimeout(() => {
+            cargarReporteGastos();
+        }, 100);
+        return;
+    }
+    
+    if (fechaDesde > fechaHasta) {
+        alert('La fecha "desde" no puede ser mayor que la fecha "hasta"');
+        return;
+    }
+    
+    console.log('💰 Cargando gastos desde BD...', { fechaDesde, fechaHasta });
+    
+    // ✅ LLAMAR A LA API REAL
+    fetch(`/api/gastos?desde=${fechaDesde}&hasta=${fechaHasta}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarGastosPeriodoBD(data.gastos, data.resumen);
+                mostrarCategoriasBD(data.categorias, data.resumen.total_gastos);
+                console.log('✅ Gastos cargados desde BD:', data.gastos.length);
+            } else {
+                mostrarError('listaGastos', data.error || 'Error al cargar gastos');
+            }
+        })
+        .catch(error => {
+            console.error('⛔ Error:', error);
+            mostrarError('listaGastos', 'Error de conexión');
+        });
+}
+
+
+function mostrarGastosPeriodo(fechaDesde, fechaHasta) {
+   const gastosFiltrados = gastosData.filter(gasto => {
+       return gasto.fecha >= fechaDesde && gasto.fecha <= fechaHasta;
+   });
+   
+   const container = document.getElementById('listaGastos');
+   
+   if (gastosFiltrados.length === 0) {
+       container.innerHTML = `
+           <div class="alert alert-info">
+               <i class="fas fa-info-circle"></i>
+               No se registraron gastos en el período seleccionado.
+           </div>
+       `;
+       return;
+   }
+   
+   let html = '<div class="table-responsive">';
+   html += '<table class="table table-sm table-striped">';
+   html += `
+       <thead class="table-dark">
+           <tr>
+               <th>Fecha</th>
+               <th>Descripción</th>
+               <th>Categoría</th>
+               <th>Método</th>
+               <th class="text-end">Monto</th>
+               <th width="50"></th>
+           </tr>
+       </thead>
+       <tbody>
+   `;
+   
+   gastosFiltrados.forEach(gasto => {
+       const categoria = obtenerNombreCategoria(gasto.categoria);
+       const metodoPago = obtenerNombreMedioPago(gasto.metodo_pago);
+       const fecha = new Date(gasto.fecha + 'T12:00:00').toLocaleDateString('es-AR');
+       
+       html += `
+           <tr>
+               <td><small>${fecha}</small></td>
+               <td>
+                   <strong>${gasto.descripcion}</strong>
+                   ${gasto.notas ? `<br><small class="text-muted">${gasto.notas}</small>` : ''}
+               </td>
+               <td>
+                   <span class="badge bg-secondary">${categoria}</span>
+               </td>
+               <td>
+                   <i class="${obtenerIconoMedioPago(gasto.metodo_pago)}"></i>
+                   <small>${metodoPago}</small>
+               </td>
+               <td class="text-end">
+                   <strong class="text-danger">-${formatearPesos(gasto.monto)}</strong>
+               </td>
+               <td>
+                   <button class="btn btn-sm btn-outline-danger" onclick="eliminarGasto(${gasto.id})" 
+                           title="Eliminar gasto">
+                       <i class="fas fa-trash"></i>
+                   </button>
+               </td>
+           </tr>
+       `;
+   });
+   
+   html += '</tbody></table></div>';
+   
+   const totalGastos = gastosFiltrados.reduce((sum, g) => sum + g.monto, 0);
+   html += `
+       <div class="alert alert-danger">
+           <strong>Total de Gastos del Período: ${formatearPesos(totalGastos)}</strong>
+       </div>
+   `;
+   
+   container.innerHTML = html;
+}
+
+
+function eliminarGastoBD(gastoId) {
+    if (!confirm('¿Eliminar este gasto de la base de datos?')) {
+        return;
+    }
+    
+    console.log('🗑️ Eliminando gasto ID:', gastoId);
+    
+    // ✅ LLAMAR A LA API REAL
+    fetch(`/api/gastos/${gastoId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('✅ Eliminado de BD');
+            cargarReporteGastos(); // Recargar
+            alert('Gasto eliminado correctamente');
+        } else {
+            alert(`Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        alert(`Error: ${error.message}`);
+    });
+}
+
+// 4. AGREGAR estas funciones nuevas para mostrar datos de BD
+function mostrarGastosPeriodoBD(gastos, resumen) {
+    const container = document.getElementById('listaGastos');
+    
+    if (gastos.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                No se registraron gastos en el período seleccionado.
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="table-responsive">';
+    html += '<table class="table table-sm table-striped">';
+    html += `
+        <thead class="table-dark">
+            <tr>
+                <th>Fecha</th>
+                <th>Descripción</th>
+                <th>Categoría</th>
+                <th>Método</th>
+                <th class="text-end">Monto</th>
+                <th width="50"></th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
+    
+    gastos.forEach(gasto => {
+        const categoria = obtenerNombreCategoria(gasto.categoria);
+        const metodoPago = obtenerNombreMedioPago(gasto.metodo_pago);
+        const fecha = new Date(gasto.fecha + 'T12:00:00').toLocaleDateString('es-AR');
+        
+        html += `
+            <tr>
+                <td><small>${fecha}</small></td>
+                <td>
+                    <strong>${gasto.descripcion}</strong>
+                    ${gasto.notas ? `<br><small class="text-muted">${gasto.notas}</small>` : ''}
+                </td>
+                <td>
+                    <span class="badge bg-secondary">${categoria}</span>
+                </td>
+                <td>
+                    <i class="${obtenerIconoMedioPago(gasto.metodo_pago)}"></i>
+                    <small>${metodoPago}</small>
+                </td>
+                <td class="text-end">
+                    <strong class="text-danger">-${formatearPesos(gasto.monto)}</strong>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarGastoBD(${gasto.id})" 
+                            title="Eliminar gasto">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += '</tbody></table></div>';
+    html += `
+        <div class="alert alert-danger">
+            <strong>Total: ${formatearPesos(resumen.total_gastos)} (${resumen.cantidad_gastos} gastos)</strong>
+            <br><small><i class="fas fa-database"></i> Datos desde base de datos</small>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function mostrarCategoriasBD(categorias, totalGastos) {
+    const container = document.getElementById('categoriasGastos');
+    
+    if (Object.keys(categorias).length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-tags fa-2x mb-3"></i>
+                <p>Sin gastos en el período</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    Object.entries(categorias).forEach(([categoria, datos]) => {
+        const porcentaje = (datos.total / totalGastos * 100);
+        const nombreCategoria = obtenerNombreCategoria(categoria);
+        
+        html += `
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <small><strong>${nombreCategoria}</strong></small>
+                    <small class="text-muted">${porcentaje.toFixed(1)}%</small>
+                </div>
+                <div class="progress mb-1" style="height: 15px;">
+                    <div class="progress-bar bg-danger" 
+                         style="width: ${Math.max(porcentaje, 5)}%"
+                         title="${formatearPesos(datos.total)}">
+                    </div>
+                </div>
+                <small class="text-muted">
+                    ${formatearPesos(datos.total)} (${datos.cantidad_gastos} gastos)
+                </small>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+
+function mostrarCategorias(fechaDesde, fechaHasta) {
+   const gastosFiltrados = gastosData.filter(gasto => {
+       return gasto.fecha >= fechaDesde && gasto.fecha <= fechaHasta;
+   });
+   
+   if (gastosFiltrados.length === 0) {
+       document.getElementById('categoriasGastos').innerHTML = `
+           <div class="text-center text-muted py-4">
+               <i class="fas fa-tags fa-2x mb-3"></i>
+               <p>Sin gastos en el período</p>
+           </div>
+       `;
+       return;
+   }
+   
+   const categorias = {};
+   gastosFiltrados.forEach(gasto => {
+       if (!categorias[gasto.categoria]) {
+           categorias[gasto.categoria] = 0;
+       }
+       categorias[gasto.categoria] += gasto.monto;
+   });
+   
+   const totalCategorias = Object.values(categorias).reduce((sum, val) => sum + val, 0);
+   
+   let html = '';
+   Object.entries(categorias).forEach(([categoria, monto]) => {
+       const porcentaje = (monto / totalCategorias * 100);
+       const nombreCategoria = obtenerNombreCategoria(categoria);
+       
+       html += `
+           <div class="mb-3">
+               <div class="d-flex justify-content-between align-items-center mb-1">
+                   <small><strong>${nombreCategoria}</strong></small>
+                   <small class="text-muted">${porcentaje.toFixed(1)}%</small>
+               </div>
+               <div class="progress mb-1" style="height: 15px;">
+                   <div class="progress-bar bg-danger" 
+                        style="width: ${Math.max(porcentaje, 5)}%"
+                        title="${formatearPesos(monto)}">
+                   </div>
+               </div>
+               <small class="text-muted">${formatearPesos(monto)}</small>
+           </div>
+       `;
+   });
+   
+   document.getElementById('categoriasGastos').innerHTML = html;
+}
+
+function guardarNuevoGasto() {
+    const descripcion = document.getElementById('descripcionGasto').value.trim();
+    const monto = parseFloat(document.getElementById('montoGasto').value);
+    const categoria = document.getElementById('categoriaGasto').value;
+    const fecha = document.getElementById('fechaGasto').value;
+    const metodoPago = document.getElementById('metodoPagoGasto').value;
+    const notas = document.getElementById('notasGasto').value.trim();
+    
+    if (!descripcion || !monto || monto <= 0 || !fecha) {
+        alert('Complete todos los campos requeridos');
+        return;
+    }
+    
+    console.log('💾 Guardando en BD...');
+    
+    const btnGuardar = document.querySelector('#modalNuevoGasto .btn-danger');
+    const textoOriginal = btnGuardar.innerHTML;
+    btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+    btnGuardar.disabled = true;
+    
+    // ✅ LLAMAR A LA API REAL
+    fetch('/api/gastos', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            descripcion: descripcion,
+            monto: monto,
+            categoria: categoria,
+            fecha: fecha,
+            metodo_pago: metodoPago,
+            notas: notas
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('✅ Guardado en BD exitoso');
+            
+            // Cerrar modal
+            const modalElement = document.getElementById('modalNuevoGasto');
+            const modal = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
+            modal.hide();
+            
+            // Limpiar formulario
+            document.getElementById('formNuevoGasto').reset();
+            establecerFechasGastosHoy();
+            
+            // Recargar datos
+            const activeTab = document.querySelector('.nav-link.active');
+            if (activeTab && activeTab.id === 'gastos-tab') {
+                setTimeout(() => {
+                    cargarReporteGastos();
+                }, 100);
+            }
+            
+            alert(`✅ Gasto guardado: ${data.gasto.descripcion} - ${formatearPesos(data.gasto.monto)}`);
+        } else {
+            alert(`Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        alert(`Error de conexión: ${error.message}`);
+    })
+    .finally(() => {
+        btnGuardar.innerHTML = textoOriginal;
+        btnGuardar.disabled = false;
+    });
+}
+
+// CAJA DIARIA
+// =================== REPORTE DE CAJA DIARIA ===================
+function cargarCajaDiaria() {
+    const fechaDesde = document.getElementById('fecha_caja_desde').value;
+    const fechaHasta = document.getElementById('fecha_caja_hasta').value;
+
+    if (!fechaDesde || !fechaHasta) {
+        Swal.fire("Error", "Debe seleccionar ambas fechas", "error");
+        return;
+    }
+
+    if (fechaDesde > fechaHasta) {
+        Swal.fire("Error", "La fecha 'desde' no puede ser mayor que la fecha 'hasta'", "error");
+        return;
+    }
+
+    fetch(`/api/reporte_caja_diaria?desde=${fechaDesde}&hasta=${fechaHasta}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // actualizar cards
+                document.getElementById("totalIngresosCaja").innerText = formatearPesos(data.totalIngresos);
+                document.getElementById("detalleIngresos").innerText = data.detalleIngresos.length + " transacciones";
+
+                document.getElementById("totalGastosCaja").innerText = formatearPesos(data.totalGastos);
+                document.getElementById("detalleGastos").innerText = data.detalleGastos.length + " gastos";
+
+                document.getElementById("balanceCaja").innerText = formatearPesos(data.balance);
+                const porcentaje = data.totalIngresos > 0 ? 
+                    ((data.balance / data.totalIngresos) * 100).toFixed(1) : 0;
+                document.getElementById("porcentajeBalance").innerText = porcentaje + "%";
+
+                // efectivo en caja = solo medio de pago efectivo
+                const efectivo = data.detalleIngresos.find(m => m.medio_pago === "efectivo");
+                document.getElementById("efectivoCaja").innerText = formatearPesos(efectivo ? efectivo.total : 0);
+
+                // ==== MAPAS DE ICONOS ====
+                const iconosMedios = {
+                    efectivo: "fas fa-money-bill-wave text-success",
+                    credito: "fas fa-credit-card text-primary",
+                    debito: "fas fa-credit-card text-info",
+                    mercado_pago: "fas fa-mobile-alt text-info",
+                    transferencia: "fas fa-university text-warning",
+                    cheque: "fas fa-file-invoice-dollar text-secondary"
+                };
+
+                const iconosGastos = {
+                    insumos: "fas fa-box-open text-primary",
+                    servicios: "fas fa-lightbulb text-warning",
+                    transporte: "fas fa-truck text-info",
+                    personal: "fas fa-users text-success",
+                    mantenimiento: "fas fa-tools text-secondary",
+                    impuestos: "fas fa-file-invoice-dollar text-danger",
+                    otros: "fas fa-ellipsis-h text-muted",
+                    general: "fas fa-receipt text-dark"
+                };
+
+                // detalle de ingresos con iconos
+                let html = `
+                    <h6><i class="fas fa-list"></i> Detalle de Ingresos</h6>
+                    <ul class="list-group mb-3">`;
+                data.detalleIngresos.forEach(m => {
+                    const icono = iconosMedios[m.medio_pago] || "fas fa-dollar-sign";
+                    html += `
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="${icono}"></i> ${m.medio_pago}</span>
+                            <span><strong>${formatearPesos(m.total)}</strong></span>
+                        </li>`;
+                });
+                html += `</ul>`;
+
+                // resumen de gastos con iconos
+                html += `
+                    <h6><i class="fas fa-list"></i> Resumen de Gastos</h6>
+                    <ul class="list-group">`;
+                data.detalleGastos.forEach(g => {
+                    const icono = iconosGastos[g.categoria] || "fas fa-minus-circle";
+                    html += `
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="${icono}"></i> ${g.categoria}</span>
+                            <span><strong>${formatearPesos(g.total)}</strong></span>
+                        </li>`;
+                });
+                html += `</ul>`;
+
+                document.getElementById("detalleCajaDiaria").innerHTML = html;
+            } else {
+                Swal.fire("Error", data.error || "No se pudo calcular la caja", "error");
+            }
+        })
+        .catch(error => {
+            console.error(error);
+            Swal.fire("Error", "Error de conexión al cargar caja diaria", "error");
+        });
+}
+
+function calcularResumenCajaReal(reporteMediosPago, fechaDesde, fechaHasta) {
+   let totalIngresos = 0;
+   let efectivoIngresos = 0;
+   let numTransacciones = 0;
+   
+   if (reporteMediosPago.medios_pago && reporteMediosPago.medios_pago.length > 0) {
+       reporteMediosPago.medios_pago.forEach(medio => {
+           const total = parseFloat(medio.total);
+           totalIngresos += total;
+           numTransacciones += parseInt(medio.cantidad);
+           
+           if (medio.medio_pago === 'efectivo') {
+               efectivoIngresos += total;
+           }
+       });
+   } else {
+       calcularResumenCaja(fechaDesde, fechaHasta);
+       return;
+   }
+   
+   const gastosDelPeriodo = gastosData.filter(gasto => {
+       return gasto.fecha >= fechaDesde && gasto.fecha <= fechaHasta;
+   });
+   
+   const totalGastos = gastosDelPeriodo.reduce((sum, gasto) => sum + gasto.monto, 0);
+   const gastosEnEfectivo = gastosDelPeriodo
+       .filter(g => g.metodo_pago === 'efectivo')
+       .reduce((sum, gasto) => sum + gasto.monto, 0);
+   
+   const balance = totalIngresos - totalGastos;
+   const efectivoEnCaja = efectivoIngresos - gastosEnEfectivo;
+   const porcentajeBalance = totalIngresos > 0 ? (balance / totalIngresos * 100) : 0;
+   
+   // Actualizar UI con datos reales
+   document.getElementById('totalIngresosCaja').textContent = formatearPesos(totalIngresos);
+   document.getElementById('detalleIngresos').textContent = `${numTransacciones} transacciones`;
+   
+   document.getElementById('totalGastosCaja').textContent = formatearPesos(totalGastos);
+   document.getElementById('detalleGastos').textContent = `${gastosDelPeriodo.length} gastos`;
+   
+   document.getElementById('balanceCaja').textContent = formatearPesos(balance);
+   document.getElementById('porcentajeBalance').textContent = `${porcentajeBalance.toFixed(1)}% del total`;
+   
+   document.getElementById('efectivoCaja').textContent = formatearPesos(efectivoEnCaja);
+   document.getElementById('detalleEfectivo').textContent = efectivoEnCaja >= 0 ? 'Disponible' : 'Déficit';
+   
+   const cardBalance = document.getElementById('cardBalance');
+   const cardEfectivo = document.getElementById('cardEfectivo');
+   
+   if (balance >= 0) {
+       cardBalance.className = 'card bg-success text-white';
+   } else {
+       cardBalance.className = 'card bg-danger text-white';
+   }
+   
+   if (efectivoEnCaja >= 0) {
+       cardEfectivo.className = 'card bg-info text-white';
+   } else {
+       cardEfectivo.className = 'card bg-danger text-white';
+   }
+   
+   mostrarDetalleCajaReal(reporteMediosPago, gastosDelPeriodo, balance);
+}
+
+function mostrarDetalleCajaReal(reporteMediosPago, gastosDelPeriodo, balance) {
+   let htmlIngresos = '';
+   
+   if (reporteMediosPago.medios_pago && reporteMediosPago.medios_pago.length > 0) {
+       reporteMediosPago.medios_pago.forEach(medio => {
+           const total = parseFloat(medio.total);
+           const icono = obtenerIconoMedioPago(medio.medio_pago);
+           const nombre = obtenerNombreMedioPago(medio.medio_pago);
+           
+           htmlIngresos += `<div class="mb-2"><i class="${icono}"></i> ${nombre}: <strong>${formatearPesos(total)}</strong></div>`;
+       });
+   } else {
+       htmlIngresos = '<div class="text-muted">Sin datos de ingresos</div>';
+   }
+   
+   const categorias = {};
+   gastosDelPeriodo.forEach(gasto => {
+       if (!categorias[gasto.categoria]) {
+           categorias[gasto.categoria] = 0;
+       }
+       categorias[gasto.categoria] += gasto.monto;
+   });
+   
+   let htmlGastos = '';
+   if (Object.keys(categorias).length > 0) {
+       Object.entries(categorias).forEach(([categoria, monto]) => {
+           const nombreCategoria = obtenerNombreCategoria(categoria);
+           const icono = obtenerIconoCategoria(categoria);
+           htmlGastos += `<div class="mb-2"><i class="${icono}"></i> ${nombreCategoria}: <strong>${formatearPesos(monto)}</strong></div>`;
+       });
+   } else {
+       htmlGastos = '<div class="text-muted">Sin gastos registrados</div>';
+   }
+   
+   let html = `
+       <div class="row">
+           <div class="col-md-6">
+               <div class="card">
+                   <div class="card-header bg-success text-white">
+                       <h6><i class="fas fa-arrow-up"></i> Detalle de Ingresos</h6>
+                   </div>
+                   <div class="card-body">
+                       ${htmlIngresos}
+                   </div>
+               </div>
+           </div>
+           <div class="col-md-6">
+               <div class="card">
+                   <div class="card-header bg-danger text-white">
+                       <h6><i class="fas fa-arrow-down"></i> Resumen de Gastos</h6>
+                   </div>
+                   <div class="card-body">
+                       ${htmlGastos}
+                       <hr>
+                       <div class="text-center">
+                           <strong>Balance del Período</strong><br>
+                           <span class="h4 ${balance >= 0 ? 'text-success' : 'text-danger'}">${balance >= 0 ? '+' : ''}${formatearPesos(balance)}</span>
+                       </div>
+                   </div>
+               </div>
+           </div>
+       </div>
+   `;
+   
+   document.getElementById('detalleCajaDiaria').innerHTML = html;
+}
+
+function obtenerIconoCategoria(categoria) {
+   const iconos = {
+       'general': 'fas fa-circle',
+       'insumos': 'fas fa-tools',
+       'servicios': 'fas fa-lightbulb',
+       'transporte': 'fas fa-gas-pump',
+       'personal': 'fas fa-users',
+       'mantenimiento': 'fas fa-wrench',
+       'impuestos': 'fas fa-file-invoice-dollar',
+       'otros': 'fas fa-ellipsis-h'
+   };
+   return iconos[categoria] || 'fas fa-circle';
+}
+
+function calcularResumenCaja(fechaDesde, fechaHasta) {
+   const ingresosPorMedio = {
+       efectivo: 45000,
+       credito: 32400,
+       debito: 21600,
+       mercado_pago: 14400,
+       transferencia: 8600
+   };
+   
+   const totalIngresos = Object.values(ingresosPorMedio).reduce((sum, val) => sum + val, 0);
+   const efectivoIngresos = ingresosPorMedio.efectivo;
+   const numTransacciones = 63;
+   
+   const gastosDelPeriodo = gastosData.filter(gasto => {
+       return gasto.fecha >= fechaDesde && gasto.fecha <= fechaHasta;
+   });
+   
+   const totalGastos = gastosDelPeriodo.reduce((sum, gasto) => sum + gasto.monto, 0);
+   const gastosEnEfectivo = gastosDelPeriodo
+       .filter(g => g.metodo_pago === 'efectivo')
+       .reduce((sum, gasto) => sum + gasto.monto, 0);
+   
+   const balance = totalIngresos - totalGastos;
+   const efectivoEnCaja = efectivoIngresos - gastosEnEfectivo;
+   const porcentajeBalance = totalIngresos > 0 ? (balance / totalIngresos * 100) : 0;
+   
+   document.getElementById('totalIngresosCaja').textContent = formatearPesos(totalIngresos);
+   document.getElementById('detalleIngresos').textContent = `${numTransacciones} transacciones`;
+   
+   document.getElementById('totalGastosCaja').textContent = formatearPesos(totalGastos);
+   document.getElementById('detalleGastos').textContent = `${gastosDelPeriodo.length} gastos`;
+   
+   document.getElementById('balanceCaja').textContent = formatearPesos(balance);
+   document.getElementById('porcentajeBalance').textContent = `${porcentajeBalance.toFixed(1)}% del total`;
+   
+   document.getElementById('efectivoCaja').textContent = formatearPesos(efectivoEnCaja);
+   document.getElementById('detalleEfectivo').textContent = efectivoEnCaja >= 0 ? 'Disponible' : 'Déficit';
+   
+   const cardBalance = document.getElementById('cardBalance');
+   const cardEfectivo = document.getElementById('cardEfectivo');
+   
+   if (balance >= 0) {
+       cardBalance.className = 'card bg-success text-white';
+   } else {
+       cardBalance.className = 'card bg-danger text-white';
+   }
+   
+   if (efectivoEnCaja >= 0) {
+       cardEfectivo.className = 'card bg-info text-white';
+   } else {
+       cardEfectivo.className = 'card bg-danger text-white';
+   }
+}
+
+function mostrarDetalleCaja(fechaDesde, fechaHasta) {
+   let html = `
+       <div class="row">
+           <div class="col-md-6">
+               <div class="card">
+                   <div class="card-header bg-success text-white">
+                       <h6><i class="fas fa-arrow-up"></i> Detalle de Ingresos</h6>
+                   </div>
+                   <div class="card-body">
+                       <div class="mb-2"><i class="fas fa-money-bill-wave"></i> Efectivo: <strong>$45,000.00</strong></div>
+                       <div class="mb-2"><i class="fas fa-credit-card"></i> Crédito: <strong>$32,400.00</strong></div>
+                       <div class="mb-2"><i class="fas fa-credit-card"></i> Débito: <strong>$21,600.00</strong></div>
+                       <div class="mb-2"><i class="fas fa-mobile-alt"></i> Mercado Pago: <strong>$14,400.00</strong></div>
+                       <div class="mb-2"><i class="fas fa-exchange-alt"></i> Transferencia: <strong>$8,600.00</strong></div>
+                   </div>
+               </div>
+           </div>
+           <div class="col-md-6">
+               <div class="card">
+                   <div class="card-header bg-danger text-white">
+                       <h6><i class="fas fa-arrow-down"></i> Resumen de Gastos</h6>
+                   </div>
+                   <div class="card-body">
+                       <div class="mb-2"><i class="fas fa-tools"></i> Insumos: <strong>$2,500.00</strong></div>
+                       <div class="mb-2"><i class="fas fa-lightbulb"></i> Servicios: <strong>$8,750.50</strong></div>
+                       <div class="mb-2"><i class="fas fa-gas-pump"></i> Transporte: <strong>$5,200.00</strong></div>
+                       <hr>
+                       <div class="text-center">
+                           <strong>Balance del Período</strong><br>
+                           <span class="h4 text-success">+$105,549.50</span>
+                       </div>
+                   </div>
+               </div>
+           </div>
+       </div>
+   `;
+   
+   document.getElementById('detalleCajaDiaria').innerHTML = html;
+}
+
+// Funciones auxiliares
+function mostrarLoading(contenedorId, mensaje) {
+   document.getElementById(contenedorId).innerHTML = `
+       <div class="text-center py-4">
+           <i class="fas fa-spinner fa-spin fa-2x text-primary mb-3"></i>
+           <h6>${mensaje}</h6>
+       </div>
+   `;
+}
+
+function mostrarError(contenedorId, mensaje) {
+   document.getElementById(contenedorId).innerHTML = `
+       <div class="alert alert-danger">
+           <i class="fas fa-exclamation-triangle"></i>
+           <strong>Error:</strong> ${mensaje}
+       </div>
+   `;
+}
+
+function formatearFecha(fecha) {
+   const fechaObj = new Date(fecha + 'T12:00:00');
+   return fechaObj.toLocaleDateString('es-AR', {
+       timeZone: 'America/Argentina/Buenos_Aires',
+       weekday: 'short',
+       day: '2-digit',
+       month: '2-digit'
+   });
+}
+
+function formatearPesos(cantidad) {
+   if (cantidad === null || cantidad === undefined || isNaN(cantidad)) {
+       return '$0,00';
+   }
+   return '$' + parseFloat(cantidad).toLocaleString('es-AR', {
+       minimumFractionDigits: 2,
+       maximumFractionDigits: 2
+   });
+}
+
+function obtenerNombreMedioPago(codigo) {
+   const nombres = {
+       'efectivo': 'Efectivo',
+       'credito': 'Tarjeta de Crédito',
+       'debito': 'Tarjeta de Débito',
+       'mercado_pago': 'Mercado Pago',
+       'transferencia': 'Transferencia',
+       'cheque': 'Cheque'
+   };
+   return nombres[codigo] || codigo.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+function obtenerIconoMedioPago(codigo) {
+   const iconos = {
+       'efectivo': 'fas fa-money-bill-wave text-success',
+       'credito': 'fas fa-credit-card text-primary',
+       'debito': 'fas fa-credit-card text-info',
+       'mercado_pago': 'fas fa-mobile-alt text-warning',
+       'transferencia': 'fas fa-exchange-alt text-secondary',
+       'cheque': 'fas fa-money-check text-dark'
+   };
+   return iconos[codigo] || 'fas fa-credit-card';
+}
+
+function obtenerColorMedioPago(codigo) {
+   const colores = {
+       'efectivo': 'bg-success',
+       'credito': 'bg-primary',
+       'debito': 'bg-info',
+       'mercado_pago': 'bg-warning',
+       'transferencia': 'bg-secondary',
+       'cheque': 'bg-dark'
+   };
+   return colores[codigo] || 'bg-primary';
+}
+
+function obtenerNombreCategoria(codigo) {
+   const nombres = {
+       'general': 'General',
+       'insumos': 'Insumos y Materiales',
+       'servicios': 'Servicios',
+       'transporte': 'Transporte',
+       'personal': 'Personal',
+       'mantenimiento': 'Mantenimiento',
+       'impuestos': 'Impuestos y Tasas',
+       'otros': 'Otros'
+   };
+   return nombres[codigo] || codigo;
+}
+
+function exportarReportes() {
+   const activeTab = document.querySelector('.nav-link.active');
+   const tabId = activeTab ? activeTab.getAttribute('data-bs-target') : '#ventas-producto';
+   
+   alert(`Funcionalidad de exportación para la pestaña: ${tabId.replace('#', '')}`);
+}
+
+// Inicialización
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Inicializando reportes...');
+    
+    // Establecer fechas de hoy para todos los reportes
+    establecerFechasVentasHoy();
+    establecerFechasMediosHoy();
+    establecerFechasGastosHoy();
+    establecerFechasCajaHoy();
+    
+    // Cargar reporte de ventas automáticamente después de un breve delay
+    setTimeout(() => {
+        console.log('📊 Cargando reporte de ventas inicial...');
+        cargarReporteVentasProducto();
+    }, 500);
+});
+
+
+
+
+// Event listeners para cambio de pestañas
+document.getElementById('reportesTabs').addEventListener('shown.bs.tab', function (event) {
+   const target = event.target.getAttribute('data-bs-target');
+   
+   setTimeout(() => {
+       switch(target) {
+           case '#medios-pago':
+               cargarReporteMediosPago();
+               break;
+           case '#gastos':
+               cargarReporteGastos();
+               break;
+           case '#caja-diaria':
+               cargarCajaDiaria();
+               break;
+       }
+   }, 100);
+});
+</script>
+<style>
+.nav-tabs .nav-link {
+   color: #6c757d;
+   border: 1px solid transparent;
+   border-top-left-radius: 0.375rem;
+   border-top-right-radius: 0.375rem;
+}
+
+.nav-tabs .nav-link:hover {
+   border-color: #e9ecef #e9ecef #dee2e6;
+   isolation: isolate;
+}
+
+.nav-tabs .nav-link.active {
+   color: #495057;
+   background-color: #fff;
+   border-color: #dee2e6 #dee2e6 #fff;
+}
+
+.card.bg-success, .card.bg-danger, .card.bg-primary, .card.bg-info, .card.bg-warning {
+   border: none;
+   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+   transition: transform 0.2s ease;
+}
+
+.card.bg-success:hover, .card.bg-danger:hover, .card.bg-primary:hover, .card.bg-info:hover, .card.bg-warning:hover {
+   transform: translateY(-2px);
+}
+
+.table th {
+   font-size: 0.9em;
+   font-weight: 600;
+   border-top: none;
+}
+
+.table td {
+   font-size: 0.9em;
+   vertical-align: middle;
+}
+
+.badge {
+   font-size: 0.75em;
+}
+
+.progress {
+   border-radius: 10px;
+   background-color: #f8f9fa;
+}
+
+.progress-bar {
+   border-radius: 10px;
+   transition: width 0.6s ease;
+}
+
+.alert {
+   border-left: 4px solid;
+}
+
+.alert-primary {
+   border-left-color: #007bff;
+}
+
+.alert-success {
+   border-left-color: #28a745;
+}
+
+.alert-danger {
+   border-left-color: #dc3545;
+}
+
+.alert-info {
+   border-left-color: #17a2b8;
+}
+
+.fa-spin {
+   animation: fa-spin 2s infinite linear;
+}
+
+@keyframes fa-spin {
+   0% { transform: rotate(0deg); }
+   100% { transform: rotate(360deg); }
+}
+
+.modal-lg {
+   max-width: 800px;
+}
+
+.modal-header.bg-danger {
+   border-bottom: 1px solid rgba(255,255,255,0.2);
+}
+
+@media (max-width: 768px) {
+   .nav-tabs {
+       flex-wrap: wrap;
+   }
+   
+   .nav-tabs .nav-link {
+       font-size: 0.9em;
+       padding: 0.5rem 0.75rem;
+   }
+   
+   .card.bg-success h4, .card.bg-danger h4, .card.bg-primary h4, .card.bg-info h4 {
+       font-size: 1.5rem;
+   }
+   
+   .table-responsive {
+       font-size: 0.8em;
+   }
+   
+   .modal-lg {
+       max-width: 95%;
+       margin: 1rem auto;
+   }
+}
+
+.card-header h5, .card-header h6 {
+   margin: 0;
+   font-weight: 600;
+}
+
+.btn-toolbar .btn {
+   margin-left: 0.5rem;
+}
+
+.form-label {
+   font-weight: 500;
+}
+
+.text-muted {
+   opacity: 0.7;
+}
+
+.tab-content .tab-pane {
+   opacity: 0;
+   transition: opacity 0.3s ease-in-out;
+}
+
+.tab-content .tab-pane.active {
+   opacity: 1;
+}
+
+.btn-outline-danger:hover {
+   background-color: #dc3545;
+   border-color: #dc3545;
+}
+
+code {
+   background-color: #f8f9fa;
+   padding: 0.2rem 0.4rem;
+   border-radius: 0.25rem;
+   font-size: 0.875em;
+}
+</style>
+
+{% endblock %}

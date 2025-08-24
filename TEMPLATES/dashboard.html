@@ -454,7 +454,10 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function establecerFechasHoy() {
-    const hoy = new Date().toISOString().split('T')[0];
+    const ahora = new Date();
+    const fechaArgentina = new Date(ahora.toLocaleString("en-US", {timeZone: "America/Argentina/Buenos_Aires"}));
+    const hoy = fechaArgentina.toISOString().split('T')[0];
+    
     document.getElementById('fecha_desde').value = hoy;
     document.getElementById('fecha_hasta').value = hoy;
 }
@@ -630,7 +633,7 @@ function mostrarReporteMediosPago(reporte, fechaDesde, fechaHasta) {
                         <h6><i class="fas fa-clock"></i> Actualización</h6>
                         <p class="mb-0">
                             <small class="text-muted">
-                                Reporte generado: ${new Date().toLocaleString('es-AR')}<br>
+                                Reporte generado: ${new Date().toLocaleString('es-AR', {timeZone: 'America/Argentina/Buenos_Aires'})}<br>
                                 Datos en tiempo real
                             </small>
                         </p>
@@ -654,7 +657,15 @@ function mostrarErrorReporte(mensaje) {
 }
 
 function formatearFecha(fecha) {
-    return new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR');
+    const fechaObj = new Date(fecha + 'T12:00:00');
+    
+    // ✅ USAR EXACTAMENTE EL MISMO FORMATO QUE EL RELOJ
+    return fechaObj.toLocaleDateString('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        weekday: 'short',  // ← AGREGAR ESTO
+        day: '2-digit',    // ← AGREGAR ESTO
+        month: '2-digit'   // ← AGREGAR ESTO
+    });
 }
 
 function obtenerNombreMedioPago(codigo) {
@@ -1041,22 +1052,21 @@ setInterval(cargarUltimasVentas, 2 * 60 * 1000);
 function actualizarRelojDashboard() {
     const ahora = new Date();
     
-    // Fecha corta: "Lun 25/12"
     const fecha = ahora.toLocaleDateString('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
         weekday: 'short',
         day: '2-digit',
         month: '2-digit'
     });
     
-    // Hora: "14:30:25"
     const hora = ahora.toLocaleTimeString('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
         hour12: false
     });
     
-    // Actualizar elementos
     const fechaElement = document.getElementById('fecha_hoy');
     const horaElement = document.getElementById('hora_actual');
     
