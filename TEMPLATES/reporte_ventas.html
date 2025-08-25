@@ -172,17 +172,24 @@ let parametrosBusqueda = {};
 
 // Inicializar fechas por defecto
 document.addEventListener('DOMContentLoaded', function() {
-    // Fecha por defecto: último mes
     const hoy = new Date();
     const haceUnMes = new Date();
     haceUnMes.setMonth(haceUnMes.getMonth() - 1);
-    
-    document.getElementById('fechaHasta').value = hoy.toISOString().split('T')[0];
-    document.getElementById('fechaDesde').value = haceUnMes.toISOString().split('T')[0];
-    
-    // Cargar categorías
+
+    document.getElementById('fechaHasta').value = formatearFechaLocal(hoy);
+    document.getElementById('fechaDesde').value = formatearFechaLocal(haceUnMes);
+
     cargarCategorias();
 });
+
+// Función auxiliar para formatear fecha en YYYY-MM-DD en hora local
+function formatearFechaLocal(date) {
+    const anio = date.getFullYear();
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const dia = String(date.getDate()).padStart(2, '0');
+    return `${anio}-${mes}-${dia}`;
+}
+
 
 // Función para cargar categorías
 function cargarCategorias() {
@@ -394,7 +401,7 @@ function mostrarInfoCorreccionCombos() {
     infoDiv.innerHTML = `
         <div class="row">
             <div class="col-12">
-                <h6><i class="fas fa-check-circle text-success"></i> Corrección de Combos Aplicada</h6>
+                <h6><i class="fas fa-check-circle text-success"></i> Visualizacón de Combos</h6>
                 <p class="mb-0">
                     <small class="text-success">
                         <i class="fas fa-tags"></i> Las cantidades de combos han sido convertidas a la cantidad real del producto base.<br>

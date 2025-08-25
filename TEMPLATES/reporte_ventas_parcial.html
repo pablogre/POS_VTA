@@ -182,13 +182,18 @@ let parametrosBusqueda = {};
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Inicializando reporte de ventas...');
     
-    // Fecha por defecto: último mes
-    const hoy = new Date();
-    const haceUnMes = new Date();
-    haceUnMes.setMonth(haceUnMes.getMonth() - 1);
+    // Establecer fechas de hoy automáticamente
+    establecerFechasHoyVentas();
     
-    document.getElementById('fechaHasta').value = hoy.toISOString().split('T')[0];
-    document.getElementById('fechaDesde').value = haceUnMes.toISOString().split('T')[0];
+    // Si hay botón "Hoy", vincularlo a esta función
+    const botonHoy = document.getElementById('btn_hoy') || 
+                    document.querySelector('button[onclick*="establecer"]') ||
+                    document.querySelector('.btn:contains("Hoy")');
+    
+    if (botonHoy) {
+        botonHoy.addEventListener('click', establecerFechasHoyVentas);
+        console.log('✅ Botón "Hoy" vinculado');
+    }
     
     // Cargar categorías después de que el DOM esté completamente cargado
     setTimeout(() => {
@@ -197,6 +202,16 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log('✅ DOM cargado, fechas configuradas');
 });
+
+// Función auxiliar para formatear fecha en YYYY-MM-DD en hora local
+function formatearFechaLocal(date) {
+    const anio = date.getFullYear();
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const dia = String(date.getDate()).padStart(2, '0');
+    return `${anio}-${mes}-${dia}`;
+}
+
+
 
 // Función para cargar categorías - CORREGIDA
 function cargarCategorias() {
@@ -296,7 +311,7 @@ function generarReporte() {
         })
         .catch(error => {
             console.error('❌ Error:', error);
-            mostrarError('Error de conexión al generar el reporte');
+            mostrarError('No hay ventas en el período seleccionado');
         })
         .finally(() => {
             mostrarLoading(false);
@@ -425,7 +440,7 @@ function mostrarInfoCorreccionCombos() {
     infoDiv.innerHTML = `
         <div class="row">
             <div class="col-12">
-                <h6><i class="fas fa-check-circle text-success"></i> Corrección de Combos Aplicada</h6>
+                <h6><i class="fas fa-check-circle text-success"></i> Visualizacón de Combos</h6>
                 <p class="mb-0">
                     <small class="text-success">
                         <i class="fas fa-tags"></i> Las cantidades de combos han sido convertidas a la cantidad real del producto base.<br>
@@ -528,7 +543,7 @@ function mostrarError(mensaje) {
         new bootstrap.Modal(document.getElementById('modalError')).show();
     } else {
         // Fallback si Bootstrap no está disponible
-        alert('Error: ' + mensaje);
+        alert('Atencón: ' + mensaje);
     }
 }
 
@@ -693,6 +708,34 @@ function testRapido() {
     }, 500);
 }
 
+
+function establecerFechasHoyVentas() {
+    const ahora = new Date();
+    const haceUnMes = new Date();
+    haceUnMes.setMonth(haceUnMes.getMonth() - 1);
+    
+    const hoyStr = formatearFechaLocal(ahora);
+    const mesStr = formatearFechaLocal(haceUnMes);
+
+    const campoDesde = document.getElementById('fechaDesde');
+    const campoHasta = document.getElementById('fechaHasta');
+
+    if (campoDesde) {
+        campoDesde.value = mesStr;
+        console.log(`✅ Campo DESDE establecido: ${mesStr}`);
+    } else {
+        console.error('❌ No se encontró campo fechaDesde');
+    }
+
+    if (campoHasta) {
+        campoHasta.value = hoyStr;
+        console.log(`✅ Campo HASTA establecido: ${hoyStr}`);
+    } else {
+        console.error('❌ No se encontró campo fechaHasta');
+    }
+}
+
+
 // Hacer funciones disponibles globalmente para debugging
 window.debugReporte = debugReporte;
 window.limpiarVista = limpiarVista;
@@ -704,6 +747,9 @@ console.log('🔧 Funciones disponibles en consola:');
 console.log('   - debugReporte(): Mostrar info del reporte actual');
 console.log('   - limpiarVista(): Resetear la vista');
 console.log('   - testRapido(): Generar reporte del último mes');
+
+
+
 </script>
 
 <!-- CSS adicional para mejoras visuales -->

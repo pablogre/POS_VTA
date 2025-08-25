@@ -295,7 +295,12 @@
 // Función para establecer fechas de hoy para cada sección
 function establecerFechasHoy(prefijo) {
     const ahora = new Date();
-    const fechaArgentina = new Date(ahora.toLocaleString("en-US", {timeZone: "America/Argentina/Buenos_Aires"}));
+     // Método 1: Usar offset manual de Argentina (UTC-3)
+    const offsetArgentina = -3; // Argentina está UTC-3
+    const offsetLocal = ahora.getTimezoneOffset() / 60; // Offset local en horas
+    const offsetDiferencia = offsetArgentina - offsetLocal;
+    
+    const fechaArgentina = new Date(ahora.getTime() + (offsetDiferencia * 60 * 60 * 1000));
     const hoy = fechaArgentina.toISOString().split('T')[0];
     
     // Establecer fechas con verificación
@@ -306,6 +311,8 @@ function establecerFechasHoy(prefijo) {
     if (campoHasta) campoHasta.value = hoy;
     
     console.log(`✅ Fechas establecidas para ${prefijo}: ${hoy}`);
+    console.log(`🕐 Hora local: ${ahora.toLocaleString()}`);
+    console.log(`🇦🇷 Hora Argentina: ${fechaArgentina.toLocaleString()}`);
 }
 
 function establecerFechasVentasHoy() { establecerFechasHoy('ventas'); }
