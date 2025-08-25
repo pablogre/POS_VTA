@@ -127,8 +127,8 @@
                 <div class="mb-3">
                     <label for="tipo_comprobante" class="form-label">Tipo de Comprobante</label>
                     <select class="form-select" id="tipo_comprobante">
-                        <option value="11">Factura C - Consumidor Final</option>
                         <option value="06">Factura B - Monotributista</option>
+                        <option value="11">Factura C - Consumidor Final</option>
                         <option value="01">Factura A - Responsable Inscripto</option>
                     </select>
                     <small class="form-text text-muted">Se selecciona automáticamente según el cliente</small>
@@ -1126,7 +1126,10 @@ function actualizarTipoComprobante() {
     } else if (condicionIva === 'MONOTRIBUTISTA') {
         tipoComprobante.value = '06'; // Factura B
     } else {
-        tipoComprobante.value = '11'; // Factura C
+        // Para CONSUMIDOR_FINAL, mantener Factura B como predeterminado
+        // En lugar de cambiar a Factura C
+        tipoComprobante.value = '06'; // Factura B (cambio aquí)
+        //tipoComprobante.value = '11'; // Factura C
     }
 }
 
