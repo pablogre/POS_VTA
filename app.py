@@ -2660,23 +2660,52 @@ def procesar_venta():
         if not items_detalle:
             return jsonify({'success': False, 'error': 'No se recibieron items detallados para AFIP'})
         
-        # Validar que la suma de medios de pago coincida con el total
+        # VALIDACIÓN CORREGIDA PARA VUELTO EN EFECTIVO
         total_medios = sum(float(mp.get('importe', 0)) for mp in medios_pago)
         total_venta = float(data.get('total', 0))
-        
-       # *** CORREGIR: Usar tolerancia en lugar de comparación estricta ***
-        diferencia = abs(total_medios - total_venta)
+        descuento_monto = float(data.get('descuento_monto', 0))
+        descuento_porcentaje = float(data.get('descuento_porcentaje', 0))
 
-        if diferencia > 0.01:  # Tolerancia de 1 centavo
-            print(f"❌ DEBUG MEDIOS DE PAGO:")
-            print(f"   Total venta: ${total_venta:.2f}")
-            print(f"   Total medios: ${total_medios:.2f}")
-            print(f"   Diferencia: ${diferencia:.2f}")
+        print(f"🔍 DEBUG VALIDACIÓN BACKEND:")
+        print(f"   Total medios de pago: ${total_medios:.2f}")
+        print(f"   Total venta (con descuento): ${total_venta:.2f}")
+        print(f"   Descuento aplicado: ${descuento_monto:.2f}")
+
+        diferencia = total_medios - total_venta
+
+        if diferencia < -0.01:
+            # Falta dinero - ERROR
+            faltante = abs(diferencia)
+            print(f"❌ ERROR: Faltan ${faltante:.2f}")
             print(f"   Medios individuales:")
             for i, mp in enumerate(medios_pago):
                 print(f"     {i+1}. {mp.get('medio_pago', 'UNKNOWN')}: ${float(mp.get('importe', 0)):.2f}")
             
-            return jsonify({'success': False, 'error': f'El total de medios de pago difiere del total de la venta en ${diferencia:.2f}'})
+            return jsonify({
+                'success': False, 
+                'error': f'Faltan ${faltante:.2f} para completar el pago'
+            })
+        elif diferencia > 0.01:
+            # Hay exceso - verificar si es efectivo para dar vuelto
+            medios_efectivo = [mp for mp in medios_pago if mp.get('medio_pago') == 'efectivo']
+            total_efectivo = sum(float(mp.get('importe', 0)) for mp in medios_efectivo)
+            
+            # Si todo el exceso puede cubrirse con efectivo, está OK
+            if total_efectivo >= total_venta:
+                vuelto = diferencia
+                print(f"✅ Pago con vuelto: ${vuelto:.2f}")
+                # Continuar procesando - el vuelto se maneja en el frontend
+            else:
+                # Hay exceso pero no suficiente efectivo para vuelto
+                print(f"❌ ERROR: Exceso de ${diferencia:.2f} sin suficiente efectivo")
+                return jsonify({
+                    'success': False,
+                    'error': f'Exceso de ${diferencia:.2f} pero no hay suficiente efectivo para dar vuelto'
+                })
+        else:
+            print(f"✅ Pago exacto")
+
+        print(f"✅ Validación exitosa. Procediendo con la venta.")
         
         # PASO 1: Determinar el próximo número de comprobante
         tipo_comprobante_int = int(tipo_comprobante)
@@ -2709,6 +2738,7 @@ def procesar_venta():
         print(f"📝 Número temporal asignado: {numero_factura_temporal}")
         
         # PASO 3: Crear factura CON número temporal
+        total_final = float(data.get('total', total_venta))  # Usar el total que ya tiene descuento
         factura = Factura(
             numero=numero_factura_temporal,
             tipo_comprobante=str(tipo_comprobante_int),
@@ -2862,8 +2892,6 @@ def procesar_venta():
         print(f"❌ Error en procesar_venta: {str(e)}")
         db.session.rollback()
         return jsonify({'error': f'Error al procesar la venta: {str(e)}'}), 500
-
-
 
 
 # RUTAS DE IMPRESIÓN

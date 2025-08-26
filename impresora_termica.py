@@ -249,6 +249,15 @@ class ImpresoraTermica:
                     if iva_total > 0:
                         lineas.append(self.justificar_texto("IVA 21%:", f"${iva_total:,.2f}"))
                 
+                
+                # Obtener descuento desde los datos de la venta (si los tienes)
+                # Por ahora, puedes calcularlo así:
+                subtotal_mas_iva = subtotal + iva_total
+                if total < subtotal_mas_iva:
+                    descuento = subtotal_mas_iva - total
+                    if descuento > 0:
+                        lineas.append(self.justificar_texto("DESCUENTO:", f"-${descuento:.2f}"))
+                        
                 lineas.append(self.linea_separadora())
                 lineas.append(self.justificar_texto("TOTAL:", f"${total:,.2f}"))
                 

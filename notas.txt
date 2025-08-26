@@ -1,13 +1,17 @@
-cantidades con dec. 3 en venta
-cuado un art. supera x cant. >= se utiliza precio de oferta
+*** cantidades con dec. 3 en venta  *
+*** cuado un art. supera x cant. >= se utiliza precio de oferta   
+
 listas de precios familia	
 descuento x%
-en ventas efect. vuelto
-gracias por elegirnos
 
-carnave dorrego y eva Perón
-la esquina de siempre 
+*** en ventas efect. vuelto  
+*** gracias por elegirnos  
+
+***carnave dorrego y eva Perón
+***la esquina de siempre 
 
 https://claude.ai/settings/billing
-
+Tu suscripción se renovará automáticamente el 26 sept 2025.
  
+
+

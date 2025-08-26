@@ -346,6 +346,28 @@
                     </div>
                 </div>
 
+                <!-- Agregar esta sección ANTES de "Agregar Medio de Pago" -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6><i class="fas fa-percent"></i> Descuento</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Descuento (%)</label>
+                                <input type="number" class="form-control" id="descuento_porcentaje" 
+                                    placeholder="0" step="0.1" min="0" max="100"
+                                    onchange="aplicarDescuentoPorcentaje()">
+                            </div>
+                            <div class="col-md-6">
+                                <div id="info_descuento_simple" class="mt-4 text-success" style="display: none;">
+                                    <strong>Ahorro: $<span id="ahorro_descuento">0.00</span></strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Selección de medio de pago -->
                 <div class="card mb-3">
                     <div class="card-header">
@@ -1276,7 +1298,19 @@ function actualizarTablaMediosPago() {
 
 function actualizarResumenPago() {
     const totalIngresado = mediosPagoIngresados.reduce((sum, mp) => sum + mp.importe, 0);
-    const diferencia = totalIngresado - totalVenta;
+    
+    // CORRECCIÓN CRÍTICA: Usar el total que ya incluye el descuento aplicado
+    const totalAPagar = totalVenta - montoDescuento;
+    const diferencia = totalIngresado - totalAPagar;
+    
+    // DEBUG: Mostrar cálculos en consola
+    console.log('=== DEBUG RESUMEN PAGO ===');
+    console.log('Total venta original:', totalVenta);
+    console.log('Monto descuento:', montoDescuento);
+    console.log('Total a pagar (con descuento):', totalAPagar);
+    console.log('Total ingresado:', totalIngresado);
+    console.log('Diferencia real:', diferencia);
+    console.log('========================');
     
     // Actualizar displays
     document.getElementById('total_ingresado').textContent = formatearMoneda(totalIngresado);
@@ -1285,52 +1319,45 @@ function actualizarResumenPago() {
     const estadoPago = document.getElementById('estado_pago');
     const btnConfirmar = document.getElementById('btn_confirmar_pago');
     
-    // Calcular vuelto real basado en efectivo original
-    const efectivoConVuelto = mediosPagoIngresados.find(mp => 
-        mp.medio === 'efectivo' && mp.importe_original > mp.importe
-    );
-    
     if (Math.abs(diferencia) < 0.01) {
-        // Pago exacto - pero verificar si hay vuelto de efectivo
-        if (efectivoConVuelto) {
-            const vueltoReal = efectivoConVuelto.importe_original - efectivoConVuelto.importe;
-            diferenciasSpan.innerHTML = `💰 Vuelto a entregar <span class="text-danger">${formatearMoneda(vueltoReal)}</span>`;
-            diferenciasSpan.className = 'h5 diferencia-positiva';
-            estadoPago.innerHTML = '<span class="badge bg-warning">💰 Vuelto a entregar</span>';
-            mostrarSeccionVuelto(efectivoConVuelto.importe_original, vueltoReal);
-            btnConfirmar.disabled = false;
-        } else {
-            diferenciasSpan.textContent = formatearMoneda(0);
-            diferenciasSpan.className = 'h5 diferencia-cero';
-            estadoPago.innerHTML = '<span class="badge bg-success">✅ Pago completo</span>';
-            btnConfirmar.disabled = false;
-            ocultarSeccionVuelto();
-        }
+        // Pago exacto
+        diferenciasSpan.textContent = formatearMoneda(0);
+        diferenciasSpan.className = 'h5 diferencia-cero';
+        estadoPago.innerHTML = '<span class="badge bg-success">✅ Pago completo</span>';
+        btnConfirmar.disabled = false;
+        ocultarSeccionVuelto();
         
-    } else if (diferencia > 0) {
-        // Exceso
-        diferenciasSpan.textContent = `+${formatearMoneda(diferencia)}`;
-        diferenciasSpan.className = 'h5 diferencia-positiva';
-        
+    } else if (diferencia > 0.01) {
+        // Hay exceso - solo mostrar vuelto si TODO el pago es en efectivo
         const efectivoTotal = mediosPagoIngresados
             .filter(mp => mp.medio === 'efectivo')
             .reduce((sum, mp) => sum + mp.importe, 0);
-            
-        if (efectivoTotal >= totalVenta) {
+        
+        const soloEfectivo = mediosPagoIngresados.length === 1 && 
+                            mediosPagoIngresados[0].medio === 'efectivo';
+        
+        if (soloEfectivo && efectivoTotal >= totalAPagar) {
+            // Mostrar como vuelto
+            diferenciasSpan.innerHTML = `💰 Vuelto a entregar <span class="text-warning">${formatearMoneda(diferencia)}</span>`;
+            diferenciasSpan.className = 'h5 diferencia-positiva';
             estadoPago.innerHTML = '<span class="badge bg-warning">💰 Vuelto a entregar</span>';
             mostrarSeccionVuelto(efectivoTotal, diferencia);
             btnConfirmar.disabled = false;
         } else {
-            estadoPago.innerHTML = '<span class="badge bg-danger">❌ Exceso sin efectivo suficiente</span>';
+            // Exceso problemático
+            diferenciasSpan.textContent = `❌ Exceso de ${formatearMoneda(diferencia)}`;
+            diferenciasSpan.className = 'h5 diferencia-negativa';
+            estadoPago.innerHTML = '<span class="badge bg-danger">❌ Exceso en pago</span>';
             btnConfirmar.disabled = true;
             ocultarSeccionVuelto();
         }
         
     } else {
         // Falta dinero
-        diferenciasSpan.textContent = `❌ Faltan ${formatearMoneda(Math.abs(diferencia))}`;
+        const faltante = Math.abs(diferencia);
+        diferenciasSpan.textContent = `❌ Faltan ${formatearMoneda(faltante)}`;
         diferenciasSpan.className = 'h5 diferencia-negativa';
-        estadoPago.innerHTML = `<span class="badge bg-danger">❌ Faltan ${formatearMoneda(Math.abs(diferencia))}</span>`;
+        estadoPago.innerHTML = `<span class="badge bg-danger">❌ Faltan ${formatearMoneda(faltante)}</span>`;
         btnConfirmar.disabled = true;
         ocultarSeccionVuelto();
     }
@@ -1410,18 +1437,37 @@ function confirmarMediosPago() {
     }
     
     const totalIngresado = mediosPagoIngresados.reduce((sum, mp) => sum + mp.importe, 0);
-    const diferencia = Math.abs(totalIngresado - totalVenta);
+    const totalAPagar = totalVenta - montoDescuento;
+    const diferencia = totalIngresado - totalAPagar;
     
-    if (diferencia > 0.01) { // Tolerancia de 1 centavo
-        mostrarError(`El total ingresado es menor al total de la venta. Diferencia: $${diferencia.toFixed(2)}`);
+    console.log('=== DEBUG CONFIRMACIÓN ===');
+    console.log('Total a pagar:', totalAPagar);
+    console.log('Total ingresado:', totalIngresado);
+    console.log('Diferencia:', diferencia);
+    console.log('=========================');
+    
+    // Si falta dinero, no permitir
+    if (diferencia < -0.01) {
+        const faltante = Math.abs(diferencia);
+        mostrarError(`Faltan $${faltante.toFixed(2)} para completar el pago`);
         return;
     }
     
-    // Cerrar modal de medios de pago
+    // Si hay exceso pero no es efectivo, no permitir
+    if (diferencia > 0.01) {
+        const soloEfectivo = mediosPagoIngresados.length === 1 && 
+                            mediosPagoIngresados[0].medio === 'efectivo';
+        
+        if (!soloEfectivo) {
+            mostrarError(`Hay un exceso de $${diferencia.toFixed(2)} y no es posible dar vuelto`);
+            return;
+        }
+    }
+    
+    // Todo OK - procesar
     const modal = bootstrap.Modal.getInstance(document.getElementById('modalMediosPago'));
     modal.hide();
     
-    // Procesar venta
     procesarVentaConMediosPago();
 }
 
@@ -1789,7 +1835,10 @@ function procesarVentaConMediosPago() {
     
     const subtotal = itemsVenta.reduce((sum, item) => sum + item.subtotal, 0);
     const iva = calcularIVAAFIP();
-    const total = subtotal + iva;
+    let totalOriginal = subtotal + iva;
+    
+    // APLICAR DESCUENTO AL TOTAL FINAL
+    let totalFinal = totalOriginal - montoDescuento;
     
     const imprimirAuto = document.getElementById('imprimir_automatico');
     
@@ -1801,7 +1850,7 @@ function procesarVentaConMediosPago() {
         subtotal: item.subtotal
     }));
     
-    // *** CRÍTICO: Items detallados CON IVA INDIVIDUAL ***
+    // Items detallados CON IVA INDIVIDUAL
     const itemsDetallados = itemsVenta.map(item => ({
         producto_id: item.producto_id,
         codigo: item.codigo,
@@ -1809,7 +1858,7 @@ function procesarVentaConMediosPago() {
         cantidad: item.cantidad,
         precio_unitario: item.precio_unitario,
         subtotal: item.subtotal,
-        iva_porcentaje: item.iva,  // ← ESTO es lo que faltaba
+        iva_porcentaje: item.iva,
         iva_importe: Math.round((item.subtotal * item.iva / 100) * 100) / 100
     }));
     
@@ -1817,10 +1866,12 @@ function procesarVentaConMediosPago() {
         cliente_id: parseInt(clienteId),
         tipo_comprobante: tipoComprobante,
         items: itemsParaBD,
-        items_detalle: itemsDetallados,  // ← ENVIAR DATOS CON IVA
+        items_detalle: itemsDetallados,
         subtotal: subtotal,
         iva: iva,
-        total: total,
+        descuento_porcentaje: descuentoPorcentaje,
+        descuento_monto: montoDescuento,
+        total: totalFinal, // ← CLAVE: Enviar total CON descuento
         medios_pago: mediosPagoIngresados.map(mp => ({
             medio_pago: mp.medio,
             importe: mp.importe
@@ -1828,7 +1879,11 @@ function procesarVentaConMediosPago() {
         imprimir_automatico: imprimirAuto ? imprimirAuto.checked : true
     };
     
-    console.log('📤 Enviando datos a servidor:', ventaData);
+    console.log('📤 DEBUG Enviando datos a servidor:');
+    console.log('Total original:', totalOriginal);
+    console.log('Descuento:', montoDescuento);
+    console.log('Total final enviado:', totalFinal);
+    console.log('Total medios:', mediosPagoIngresados.reduce((sum, mp) => sum + mp.importe, 0));
     
     // Deshabilitar botón y mostrar loading
     const btnProcesar = document.getElementById('btn_procesar');
@@ -1860,6 +1915,7 @@ function procesarVentaConMediosPago() {
         mostrarError('Error al procesar la venta');
     });
 }
+
 
 function mostrarResultadoVenta(resultado) {
     const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
@@ -1923,20 +1979,56 @@ function mostrarMensajeExito(mensaje) {
 
 // Nueva función para limpiar sin confirmación
 function limpiarVentaSinConfirmacion() {
+    // Limpiar todo
     itemsVenta = [];
     contadorItems = 0;
     productoSeleccionado = null;
     mediosPagoIngresados = [];
+    
+    // AGREGAR: Reset de descuentos
+    descuentoPorcentaje = 0;
+    montoDescuento = 0;
+    
     actualizarTablaVenta();
     calcularTotales();
+    
+    // Limpiar campos de descuento
+    const descuentoInput = document.getElementById('descuento_porcentaje');
+    const infoDescuento = document.getElementById('info_descuento_simple');
+    if (descuentoInput) {
+        descuentoInput.value = '';
+    }
+    if (infoDescuento) {
+        infoDescuento.style.display = 'none';
+    }
+    
+    // Reset formulario
     document.getElementById('cliente_select').value = '1';
     document.getElementById('tipo_comprobante').value = '11';
     document.getElementById('buscar_producto').value = '';
-    //document.getElementById('cantidad').value = '1';
     ocultarSugerencias();
     actualizarTipoComprobante();
     document.getElementById('buscar_producto').focus();
 }
+
+
+function resetearDescuentos() {
+    descuentoPorcentaje = 0;
+    montoDescuento = 0;
+    
+    // Limpiar campos del formulario
+    const descuentoInput = document.getElementById('descuento_porcentaje');
+    const infoDescuento = document.getElementById('info_descuento_simple');
+    
+    if (descuentoInput) {
+        descuentoInput.value = '';
+    }
+    
+    if (infoDescuento) {
+        infoDescuento.style.display = 'none';
+    }
+}
+
 
 function limpiarVenta() {
     if (itemsVenta.length > 0) {
@@ -1945,18 +2037,38 @@ function limpiarVenta() {
         }
     }
     
+    // Limpiar todo
     itemsVenta = [];
     contadorItems = 0;
     productoSeleccionado = null;
+    mediosPagoIngresados = [];
+    
+    // AGREGAR: Reset de descuentos
+    descuentoPorcentaje = 0;
+    montoDescuento = 0;
+    
     actualizarTablaVenta();
     calcularTotales();
+    
+    // Limpiar campos de descuento
+    const descuentoInput = document.getElementById('descuento_porcentaje');
+    const infoDescuento = document.getElementById('info_descuento_simple');
+    if (descuentoInput) {
+        descuentoInput.value = '';
+    }
+    if (infoDescuento) {
+        infoDescuento.style.display = 'none';
+    }
+    
+    // Reset formulario
     document.getElementById('cliente_select').value = '1';
     document.getElementById('tipo_comprobante').value = '11';
     document.getElementById('buscar_producto').value = '';
-    //document.getElementById('cantidad').value = '1';
     ocultarSugerencias();
+    actualizarTipoComprobante();
     document.getElementById('buscar_producto').focus();
 }
+
 
 // Event listeners y inicialización
 document.addEventListener('DOMContentLoaded', function() {
@@ -2017,6 +2129,40 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log('✅ Sistema de ofertas por volumen inicializado');
 });
+
+///////////////////// FUNCIONES DE DESCUENTO //////////////////////////////
+// Variables para descuento simple
+let descuentoPorcentaje = 0;
+let montoDescuento = 0;
+
+function aplicarDescuentoPorcentaje() {
+    const porcentaje = parseFloat(document.getElementById('descuento_porcentaje').value) || 0;
+    
+    if (porcentaje < 0 || porcentaje > 100) {
+        document.getElementById('descuento_porcentaje').value = 0;
+        porcentaje = 0;
+    }
+    
+    descuentoPorcentaje = porcentaje;
+    montoDescuento = (totalVenta * porcentaje) / 100;
+    
+    // Mostrar ahorro
+    if (porcentaje > 0) {
+        document.getElementById('ahorro_descuento').textContent = montoDescuento.toFixed(2);
+        document.getElementById('info_descuento_simple').style.display = 'block';
+    } else {
+        document.getElementById('info_descuento_simple').style.display = 'none';
+        montoDescuento = 0;
+    }
+    
+    // Actualizar total a pagar
+    const totalConDescuento = totalVenta - montoDescuento;
+    document.getElementById('total_a_pagar').textContent = formatearMoneda(totalConDescuento);
+    
+    // Recalcular estado de pago
+    actualizarResumenPago();
+}
+
 
 </script>
 {% endblock %}
