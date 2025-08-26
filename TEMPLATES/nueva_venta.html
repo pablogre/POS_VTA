@@ -39,10 +39,10 @@
                             <i class="fas fa-lightbulb"></i> Busca por código completo o parte del nombre
                         </small>
                     </div>
-                    <div class="col-md-3">
+                    <!-- <div class="col-md-3">
                         <label for="cantidad" class="form-label">Cantidad</label>
-                        <input type="number" class="form-control" id="cantidad" value="1" min="1">
-                    </div>
+                        <input type="number" class="form-control" id="cantidad" value="1.000" min="0.001" step="0.001>
+                    </div> -->
                     <div class="col-md-3">
                         <label class="form-label">&nbsp;</label>
                         <button type="button" class="btn btn-success w-100" onclick="agregarProducto()">
@@ -436,7 +436,7 @@
                             <strong>Efectivo recibido:</strong> $<span id="efectivo_recibido">0.00</span>
                         </div>
                         <div class="col-6">
-                            <strong>Vuelto:</strong> <span class="h5 text-warning">$<span id="vuelto_cantidad">0.00</span></span>
+                            <strong>Vuelto:</strong> <span class="h5 text-danger">$<span id="vuelto_cantidad">0.00</span></span>
                         </div>
                     </div>
                 </div>
@@ -576,6 +576,10 @@ function ocultarSugerencias() {
     document.getElementById('sugerencias').style.display = 'none';
 }
 
+// Variables globales adicionales para ofertas
+let productosConOfertas = {}; // Cache de productos con sus ofertas
+
+// Función mejorada para seleccionar producto con ofertas
 function seleccionarProductoSugerencia(productoId) {
     fetch(`/api/producto_por_id/${productoId}`)
         .then(response => response.json())
@@ -585,13 +589,152 @@ function seleccionarProductoSugerencia(productoId) {
                 return;
             }
             
-            productoSeleccionado = producto;
-            document.getElementById('buscar_producto').value = producto.codigo;
-            ocultarSugerencias();
+            // Cargar ofertas del producto si las tiene
+            if (producto.tiene_ofertas) {
+                cargarOfertasProducto(producto.id).then(() => {
+                    productoSeleccionado = producto;
+                    document.getElementById('buscar_producto').value = producto.codigo;
+                    ocultarSugerencias();
+                    
+                    const cantidad = parseFloat("1.000");
+                    if (cantidad > 0) {
+                        agregarProductoSeleccionado(producto, cantidad);
+                    }
+                });
+            } else {
+                productoSeleccionado = producto;
+                document.getElementById('buscar_producto').value = producto.codigo;
+                ocultarSugerencias();
+                
+                const cantidad = parseFloat("1.000");
+                if (cantidad > 0) {
+                    agregarProductoSeleccionado(producto, cantidad);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarError('Error al cargar el producto');
+        });
+}
+
+
+// Nueva función para cargar ofertas de un producto
+function cargarOfertasProducto(productoId) {
+    return fetch(`/api/ofertas_producto/${productoId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.ofertas.length > 0) {
+                productosConOfertas[productoId] = {
+                    producto: data.producto,
+                    ofertas: data.ofertas
+                };
+                console.log(`✅ Cargadas ${data.ofertas.length} ofertas para producto ${productoId}`);
+            } else {
+                productosConOfertas[productoId] = {
+                    producto: data.producto || {},
+                    ofertas: []
+                };
+            }
+        })
+        .catch(error => {
+            console.error('Error cargando ofertas:', error);
+            productosConOfertas[productoId] = {
+                producto: {},
+                ofertas: []
+            };
+        });
+}
+
+// Función mejorada para obtener precio con ofertas
+function obtenerPrecioConOferta(productoId, cantidad) {
+    const datosProducto = productosConOfertas[productoId];
+    
+    if (!datosProducto || !datosProducto.ofertas || datosProducto.ofertas.length === 0) {
+        // Fallback a API si no hay ofertas en cache
+        fetch(`/api/producto_precio_oferta/${productoId}/${cantidad}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.precio_final !== data.precio_base) {
+                    const item = itemsVenta.find(i => i.producto_id === productoId);
+                    if (item) {
+                        item.precio_unitario = data.precio_final;
+                        item.subtotal = item.cantidad * item.precio_unitario;
+                        actualizarTablaVenta();
+                        calcularTotales();
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error consultando ofertas:', error);
+            });
+        
+        const item = itemsVenta.find(i => i.producto_id === productoId);
+        return item ? (item.precio_base || item.precio_unitario) : 0;
+    }
+    
+    const precioBase = datosProducto.producto.precio_base || datosProducto.producto.precio;
+    let mejorPrecio = precioBase;
+    
+    // Buscar la mejor oferta aplicable (ordenada por cantidad mínima descendente)
+    const ofertasAplicables = datosProducto.ofertas
+        .filter(oferta => oferta.activo && cantidad >= oferta.cantidad_minima)
+        .sort((a, b) => b.cantidad_minima - a.cantidad_minima);
+    
+    if (ofertasAplicables.length > 0) {
+        mejorPrecio = ofertasAplicables[0].precio_oferta;
+    }
+    
+    return mejorPrecio;
+}
+
+function forzarCargaOfertas(productoId) {
+    console.log(`🔄 Forzando carga de ofertas para producto ${productoId}...`);
+    
+    return fetch(`/api/ofertas_producto/${productoId}`)
+        .then(response => response.json())
+        .then(data => {
+            console.log('Respuesta API ofertas:', data);
             
-            // Auto-agregar si hay cantidad válida
-            const cantidad = parseInt(document.getElementById('cantidad').value) || 1;
-            if (cantidad > 0) {
+            if (data.success && data.ofertas.length > 0) {
+                productosConOfertas[productoId] = {
+                    producto: data.producto,
+                    ofertas: data.ofertas
+                };
+                console.log(`✅ Cargadas ${data.ofertas.length} ofertas para producto ${productoId}`);
+                console.log('Ofertas:', data.ofertas);
+                return true;
+            } else {
+                console.log('❌ No hay ofertas para este producto');
+                return false;
+            }
+        })
+        .catch(error => {
+            console.error('Error cargando ofertas:', error);
+            return false;
+        });
+}
+
+
+function seleccionarProductoPorId(productoId) {
+    fetch(`/api/producto_por_id/${productoId}`)
+        .then(response => response.json())
+        .then(producto => {
+            if (producto.error) {
+                mostrarError('Error al cargar el producto');
+                return;
+            }
+            
+            // Cargar ofertas si las tiene
+            if (producto.tiene_ofertas) {
+                cargarOfertasProducto(producto.id).then(() => {
+                    productoSeleccionado = producto;
+                    const cantidad = parseFloat("1.000");
+                    agregarProductoSeleccionado(producto, cantidad);
+                });
+            } else {
+                productoSeleccionado = producto;
+                const cantidad = parseFloat("1.000");
                 agregarProductoSeleccionado(producto, cantidad);
             }
         })
@@ -601,34 +744,63 @@ function seleccionarProductoSugerencia(productoId) {
         });
 }
 
-function seleccionarProductoPorId(productoId) {
-    seleccionarProductoSugerencia(productoId);
-}
-
+// Función mejorada para agregar producto con ofertas
 function agregarProductoSeleccionado(producto, cantidad) {
     if (producto.stock < cantidad) {
         mostrarError(`Stock insuficiente. Disponible: ${producto.stock}`);
         return;
     }
     
+    // *** NUEVO: SIEMPRE CARGAR OFERTAS SI EL PRODUCTO LAS TIENE ***
+    if (producto.tiene_ofertas && !productosConOfertas[producto.id]) {
+        console.log(`🔄 Cargando ofertas para producto ${producto.codigo}...`);
+        cargarOfertasProducto(producto.id).then(() => {
+            // Procesar después de cargar ofertas
+            procesarAgregarProducto(producto, cantidad);
+        });
+        return;
+    }
+    
+    // Si ya tiene ofertas cargadas o no tiene ofertas, procesar directamente
+    procesarAgregarProducto(producto, cantidad);
+}
+
+// *** NUEVA FUNCIÓN: Procesar agregar producto (separada para reutilizar) ***
+function procesarAgregarProducto(producto, cantidad) {
     // Verificar si el producto ya está en la venta
     const existente = itemsVenta.find(item => item.producto_id === producto.id);
     if (existente) {
+        // Actualizar cantidad
         existente.cantidad += cantidad;
+        
+        // Recalcular precio con ofertas
+        const nuevoPrecio = obtenerPrecioConOferta(producto.id, existente.cantidad);
+        existente.precio_unitario = nuevoPrecio;
         existente.subtotal = existente.cantidad * existente.precio_unitario;
+        
+        console.log(`📦 Cantidad actualizada: ${existente.cantidad} x ${producto.codigo} = $${nuevoPrecio}`);
         mostrarMensajeExito(`Cantidad aumentada: ${existente.cantidad} unidades de ${producto.nombre}`);
     } else {
+        // Obtener precio con ofertas desde el inicio
+        const precioFinal = obtenerPrecioConOferta(producto.id, cantidad);
+        
         const item = {
             id: contadorItems++,
             producto_id: producto.id,
             codigo: producto.codigo,
             nombre: producto.nombre,
-            cantidad: cantidad,
-            precio_unitario: producto.precio,
-            subtotal: cantidad * producto.precio,
+            cantidad: parseFloat(cantidad.toFixed(3)),
+            precio_unitario: precioFinal,
+            precio_base: producto.precio, // Guardar precio base para referencia
+            subtotal: parseFloat(cantidad.toFixed(3)) * precioFinal,
             iva: producto.iva
         };
         itemsVenta.push(item);
+
+        // Forzar cálculo inicial
+        actualizarCantidad(item.id, item.cantidad.toString());
+
+        console.log(`✅ Producto agregado: ${cantidad} x ${producto.codigo} = $${precioFinal} (base: $${producto.precio})`);
         mostrarMensajeExito(`Producto agregado: ${cantidad} x ${producto.nombre}`);
     }
     
@@ -637,14 +809,32 @@ function agregarProductoSeleccionado(producto, cantidad) {
     
     // Limpiar y preparar para siguiente producto
     document.getElementById('buscar_producto').value = '';
-    document.getElementById('cantidad').value = '1';
     document.getElementById('buscar_producto').focus();
     productoSeleccionado = null;
 }
 
+// NUEVA función auxiliar que decide el precio
+function obtenerPrecioFinal(producto, cantidad) {
+    // Si no hay ofertas disponibles, devolver precio normal
+    if (!producto.ofertas_disponibles || producto.ofertas_disponibles.length === 0) {
+        return producto.precio;
+    }
+    
+    // Buscar la mejor oferta aplicable
+    let mejor_precio = producto.precio;
+    
+    for (let oferta of producto.ofertas_disponibles) {
+        if (cantidad >= oferta.cantidad_minima && oferta.precio_oferta < mejor_precio) {
+            mejor_precio = oferta.precio_oferta;
+        }
+    }
+    
+    return mejor_precio;
+}
+
 function agregarProducto() {
     const codigo = document.getElementById('buscar_producto').value.trim();
-    const cantidad = parseInt(document.getElementById('cantidad').value) || 1;
+    const cantidad = parseFloat("1.000");
     
     if (!codigo) {
         mostrarError('Ingrese un código de producto o seleccione de las sugerencias');
@@ -667,8 +857,15 @@ function agregarProducto() {
                     .then(response => response.json())
                     .then(productos => {
                         if (productos.length === 1) {
-                            // Si solo hay una sugerencia, usar esa
-                            agregarProductoSeleccionado(productos[0], cantidad);
+                            // Si solo hay una sugerencia, cargar ofertas y usar
+                            const prod = productos[0];
+                            if (prod.tiene_ofertas) {
+                                cargarOfertasProducto(prod.id).then(() => {
+                                    agregarProductoSeleccionado(prod, cantidad);
+                                });
+                            } else {
+                                agregarProductoSeleccionado(prod, cantidad);
+                            }
                         } else if (productos.length > 1) {
                             mostrarError(`Se encontraron ${productos.length} productos. Seleccione uno de las sugerencias.`);
                             mostrarSugerencias(productos);
@@ -679,7 +876,14 @@ function agregarProducto() {
                 return;
             }
             
-            agregarProductoSeleccionado(producto, cantidad);
+            // Producto encontrado - cargar ofertas si las tiene
+            if (producto.tiene_ofertas) {
+                cargarOfertasProducto(producto.id).then(() => {
+                    agregarProductoSeleccionado(producto, cantidad);
+                });
+            } else {
+                agregarProductoSeleccionado(producto, cantidad);
+            }
         })
         .catch(error => {
             console.error('Error:', error);
@@ -687,6 +891,8 @@ function agregarProducto() {
         });
 }
 
+// Función mejorada para actualizar tabla con indicadores de oferta
+// Función mejorada para actualizar tabla con indicadores de oferta
 function actualizarTablaVenta() {
     const tbody = document.getElementById('items_venta');
     const mensajeVacio = document.getElementById('mensaje_vacio');
@@ -699,47 +905,165 @@ function actualizarTablaVenta() {
     
     mensajeVacio.style.display = 'none';
     
-    tbody.innerHTML = itemsVenta.map(item => `
+    tbody.innerHTML = itemsVenta.map(item => {
+        // Asegurar que el subtotal esté calculado
+        item.subtotal = item.cantidad * item.precio_unitario;
+        
+        // Verificar si tiene oferta activa
+        const datosProducto = productosConOfertas[item.producto_id];
+        let indicadorOferta = '';
+        let clasePrecio = '';
+        
+        if (datosProducto && datosProducto.ofertas.length > 0) {
+            const precioBase = item.precio_base || datosProducto.producto.precio_base || datosProducto.producto.precio;
+            
+            if (item.precio_unitario < precioBase) {
+                const descuento = ((precioBase - item.precio_unitario) / precioBase) * 100;
+                indicadorOferta = `<br><small class="text-success">🏷️ Oferta activa (-${descuento.toFixed(1)}%)</small>`;
+                clasePrecio = 'text-success fw-bold';
+            }
+        }
+        
+        return `
         <tr>
             <td><code>${item.codigo}</code></td>
-            <td>${item.nombre}</td>
             <td>
-                <div class="input-group input-group-sm" style="width: 120px;">
-                    <button class="btn btn-outline-secondary" type="button" onclick="cambiarCantidad(${item.id}, -1)">-</button>
-                    <input type="number" class="form-control text-center" value="${item.cantidad}" 
-                           min="1" onchange="actualizarCantidad(${item.id}, this.value)">
-                    <button class="btn btn-outline-secondary" type="button" onclick="cambiarCantidad(${item.id}, 1)">+</button>
-                </div>
+                ${item.nombre}
+                ${indicadorOferta}
             </td>
-            <td class="text-end">${item.precio_unitario.toFixed(2)}</td>
-            <td class="text-end"><strong>${item.subtotal.toFixed(2)}</strong></td>
             <td>
-                <button type="button" class="btn btn-danger btn-sm" onclick="eliminarItem(${item.id})" title="Eliminar">
+                <input type="number" class="form-control" value="${item.cantidad.toFixed(3)}"
+                       min="0.001" step="0.001"
+                       onblur="actualizarCantidad(${item.id}, this.value)"
+                       style="width: 100px;">
+            </td>
+            <td class="text-end ${clasePrecio}">$${item.precio_unitario.toFixed(2)}</td>
+            <td class="text-end"><strong>$${item.subtotal.toFixed(2)}</strong></td>
+            <td>
+                <button type="button" class="btn btn-danger btn-sm" onclick="eliminarItem(${item.id})">
                     <i class="fas fa-trash"></i>
                 </button>
             </td>
         </tr>
-    `).join('');
+        `;
+    }).join('');
 }
 
-function cambiarCantidad(itemId, cambio) {
+function actualizarCantidad(itemId, nuevaCantidadStr) {
     const item = itemsVenta.find(i => i.id === itemId);
-    if (item) {
-        item.cantidad = Math.max(1, item.cantidad + cambio);
+    if (!item) return;
+    
+    // Convertir a número y asegurar mínimo 0.001
+    let nuevaCantidad = parseFloat(nuevaCantidadStr);
+    
+    // Si no es un número válido o es 0, usar 0.001
+    if (isNaN(nuevaCantidad) || nuevaCantidad <= 0) {
+        nuevaCantidad = 0.001;
+    }
+    
+    // Redondear a 3 decimales para evitar problemas de precisión
+    nuevaCantidad = Math.round(nuevaCantidad * 1000) / 1000;
+    
+    // Si no hay ofertas cargadas, cargarlas primero
+    if (!productosConOfertas[item.producto_id]) {
+        cargarOfertasProducto(item.producto_id).then(() => {
+            const nuevoPrecio = obtenerPrecioConOferta(item.producto_id, nuevaCantidad);
+            item.cantidad = nuevaCantidad;
+            item.precio_unitario = nuevoPrecio;
+            item.subtotal = item.cantidad * item.precio_unitario;
+            actualizarTablaVenta();
+            calcularTotales();
+        });
+    } else {
+        const nuevoPrecio = obtenerPrecioConOferta(item.producto_id, nuevaCantidad);
+        item.cantidad = nuevaCantidad;
+        item.precio_unitario = nuevoPrecio;
         item.subtotal = item.cantidad * item.precio_unitario;
         actualizarTablaVenta();
         calcularTotales();
     }
 }
 
-function actualizarCantidad(itemId, nuevaCantidad) {
+
+// Agregar esta función después de actualizarCantidad()
+function cambiarCantidad(itemId, incremento) {
     const item = itemsVenta.find(i => i.id === itemId);
-    if (item) {
-        item.cantidad = Math.max(1, parseInt(nuevaCantidad) || 1);
-        item.subtotal = item.cantidad * item.precio_unitario;
-        actualizarTablaVenta();
-        calcularTotales();
+    if (!item) return;
+    
+    // Mantener 3 decimales y usar incrementos más pequeños
+    const nuevaCantidad = Math.max(0.001, parseFloat((item.cantidad + incremento).toFixed(3)));
+    actualizarCantidad(itemId, nuevaCantidad);
+}
+
+
+// Función para cargar ofertas de productos de acceso rápido al iniciar
+function cargarTodasLasOfertas() {
+    console.log('Cargando todas las ofertas por volumen...');
+    
+    fetch('/api/productos_con_ofertas_volumen')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Cargar todas las ofertas en el cache
+                Object.keys(data.productos_ofertas).forEach(productoId => {
+                    productosConOfertas[productoId] = data.productos_ofertas[productoId];
+                });
+                
+                console.log(`Cargadas ofertas para ${data.total_productos} productos`);
+            } else {
+                console.error('Error cargando ofertas:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error en carga masiva de ofertas:', error);
+        });
+}
+
+// Cache con timestamp para invalidación
+const CACHE_DURACION = 5 * 60 * 1000; // 5 minutos
+let cacheOfertas = {
+    datos: {},
+    timestamp: null
+};
+
+function isCacheValido() {
+    if (!cacheOfertas.timestamp) return false;
+    return (Date.now() - cacheOfertas.timestamp) < CACHE_DURACION;
+}
+
+function obtenerOfertasConCache(productoId) {
+    // Si el cache general está vencido, invalidar todo
+    if (!isCacheValido()) {
+        productosConOfertas = {};
+        cacheOfertas = { datos: {}, timestamp: null };
     }
+    
+    // Si el producto específico no está en cache, cargarlo
+    if (!productosConOfertas[productoId]) {
+        return cargarOfertasProducto(productoId);
+    }
+    
+    return Promise.resolve();
+}
+
+function inicializarCacheOfertas() {
+    console.log('Inicializando sistema de ofertas...');
+    // Solo cargar ofertas si es necesario
+    if (typeof cargarTodasLasOfertas === 'function') {
+        cargarTodasLasOfertas();
+    }
+}
+
+// NUEVA función para encontrar producto por ID en los resultados de búsqueda
+function buscarProductoPorId(productoId) {
+    // Si tenemos el producto seleccionado y coincide el ID
+    if (productoSeleccionado && productoSeleccionado.id === productoId) {
+        return productoSeleccionado;
+    }
+    
+    // Si no, devolver un producto básico sin ofertas
+    // Esto permite que funcione aunque no tengamos el producto completo
+    return null;
 }
 
 function eliminarItem(itemId) {
@@ -850,7 +1174,7 @@ function agregarMedioPago() {
     const importeInput = document.getElementById('importe_pago');
     
     const medio = medioSelect.value;
-    const importe = parseFloat(importeInput.value) || 0;
+    const importeOriginal = parseFloat(importeInput.value) || 0;
     
     // Validaciones
     if (!medio) {
@@ -859,26 +1183,38 @@ function agregarMedioPago() {
         return;
     }
     
-    if (importe <= 0) {
+    if (importeOriginal <= 0) {
         mostrarError('El importe debe ser mayor a cero');
         importeInput.focus();
         return;
     }
     
-    // Verificar que no exceda el total
+    // Calcular cuánto falta pagar
     const totalIngresado = mediosPagoIngresados.reduce((sum, mp) => sum + mp.importe, 0);
-    if (totalIngresado + importe > totalVenta * 1.5) { // Permitir hasta 50% más para efectivo con vuelto
+    const faltante = totalVenta - totalIngresado;
+    
+    let importeAUsar = importeOriginal;
+    
+    // Solo para efectivo: si el importe es mayor al faltante, usar solo el faltante
+    if (medio === 'efectivo' && importeOriginal > faltante && faltante > 0) {
+        importeAUsar = faltante;
+        importeInput.value = importeAUsar.toFixed(2);
+    }
+    
+    // Verificar que no exceda el total (para otros medios de pago)
+    if (medio !== 'efectivo' && totalIngresado + importeOriginal > totalVenta * 1.5) {
         mostrarError('El importe excede significativamente el total de la venta');
         return;
     }
     
-    // Agregar medio de pago
+    // Agregar medio de pago (guardando AMBOS importes si es efectivo con vuelto)
     const medioPago = {
         id: contadorMediosPago++,
         medio: medio,
         medio_nombre: getMedioNombre(medio),
         medio_icono: getMedioIcono(medio),
-        importe: importe
+        importe: importeAUsar,
+        importe_original: medio === 'efectivo' ? importeOriginal : importeAUsar
     };
     
     mediosPagoIngresados.push(medioPago);
@@ -892,8 +1228,13 @@ function agregarMedioPago() {
     importeInput.value = '';
     medioSelect.focus();
     
-    // Mostrar mensaje de éxito
-    mostrarMensajeExito(`Agregado: ${medioPago.medio_nombre} ${importe.toFixed(2)}`);
+    // Mostrar mensaje
+    const vuelto = importeOriginal - importeAUsar;
+    if (vuelto > 0) {
+        mostrarMensajeExito(`Efectivo agregado: ${formatearMoneda(importeAUsar)}. Vuelto: ${formatearMoneda(vuelto)}`);
+    } else {
+        mostrarMensajeExito(`Agregado: ${medioPago.medio_nombre} ${formatearMoneda(importeAUsar)}`);
+    }
 }
 
 function eliminarMedioPago(id) {
@@ -944,21 +1285,33 @@ function actualizarResumenPago() {
     const estadoPago = document.getElementById('estado_pago');
     const btnConfirmar = document.getElementById('btn_confirmar_pago');
     
-    // Manejar diferencia
+    // Calcular vuelto real basado en efectivo original
+    const efectivoConVuelto = mediosPagoIngresados.find(mp => 
+        mp.medio === 'efectivo' && mp.importe_original > mp.importe
+    );
+    
     if (Math.abs(diferencia) < 0.01) {
-        // Pago exacto
-        diferenciasSpan.textContent = formatearMoneda(0);
-        diferenciasSpan.className = 'h5 diferencia-cero';
-        estadoPago.innerHTML = '<span class="badge bg-success">✅ Pago completo</span>';
-        btnConfirmar.disabled = false;
-        ocultarSeccionVuelto();
+        // Pago exacto - pero verificar si hay vuelto de efectivo
+        if (efectivoConVuelto) {
+            const vueltoReal = efectivoConVuelto.importe_original - efectivoConVuelto.importe;
+            diferenciasSpan.innerHTML = `💰 Vuelto a entregar <span class="text-danger">${formatearMoneda(vueltoReal)}</span>`;
+            diferenciasSpan.className = 'h5 diferencia-positiva';
+            estadoPago.innerHTML = '<span class="badge bg-warning">💰 Vuelto a entregar</span>';
+            mostrarSeccionVuelto(efectivoConVuelto.importe_original, vueltoReal);
+            btnConfirmar.disabled = false;
+        } else {
+            diferenciasSpan.textContent = formatearMoneda(0);
+            diferenciasSpan.className = 'h5 diferencia-cero';
+            estadoPago.innerHTML = '<span class="badge bg-success">✅ Pago completo</span>';
+            btnConfirmar.disabled = false;
+            ocultarSeccionVuelto();
+        }
         
     } else if (diferencia > 0) {
-        // Exceso (vuelto)
+        // Exceso
         diferenciasSpan.textContent = `+${formatearMoneda(diferencia)}`;
         diferenciasSpan.className = 'h5 diferencia-positiva';
         
-        // Verificar si hay efectivo para dar vuelto
         const efectivoTotal = mediosPagoIngresados
             .filter(mp => mp.medio === 'efectivo')
             .reduce((sum, mp) => sum + mp.importe, 0);
@@ -975,7 +1328,7 @@ function actualizarResumenPago() {
         
     } else {
         // Falta dinero
-        diferenciasSpan.textContent = formatearMoneda(diferencia);
+        diferenciasSpan.textContent = `❌ Faltan ${formatearMoneda(Math.abs(diferencia))}`;
         diferenciasSpan.className = 'h5 diferencia-negativa';
         estadoPago.innerHTML = `<span class="badge bg-danger">❌ Faltan ${formatearMoneda(Math.abs(diferencia))}</span>`;
         btnConfirmar.disabled = true;
@@ -1557,18 +1910,7 @@ function mostrarResultadoVenta(resultado) {
     modal.show();
 }
 
-/* function mostrarResultadoVenta(resultado) {
-    console.log('🎉 Resultado de venta:', resultado);
-    alert(`✅ ¡Venta procesada exitosamente!\n\nFactura: ${resultado.numero}\nEstado: ${resultado.estado}${resultado.cae ? '\nCAE: ' + resultado.cae : ''}`);
-    
-    // Limpiar venta
-    itemsVenta = [];
-    contadorItems = 0;
-    mediosPagoIngresados = [];
-    actualizarTablaVenta();
-    calcularTotales();
-}
- */
+
 function mostrarError(mensaje) {
     console.error('❌ Error:', mensaje);
     alert('❌ Error: ' + mensaje);
@@ -1590,7 +1932,7 @@ function limpiarVentaSinConfirmacion() {
     document.getElementById('cliente_select').value = '1';
     document.getElementById('tipo_comprobante').value = '11';
     document.getElementById('buscar_producto').value = '';
-    document.getElementById('cantidad').value = '1';
+    //document.getElementById('cantidad').value = '1';
     ocultarSugerencias();
     actualizarTipoComprobante();
     document.getElementById('buscar_producto').focus();
@@ -1611,7 +1953,7 @@ function limpiarVenta() {
     document.getElementById('cliente_select').value = '1';
     document.getElementById('tipo_comprobante').value = '11';
     document.getElementById('buscar_producto').value = '';
-    document.getElementById('cantidad').value = '1';
+    //document.getElementById('cantidad').value = '1';
     ocultarSugerencias();
     document.getElementById('buscar_producto').focus();
 }
@@ -1649,6 +1991,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+
     // Ocultar sugerencias al hacer clic fuera
     document.addEventListener('click', function(e) {
         if (!e.target.closest('#buscar_producto') && !e.target.closest('#sugerencias')) {
@@ -1657,13 +2000,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Eventos para cantidad
-    const inputCantidad = document.getElementById('cantidad');
-    inputCantidad.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            agregarProducto();
-        }
-    });
+    //const inputCantidad = document.getElementById('cantidad');
+    const inputCantidad = 1.00;
     
     // Inicializar
     actualizarTablaVenta();
@@ -1673,7 +2011,13 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('buscar_producto').focus();
     
     console.log('✅ Sistema POS cargado correctamente');
+
+    // Cargar ofertas al iniciar
+    inicializarCacheOfertas();
+    
+    console.log('✅ Sistema de ofertas por volumen inicializado');
 });
+
 </script>
 {% endblock %}
 

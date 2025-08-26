@@ -193,7 +193,7 @@ class Producto(db.Model):
     nombre = db.Column(db.String(200), nullable=False)
     descripcion = db.Column(db.Text)
     precio = db.Column(Numeric(10, 2), nullable=False)
-    stock = db.Column(db.Integer, default=0)
+    stock = db.Column(Numeric(10, 3), nullable=False, default=0.000)
     categoria = db.Column(db.String(100))
     iva = db.Column(Numeric(5, 2), default=21.00)
     activo = db.Column(db.Boolean, default=True)
@@ -314,6 +314,130 @@ class Producto(db.Model):
                 resultado.append(item_combo)
         
         return resultado
+
+    # Agregar estos métodos a la clase Producto existente
+
+    def obtener_precio_con_oferta(self, cantidad):
+        """Obtener precio considerando ofertas por volumen"""
+        try:
+            cantidad_decimal = float(cantidad)
+            
+            # Buscar la mejor oferta aplicable
+            oferta = OfertaVolumen.query.filter(
+                and_(
+                    OfertaVolumen.producto_id == self.id,
+                    OfertaVolumen.cantidad_minima <= cantidad_decimal,
+                    OfertaVolumen.activo == True
+                )
+            ).order_by(OfertaVolumen.cantidad_minima.desc()).first()
+            
+            if oferta:
+                return float(oferta.precio_oferta)
+            else:
+                return float(self.precio)
+                
+        except Exception as e:
+            print(f"Error calculando precio con oferta: {e}")
+            return float(self.precio)
+
+    def obtener_info_oferta(self, cantidad):
+        """Obtener información detallada de la oferta aplicada"""
+        try:
+            cantidad_decimal = float(cantidad)
+            precio_normal = float(self.precio)
+            precio_con_oferta = self.obtener_precio_con_oferta(cantidad_decimal)
+            
+            # Buscar la oferta aplicada
+            oferta = OfertaVolumen.query.filter(
+                and_(
+                    OfertaVolumen.producto_id == self.id,
+                    OfertaVolumen.cantidad_minima <= cantidad_decimal,
+                    OfertaVolumen.activo == True
+                )
+            ).order_by(OfertaVolumen.cantidad_minima.desc()).first()
+            
+            if oferta and precio_con_oferta < precio_normal:
+                ahorro_unitario = precio_normal - precio_con_oferta
+                ahorro_total = ahorro_unitario * cantidad_decimal
+                
+                return {
+                    'tiene_oferta': True,
+                    'precio_normal': precio_normal,
+                    'precio_oferta': precio_con_oferta,
+                    'ahorro_unitario': round(ahorro_unitario, 2),
+                    'ahorro_total': round(ahorro_total, 2),
+                    'cantidad_minima': float(oferta.cantidad_minima),
+                    'descripcion_oferta': oferta.descripcion or f"Oferta por volumen desde {oferta.cantidad_minima} unidades"
+                }
+            
+            return {
+                'tiene_oferta': False,
+                'precio_normal': precio_normal,
+                'precio_oferta': precio_normal
+            }
+            
+        except Exception as e:
+            print(f"Error obteniendo info de oferta: {e}")
+            return {
+                'tiene_oferta': False,
+                'precio_normal': float(self.precio),
+                'precio_oferta': float(self.precio)
+            }
+
+    def tiene_ofertas_volumen(self):
+        """Verificar si el producto tiene ofertas por volumen activas"""
+        return OfertaVolumen.query.filter_by(
+            producto_id=self.id,
+            activo=True
+        ).count() > 0
+
+    @staticmethod
+    def obtener_con_ofertas():
+        """Obtener productos que tienen ofertas por volumen"""
+        return db.session.query(Producto).join(OfertaVolumen).filter(
+            and_(
+                Producto.activo == True,
+                OfertaVolumen.activo == True
+            )
+        ).distinct().all()    
+
+class OfertaVolumen(db.Model):
+    """Modelo para ofertas por volumen de productos"""
+    __tablename__ = 'ofertas_volumen'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    producto_id = db.Column(db.Integer, db.ForeignKey('producto.id'), nullable=False)
+    cantidad_minima = db.Column(Numeric(10, 3), nullable=False)
+    precio_oferta = db.Column(Numeric(10, 2), nullable=False)
+    descripcion = db.Column(db.String(200))
+    activo = db.Column(db.Boolean, default=True)
+    fecha_creacion = db.Column(db.DateTime, default=datetime.now)
+    fecha_modificacion = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # Relación con Producto
+    producto = db.relationship('Producto', backref=db.backref('ofertas_volumen', lazy=True))
+    
+    def __repr__(self):
+        return f'<OfertaVolumen {self.producto.codigo if self.producto else "SIN_PRODUCTO"}: {self.cantidad_minima}+ = ${self.precio_oferta}>'
+    
+    def to_dict(self):
+        """Convertir a diccionario"""
+        return {
+            'id': self.id,
+            'producto_id': self.producto_id,
+            'cantidad_minima': float(self.cantidad_minima),
+            'precio_oferta': float(self.precio_oferta),
+            'descripcion': self.descripcion,
+            'activo': self.activo,
+            'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
+            'producto': {
+                'codigo': self.producto.codigo,
+                'nombre': self.producto.nombre
+            } if self.producto else None
+        }
+
+
+    
 
 class Factura(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1890,7 +2014,9 @@ def buscar_productos_admin():
                 'categoria': producto.categoria,
                 'iva': float(producto.iva),
                 'activo': producto.activo,
-                'es_combo': producto.es_combo
+                'es_combo': producto.es_combo,
+                'acceso_rapido': producto.acceso_rapido if hasattr(producto, 'acceso_rapido') else False,
+                'orden_acceso_rapido': producto.orden_acceso_rapido if hasattr(producto, 'orden_acceso_rapido') else 0
             }
             
             # ✅ AGREGAR INFORMACIÓN ESPECÍFICA PARA COMBOS
@@ -2324,20 +2450,21 @@ def nueva_venta():
 # 4. ACTUALIZAR LAS APIS DE BÚSQUEDA PARA INCLUIR COSTO
 @app.route('/api/buscar_productos/<termino>')
 def buscar_productos(termino):
-    """Busca productos por código o nombre - INCLUYE COSTO"""
+    """Busca productos por código o nombre - CORREGIDO"""
     if not termino or len(termino) < 2:
         return jsonify([])
     
     # Búsqueda por código exacto primero
     producto_exacto = Producto.query.filter_by(codigo=termino.upper(), activo=True).first()
     if producto_exacto:
-        return jsonify([{
+        resultado = {
             'id': producto_exacto.id,
             'codigo': producto_exacto.codigo,
             'nombre': producto_exacto.nombre,
             'precio': float(producto_exacto.precio),
-            'costo': float(producto_exacto.costo) if producto_exacto.costo else 0.0,  # ← NUEVO
-            'margen': float(producto_exacto.margen) if producto_exacto.margen else 0.0,  # ← NUEVO
+            'precio_base': float(producto_exacto.precio),
+            'costo': float(producto_exacto.costo) if producto_exacto.costo else 0.0,
+            'margen': float(producto_exacto.margen) if producto_exacto.margen else 0.0,
             'stock': producto_exacto.stock,
             'iva': float(producto_exacto.iva),
             'match_tipo': 'codigo_exacto',
@@ -2348,8 +2475,10 @@ def buscar_productos(termino):
             'precio_unitario_base': float(producto_exacto.precio_unitario_base) if producto_exacto.precio_unitario_base else float(producto_exacto.precio),
             'descuento_porcentaje': float(producto_exacto.descuento_porcentaje) if producto_exacto.descuento_porcentaje else 0.0,
             'ahorro_combo': producto_exacto.calcular_ahorro_combo(),
-            'precio_normal': producto_exacto.calcular_precio_normal()
-        }])
+            'precio_normal': producto_exacto.calcular_precio_normal(),
+            'tiene_ofertas': producto_exacto.tiene_ofertas_volumen()
+        }
+        return jsonify([resultado])  # ← ESTA LÍNEA ESTABA FALTANDO O MAL UBICADA
     
     # Búsqueda parcial en código y nombre
     termino_busqueda = f"%{termino.lower()}%"
@@ -2374,13 +2503,14 @@ def buscar_productos(termino):
         elif termino.lower() in producto.nombre.lower()[:20]:
             match_tipo = 'nombre_inicio'
         
-        resultados.append({
+        resultado = {
             'id': producto.id,
             'codigo': producto.codigo,
             'nombre': producto.nombre,
             'precio': float(producto.precio),
-            'costo': float(producto.costo) if producto.costo else 0.0,  # ← NUEVO
-            'margen': float(producto.margen) if producto.margen else 0.0,  # ← NUEVO
+            'precio_base': float(producto.precio),
+            'costo': float(producto.costo) if producto.costo else 0.0,
+            'margen': float(producto.margen) if producto.margen else 0.0,
             'stock': producto.stock,
             'iva': float(producto.iva),
             'match_tipo': match_tipo,
@@ -2391,10 +2521,11 @@ def buscar_productos(termino):
             'precio_unitario_base': float(producto.precio_unitario_base) if producto.precio_unitario_base else float(producto.precio),
             'descuento_porcentaje': float(producto.descuento_porcentaje) if producto.descuento_porcentaje else 0.0,
             'ahorro_combo': producto.calcular_ahorro_combo(),
-            'precio_normal': producto.calcular_precio_normal()
-        })
+            'precio_normal': producto.calcular_precio_normal(),
+            'tiene_ofertas': producto.tiene_ofertas_volumen()
+        }
+        resultados.append(resultado)
     
-    # Ordenar resultados por relevancia
     def orden_relevancia(item):
         if item['match_tipo'] == 'codigo_exacto':
             return 0
@@ -2618,7 +2749,7 @@ def procesar_venta():
             # Actualizar stock
             producto = Producto.query.get(item['producto_id'])
             if producto:
-                producto.stock -= item['cantidad']
+                producto.stock -= Decimal(str(item['cantidad']))
                 print(f"📦 Stock actualizado para {producto.nombre}: {producto.stock}")
                 print(f"💰 Detalle guardado: IVA {iva_porcentaje}% = ${importe_iva:.2f}")
             else:
@@ -4147,24 +4278,36 @@ def importar_productos_lote():
             'nuevos': 0,
             'actualizados': 0,
             'errores': 0,
-            'detalles_errores': []
+            'detalles_errores': [],
+            'productos_procesados': []  # NUEVO: Array con el estado de cada producto
         }
         
         print(f"📦 Procesando lote de {len(productos)} productos...")
         
         for producto_data in productos:
+            producto_resultado = {
+                'codigo': producto_data.get('codigo', 'UNKNOWN'),
+                'estado': 'error',  # Por defecto error, se cambia si todo va bien
+                'mensaje': ''
+            }
+            
             try:
                 codigo = str(producto_data['codigo']).strip().upper()
                 descripcion = str(producto_data['descripcion']).strip()
                 precio = float(producto_data['precio'])
                 
+                producto_resultado['codigo'] = codigo  # Actualizar con código limpio
+                
                 # Validaciones básicas
                 if not codigo or not descripcion or precio <= 0:
+                    producto_resultado['estado'] = 'error'
+                    producto_resultado['mensaje'] = 'Datos inválidos'
                     resultados['errores'] += 1
                     resultados['detalles_errores'].append({
                         'error': f'Datos inválidos para código {codigo}',
                         'codigo': codigo
                     })
+                    resultados['productos_procesados'].append(producto_resultado)
                     continue
                 
                 # Buscar si el producto ya existe
@@ -4186,16 +4329,22 @@ def importar_productos_lote():
                             producto_existente.costo = Decimal(str(costo_calculado))
                             producto_existente.margen = Decimal(str(margen_defecto))
                         
+                        # ACTUALIZAR ESTADO
+                        producto_resultado['estado'] = 'actualizado'
+                        producto_resultado['mensaje'] = 'Producto actualizado correctamente'
+                        
                         resultados['actualizados'] += 1
                         print(f"✅ Actualizado: {codigo} - {descripcion}")
                     else:
                         # Si no se permite actualizar, contar como error
+                        producto_resultado['estado'] = 'error'
+                        producto_resultado['mensaje'] = 'Producto ya existe (actualización deshabilitada)'
+                        
                         resultados['errores'] += 1
                         resultados['detalles_errores'].append({
                             'error': f'Producto {codigo} ya existe (actualización deshabilitada)',
                             'codigo': codigo
                         })
-                        continue
                         
                 else:
                     # Producto nuevo - crear si está permitido
@@ -4224,24 +4373,37 @@ def importar_productos_lote():
                         )
                         
                         db.session.add(nuevo_producto)
+                        
+                        # ACTUALIZAR ESTADO
+                        producto_resultado['estado'] = 'nuevo'
+                        producto_resultado['mensaje'] = 'Producto creado correctamente'
+                        
                         resultados['nuevos'] += 1
                         print(f"🆕 Creado: {codigo} - {descripcion}")
                     else:
                         # Si no se permite crear nuevos, contar como error
+                        producto_resultado['estado'] = 'error'
+                        producto_resultado['mensaje'] = 'Producto no existe (creación deshabilitada)'
+                        
                         resultados['errores'] += 1
                         resultados['detalles_errores'].append({
                             'error': f'Producto {codigo} no existe (creación deshabilitada)',
                             'codigo': codigo
                         })
-                        continue
                 
             except Exception as e:
+                producto_resultado['estado'] = 'error'
+                producto_resultado['mensaje'] = f'Error: {str(e)}'
+                
                 resultados['errores'] += 1
                 resultados['detalles_errores'].append({
                     'error': f'Error procesando {producto_data.get("codigo", "UNKNOWN")}: {str(e)}',
                     'codigo': producto_data.get('codigo', 'UNKNOWN')
                 })
                 print(f"❌ Error en producto {producto_data.get('codigo', 'UNKNOWN')}: {str(e)}")
+            
+            # SIEMPRE agregar el resultado del producto al array
+            resultados['productos_procesados'].append(producto_resultado)
         
         # Confirmar cambios en la base de datos
         db.session.commit()
@@ -4254,7 +4416,8 @@ def importar_productos_lote():
             'nuevos': resultados['nuevos'],
             'actualizados': resultados['actualizados'],
             'errores': resultados['errores'],
-            'detalles_errores': resultados['detalles_errores']
+            'detalles_errores': resultados['detalles_errores'],
+            'productos_procesados': resultados['productos_procesados']  # NUEVO: Estados detallados
         })
         
     except Exception as e:
@@ -4264,6 +4427,7 @@ def importar_productos_lote():
             'success': False,
             'error': f'Error al procesar lote: {str(e)}'
         }), 500
+
 
 def detectar_categoria(descripcion):
     """Detectar categoría básica desde la descripción del producto"""
@@ -5360,5 +5524,616 @@ def test_conexion_gastos():
             'error': str(e)
         }), 500
 
+
+@app.route('/api/producto_precio_oferta/<int:producto_id>/<float:cantidad>')
+def obtener_precio_con_oferta_api(producto_id, cantidad):
+    """API para obtener precio con oferta aplicada"""
+    try:
+        producto = Producto.query.get_or_404(producto_id)
+        
+        precio_final = producto.obtener_precio_con_oferta(cantidad)
+        info_oferta = producto.obtener_info_oferta(cantidad)
+        
+        return jsonify({
+            'success': True,
+            'precio_base': float(producto.precio),
+            'precio_final': precio_final,
+            'cantidad': cantidad,
+            'info_oferta': info_oferta,
+            'producto': {
+                'codigo': producto.codigo,
+                'nombre': producto.nombre,
+                'stock': producto.stock
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error en API precio oferta: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/ofertas_producto/<int:producto_id>')
+def obtener_ofertas_producto(producto_id):
+    """Obtener todas las ofertas de un producto"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        producto = Producto.query.get_or_404(producto_id)
+        
+        ofertas = OfertaVolumen.query.filter_by(
+            producto_id=producto_id,
+            activo=True
+        ).order_by(OfertaVolumen.cantidad_minima.asc()).all()
+        
+        ofertas_data = [oferta.to_dict() for oferta in ofertas]
+        
+        return jsonify({
+            'success': True,
+            'producto': {
+                'id': producto.id,
+                'codigo': producto.codigo,
+                'nombre': producto.nombre,
+                'precio_base': float(producto.precio)
+            },
+            'ofertas': ofertas_data,
+            'tiene_ofertas': len(ofertas_data) > 0
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/crear_oferta_volumen', methods=['POST'])
+def crear_oferta_volumen():
+    """Crear nueva oferta por volumen"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        data = request.json
+        
+        producto_id = data.get('producto_id')
+        cantidad_minima = float(data.get('cantidad_minima', 0))
+        precio_oferta = float(data.get('precio_oferta', 0))
+        descripcion = data.get('descripcion', '').strip()
+        
+        # Validaciones
+        if not producto_id:
+            return jsonify({'error': 'Producto requerido'}), 400
+        
+        if cantidad_minima <= 0:
+            return jsonify({'error': 'La cantidad mínima debe ser mayor a 0'}), 400
+        
+        if precio_oferta <= 0:
+            return jsonify({'error': 'El precio de oferta debe ser mayor a 0'}), 400
+        
+        # Verificar que el producto existe
+        producto = Producto.query.get_or_404(producto_id)
+        
+        # Verificar que el precio de oferta sea menor al precio normal
+        if precio_oferta >= float(producto.precio):
+            return jsonify({
+                'error': f'El precio de oferta (${precio_oferta}) debe ser menor al precio normal (${producto.precio})'
+            }), 400
+        
+        # Verificar que no exista una oferta igual
+        oferta_existente = OfertaVolumen.query.filter_by(
+            producto_id=producto_id,
+            cantidad_minima=cantidad_minima,
+            activo=True
+        ).first()
+        
+        if oferta_existente:
+            return jsonify({
+                'error': f'Ya existe una oferta para cantidad mínima {cantidad_minima}'
+            }), 400
+        
+        # Crear oferta
+        nueva_oferta = OfertaVolumen(
+            producto_id=producto_id,
+            cantidad_minima=Decimal(str(cantidad_minima)),
+            precio_oferta=Decimal(str(precio_oferta)),
+            descripcion=descripcion if descripcion else None
+        )
+        
+        db.session.add(nueva_oferta)
+        db.session.commit()
+        
+        print(f"Oferta creada: {producto.codigo} - {cantidad_minima}+ = ${precio_oferta}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Oferta creada: desde {cantidad_minima} unidades a ${precio_oferta}',
+            'oferta': nueva_oferta.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creando oferta: {e}")
+        return jsonify({'error': f'Error al crear oferta: {str(e)}'}), 500
+
+############# RUTAS DE OFERTAS
+@app.route('/api/eliminar_oferta_volumen/<int:oferta_id>', methods=['DELETE'])
+def eliminar_oferta_volumen(oferta_id):
+    """Eliminar oferta por volumen"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        oferta = OfertaVolumen.query.get_or_404(oferta_id)
+        
+        # Marcar como inactiva en lugar de eliminar
+        oferta.activo = False
+        oferta.fecha_modificacion = datetime.now()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Oferta eliminada correctamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Error al eliminar oferta: {str(e)}'}), 500
+
+# ==================== RUTAS ADICIONALES PARA OFERTAS POR VOLUMEN ====================
+# Agregar estas rutas después de las rutas existentes de ofertas en tu app.py
+
+@app.route('/ofertas_volumen')
+def ofertas_volumen():
+    """Vista principal para gestionar ofertas por volumen"""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    return render_template('ofertas_volumen.html')
+
+
+@app.route('/api/ofertas_volumen_todas')
+def obtener_todas_ofertas_volumen():
+    """Obtener todas las ofertas por volumen con información del producto"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Consulta con JOIN para obtener ofertas con información del producto
+        ofertas = db.session.query(OfertaVolumen).join(
+            Producto, OfertaVolumen.producto_id == Producto.id
+        ).filter(
+            Producto.activo == True  # Solo productos activos
+        ).order_by(
+            OfertaVolumen.fecha_creacion.desc()
+        ).all()
+        
+        ofertas_data = []
+        for oferta in ofertas:
+            oferta_dict = oferta.to_dict()
+            
+            # Agregar información completa del producto
+            if oferta.producto:
+                oferta_dict['producto'] = {
+                    'id': oferta.producto.id,
+                    'codigo': oferta.producto.codigo,
+                    'nombre': oferta.producto.nombre,
+                    'precio': float(oferta.producto.precio),
+                    'stock': oferta.producto.stock,
+                    'categoria': oferta.producto.categoria,
+                    'activo': oferta.producto.activo
+                }
+            else:
+                oferta_dict['producto'] = None
+            
+            ofertas_data.append(oferta_dict)
+        
+        print(f"📊 Devolviendo {len(ofertas_data)} ofertas por volumen")
+        
+        return jsonify({
+            'success': True,
+            'ofertas': ofertas_data,
+            'total': len(ofertas_data)
+        })
+        
+    except Exception as e:
+        print(f"❌ Error obteniendo ofertas: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/actualizar_oferta_volumen/<int:oferta_id>', methods=['PUT'])
+def actualizar_oferta_volumen(oferta_id):
+    """Actualizar una oferta por volumen existente"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        data = request.json
+        
+        # Validaciones
+        cantidad_minima = float(data.get('cantidad_minima', 0))
+        precio_oferta = float(data.get('precio_oferta', 0))
+        descripcion = data.get('descripcion', '').strip()
+        
+        if cantidad_minima <= 0:
+            return jsonify({'error': 'La cantidad mínima debe ser mayor a 0'}), 400
+        
+        if precio_oferta <= 0:
+            return jsonify({'error': 'El precio de oferta debe ser mayor a 0'}), 400
+        
+        # Obtener oferta existente
+        oferta = OfertaVolumen.query.get_or_404(oferta_id)
+        
+        # Verificar que el precio de oferta sea menor al precio normal
+        if precio_oferta >= float(oferta.producto.precio):
+            return jsonify({
+                'error': f'El precio de oferta (${precio_oferta}) debe ser menor al precio normal (${oferta.producto.precio})'
+            }), 400
+        
+        # Verificar que no exista otra oferta igual (excluyendo la actual)
+        oferta_duplicada = OfertaVolumen.query.filter(
+            and_(
+                OfertaVolumen.producto_id == oferta.producto_id,
+                OfertaVolumen.cantidad_minima == cantidad_minima,
+                OfertaVolumen.id != oferta_id,
+                OfertaVolumen.activo == True
+            )
+        ).first()
+        
+        if oferta_duplicada:
+            return jsonify({
+                'error': f'Ya existe otra oferta para cantidad mínima {cantidad_minima}'
+            }), 400
+        
+        # Actualizar oferta
+        oferta.cantidad_minima = Decimal(str(cantidad_minima))
+        oferta.precio_oferta = Decimal(str(precio_oferta))
+        oferta.descripcion = descripcion if descripcion else None
+        oferta.fecha_modificacion = datetime.now()
+        
+        db.session.commit()
+        
+        print(f"Oferta actualizada: {oferta.producto.codigo} - {cantidad_minima}+ = ${precio_oferta}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Oferta actualizada: desde {cantidad_minima} unidades a ${precio_oferta}',
+            'oferta': oferta.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error actualizando oferta: {e}")
+        return jsonify({'error': f'Error al actualizar oferta: {str(e)}'}), 500
+
+
+@app.route('/api/ofertas_activas_resumen')
+def obtener_resumen_ofertas_activas():
+    """Obtener resumen de ofertas activas para dashboard"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Contar ofertas activas
+        ofertas_activas = OfertaVolumen.query.filter_by(activo=True).count()
+        
+        # Contar productos con ofertas
+        productos_con_ofertas = db.session.query(OfertaVolumen.producto_id).filter_by(activo=True).distinct().count()
+        
+        # Obtener descuento promedio
+        ofertas_con_descuento = db.session.query(
+            OfertaVolumen.precio_oferta,
+            Producto.precio
+        ).join(
+            Producto, OfertaVolumen.producto_id == Producto.id
+        ).filter(
+            OfertaVolumen.activo == True
+        ).all()
+        
+        descuento_promedio = 0
+        if ofertas_con_descuento:
+            descuentos = []
+            for precio_oferta, precio_normal in ofertas_con_descuento:
+                if float(precio_normal) > 0:
+                    descuento = ((float(precio_normal) - float(precio_oferta)) / float(precio_normal)) * 100
+                    descuentos.append(descuento)
+            
+            if descuentos:
+                descuento_promedio = sum(descuentos) / len(descuentos)
+        
+        return jsonify({
+            'success': True,
+            'ofertas_activas': ofertas_activas,
+            'productos_con_ofertas': productos_con_ofertas,
+            'descuento_promedio': round(descuento_promedio, 1)
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo resumen de ofertas: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/validar_oferta_volumen', methods=['POST'])
+def validar_oferta_volumen():
+    """Validar datos de una oferta antes de crearla/actualizarla"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        data = request.json
+        
+        producto_id = data.get('producto_id')
+        cantidad_minima = float(data.get('cantidad_minima', 0))
+        precio_oferta = float(data.get('precio_oferta', 0))
+        oferta_id = data.get('oferta_id')  # Para edición
+        
+        errores = []
+        
+        # Validar producto
+        if not producto_id:
+            errores.append('Debe seleccionar un producto')
+        else:
+            producto = Producto.query.get(producto_id)
+            if not producto:
+                errores.append('Producto no encontrado')
+            elif not producto.activo:
+                errores.append('El producto está inactivo')
+            else:
+                # Validar precio
+                if precio_oferta >= float(producto.precio):
+                    errores.append(f'El precio de oferta debe ser menor a ${float(producto.precio):.2f}')
+                
+                # Verificar duplicados
+                query = OfertaVolumen.query.filter(
+                    and_(
+                        OfertaVolumen.producto_id == producto_id,
+                        OfertaVolumen.cantidad_minima == cantidad_minima,
+                        OfertaVolumen.activo == True
+                    )
+                )
+                
+                if oferta_id:  # Excluir la oferta actual si es edición
+                    query = query.filter(OfertaVolumen.id != oferta_id)
+                
+                if query.first():
+                    errores.append(f'Ya existe una oferta para cantidad mínima {cantidad_minima}')
+        
+        # Validaciones básicas
+        if cantidad_minima <= 0:
+            errores.append('La cantidad mínima debe ser mayor a 0')
+        
+        if precio_oferta <= 0:
+            errores.append('El precio de oferta debe ser mayor a 0')
+        
+        # Calcular información de la oferta si es válida
+        info_oferta = None
+        if not errores and producto:
+            precio_normal = float(producto.precio)
+            descuento_porcentaje = ((precio_normal - precio_oferta) / precio_normal) * 100
+            ahorro_total = (precio_normal - precio_oferta) * cantidad_minima
+            
+            info_oferta = {
+                'precio_normal': precio_normal,
+                'precio_oferta': precio_oferta,
+                'cantidad_minima': cantidad_minima,
+                'descuento_porcentaje': round(descuento_porcentaje, 1),
+                'ahorro_por_unidad': round(precio_normal - precio_oferta, 2),
+                'ahorro_total': round(ahorro_total, 2)
+            }
+        
+        return jsonify({
+            'success': len(errores) == 0,
+            'errores': errores,
+            'info_oferta': info_oferta
+        })
+        
+    except Exception as e:
+        print(f"Error validando oferta: {e}")
+        return jsonify({
+            'success': False,
+            'errores': [f'Error de validación: {str(e)}']
+        }), 500
+
+
+@app.route('/api/productos_sin_ofertas')
+def obtener_productos_sin_ofertas():
+    """Obtener productos que no tienen ofertas por volumen"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Productos que NO tienen ofertas activas
+        productos_con_ofertas = db.session.query(OfertaVolumen.producto_id).filter_by(activo=True).distinct().subquery()
+        
+        productos_sin_ofertas = Producto.query.filter(
+            and_(
+                Producto.activo == True,
+                ~Producto.id.in_(productos_con_ofertas)
+            )
+        ).order_by(Producto.codigo).limit(20).all()
+        
+        productos_data = []
+        for producto in productos_sin_ofertas:
+            productos_data.append({
+                'id': producto.id,
+                'codigo': producto.codigo,
+                'nombre': producto.nombre,
+                'precio': float(producto.precio),
+                'stock': producto.stock,
+                'categoria': producto.categoria
+            })
+        
+        return jsonify({
+            'success': True,
+            'productos': productos_data,
+            'mensaje': f'Se encontraron {len(productos_data)} productos sin ofertas'
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo productos sin ofertas: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/estadisticas_ofertas_volumen')
+def obtener_estadisticas_ofertas():
+    """Obtener estadísticas detalladas de las ofertas por volumen"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Estadísticas básicas
+        total_ofertas = OfertaVolumen.query.count()
+        ofertas_activas = OfertaVolumen.query.filter_by(activo=True).count()
+        ofertas_inactivas = total_ofertas - ofertas_activas
+        
+        # Productos con ofertas
+        productos_con_ofertas = db.session.query(
+            OfertaVolumen.producto_id
+        ).filter_by(activo=True).distinct().count()
+        
+        # Ofertas por rango de descuento
+        ofertas_con_productos = db.session.query(
+            OfertaVolumen.precio_oferta,
+            Producto.precio.label('precio_normal')
+        ).join(
+            Producto, OfertaVolumen.producto_id == Producto.id
+        ).filter(
+            OfertaVolumen.activo == True
+        ).all()
+        
+        rangos_descuento = {
+            'menos_10': 0,      # Menos del 10%
+            'entre_10_20': 0,   # Entre 10% y 20%
+            'entre_20_30': 0,   # Entre 20% y 30%
+            'mas_30': 0         # Más del 30%
+        }
+        
+        descuentos = []
+        for precio_oferta, precio_normal in ofertas_con_productos:
+            if float(precio_normal) > 0:
+                descuento = ((float(precio_normal) - float(precio_oferta)) / float(precio_normal)) * 100
+                descuentos.append(descuento)
+                
+                if descuento < 10:
+                    rangos_descuento['menos_10'] += 1
+                elif descuento < 20:
+                    rangos_descuento['entre_10_20'] += 1
+                elif descuento < 30:
+                    rangos_descuento['entre_20_30'] += 1
+                else:
+                    rangos_descuento['mas_30'] += 1
+        
+        # Calcular estadísticas de descuentos
+        descuento_promedio = sum(descuentos) / len(descuentos) if descuentos else 0
+        descuento_minimo = min(descuentos) if descuentos else 0
+        descuento_maximo = max(descuentos) if descuentos else 0
+        
+        # Top 5 productos con más ofertas
+        top_productos = db.session.query(
+            Producto.codigo,
+            Producto.nombre,
+            func.count(OfertaVolumen.id).label('cantidad_ofertas')
+        ).join(
+            OfertaVolumen, Producto.id == OfertaVolumen.producto_id
+        ).filter(
+            OfertaVolumen.activo == True
+        ).group_by(
+            Producto.id, Producto.codigo, Producto.nombre
+        ).order_by(
+            func.count(OfertaVolumen.id).desc()
+        ).limit(5).all()
+        
+        top_productos_data = []
+        for codigo, nombre, cantidad in top_productos:
+            top_productos_data.append({
+                'codigo': codigo,
+                'nombre': nombre,
+                'cantidad_ofertas': cantidad
+            })
+        
+        return jsonify({
+            'success': True,
+            'estadisticas': {
+                'totales': {
+                    'total_ofertas': total_ofertas,
+                    'ofertas_activas': ofertas_activas,
+                    'ofertas_inactivas': ofertas_inactivas,
+                    'productos_con_ofertas': productos_con_ofertas
+                },
+                'descuentos': {
+                    'promedio': round(descuento_promedio, 1),
+                    'minimo': round(descuento_minimo, 1),
+                    'maximo': round(descuento_maximo, 1),
+                    'rangos': rangos_descuento
+                },
+                'top_productos': top_productos_data
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo estadísticas: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/productos_con_ofertas_volumen')
+def obtener_productos_con_ofertas_volumen():
+    """Obtener todos los productos que tienen ofertas por volumen activas"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Obtener productos con ofertas por volumen
+        productos_con_ofertas = db.session.query(Producto).join(
+            OfertaVolumen, Producto.id == OfertaVolumen.producto_id
+        ).filter(
+            and_(
+                Producto.activo == True,
+                OfertaVolumen.activo == True
+            )
+        ).distinct().all()
+        
+        resultado = {}
+        
+        for producto in productos_con_ofertas:
+            ofertas = OfertaVolumen.query.filter_by(
+                producto_id=producto.id,
+                activo=True
+            ).order_by(OfertaVolumen.cantidad_minima.asc()).all()
+            
+            resultado[str(producto.id)] = {
+                'producto': {
+                    'id': producto.id,
+                    'codigo': producto.codigo,
+                    'nombre': producto.nombre,
+                    'precio': float(producto.precio),
+                    'precio_base': float(producto.precio)
+                },
+                'ofertas': [oferta.to_dict() for oferta in ofertas]
+            }
+        
+        return jsonify({
+            'success': True,
+            'productos_ofertas': resultado,
+            'total_productos': len(resultado)
+        })
+        
+    except Exception as e:
+        print(f"Error obteniendo productos con ofertas: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 app.run(debug=True, host='0.0.0.0', port=5080)

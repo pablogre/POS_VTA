@@ -104,7 +104,7 @@
                     <tr>
                         <th width="15%">Código</th>
                         <th width="45%">Descripción</th>
-                        <th width="15%">Precio Lista</th>
+                        <th width="15%">Precio Sugerido</th>
                         <th width="15%">Estado</th>
                         <th width="10%">Acciones</th>
                     </tr>
@@ -139,25 +139,22 @@ async function analizarArchivo() {
     if (!archivo) return;
 
     try {
-        console.log('📂 Analizando archivo:', archivo.name);
+        console.log('Analizando archivo:', archivo.name);
         
         const arrayBuffer = await archivo.arrayBuffer();
         const workbook = XLSX.read(arrayBuffer, { type: 'array' });
         
-        // Usar la primera hoja
         const nombreHoja = workbook.SheetNames[0];
         const hoja = workbook.Sheets[nombreHoja];
         
-        // Convertir a JSON (array de arrays)
         datosExcel = XLSX.utils.sheet_to_json(hoja, { header: 1 });
         
-        console.log('📊 Total de filas en Excel:', datosExcel.length);
+        console.log('Total de filas en Excel:', datosExcel.length);
         
-        // Filtrar productos válidos
         procesarDatosExcel();
         
     } catch (error) {
-        console.error('❌ Error al leer archivo:', error);
+        console.error('Error al leer archivo:', error);
         alert('Error al leer el archivo Excel: ' + error.message);
     }
 }
@@ -167,16 +164,14 @@ function procesarDatosExcel() {
     const codigosVistos = new Set();
     let duplicados = 0;
 
-    console.log('🔍 Procesando datos del Excel...');
+    console.log('Procesando datos del Excel...');
 
     datosExcel.forEach((fila, indice) => {
-        // Verificar que la fila tenga al menos código, descripción y precio
-        if (fila && fila.length >= 5) {
+        if (fila && fila.length >= 6) {
             const codigo = fila[0];
             const descripcion = fila[1];
-            const precio = fila[4]; // Columna "LISTA"
+            const precio = fila[5]; // Columna "SUGERIDO"
 
-            // Validar que todos los campos requeridos estén presentes
             if (codigo && descripcion && precio && 
                 typeof codigo === 'string' && 
                 typeof descripcion === 'string' && 
@@ -186,10 +181,9 @@ function procesarDatosExcel() {
                 const descripcionLimpia = descripcion.toString().trim();
                 const precioLimpio = typeof precio === 'number' ? precio : parseFloat(precio);
 
-                // Verificar duplicados
                 if (codigosVistos.has(codigoLimpio)) {
                     duplicados++;
-                    console.warn(`⚠️ Código duplicado encontrado: ${codigoLimpio}`);
+                    console.warn(`Código duplicado encontrado: ${codigoLimpio}`);
                     return;
                 }
 
@@ -206,15 +200,13 @@ function procesarDatosExcel() {
         }
     });
 
-    console.log(`✅ Productos válidos encontrados: ${productosParaImportar.length}`);
-    console.log(`⚠️ Duplicados encontrados: ${duplicados}`);
+    console.log(`Productos válidos encontrados: ${productosParaImportar.length}`);
+    console.log(`Duplicados encontrados: ${duplicados}`);
 
-    // Actualizar estadísticas
     document.getElementById('totalFilas').textContent = datosExcel.length;
     document.getElementById('productosValidos').textContent = productosParaImportar.length;
     document.getElementById('productosDuplicados').textContent = duplicados;
 
-    // Mostrar vista previa
     mostrarVistaPrevia();
 }
 
@@ -242,7 +234,6 @@ function mostrarVistaPrevia() {
         cuerpoTabla.appendChild(fila);
     });
 
-    // Mostrar mensaje si hay más productos
     if (productosParaImportar.length > 100) {
         const filaInfo = document.createElement('tr');
         filaInfo.innerHTML = `
@@ -255,8 +246,6 @@ function mostrarVistaPrevia() {
     }
 
     document.getElementById('vistaPrevia').style.display = 'block';
-    
-    // Scroll suave hacia la vista previa
     document.getElementById('vistaPrevia').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -286,12 +275,10 @@ async function importarProductos() {
     btnImportar.disabled = true;
 
     try {
-        // Filtrar productos no excluidos
         const productosAImportar = productosParaImportar.filter(p => p.estado !== 'excluido');
         
-        console.log(`🚀 Iniciando importación de ${productosAImportar.length} productos...`);
+        console.log(`Iniciando importación de ${productosAImportar.length} productos...`);
 
-        // Dividir en lotes para evitar timeouts
         const tamañoLote = 10;
         const resultados = {
             nuevos: 0,
@@ -303,7 +290,7 @@ async function importarProductos() {
         for (let i = 0; i < productosAImportar.length; i += tamañoLote) {
             const lote = productosAImportar.slice(i, i + tamañoLote);
             
-            console.log(`📦 Procesando lote ${Math.floor(i/tamañoLote) + 1}/${Math.ceil(productosAImportar.length/tamañoLote)}`);
+            console.log(`Procesando lote ${Math.floor(i/tamañoLote) + 1}/${Math.ceil(productosAImportar.length/tamañoLote)}`);
             
             const response = await fetch('/api/importar_productos_lote', {
                 method: 'POST',
@@ -321,6 +308,19 @@ async function importarProductos() {
 
             const resultado = await response.json();
             
+            if (resultado.success && resultado.productos_procesados) {
+                resultado.productos_procesados.forEach(productoResult => {
+                    const productoIndex = productosParaImportar.findIndex(p => 
+                        p.codigo === productoResult.codigo && p.estado !== 'excluido'
+                    );
+                    if (productoIndex !== -1) {
+                        productosParaImportar[productoIndex].estado = productoResult.estado;
+                    }
+                });
+                
+                mostrarVistaPrevia();
+            }
+
             if (resultado.success) {
                 resultados.nuevos += resultado.nuevos || 0;
                 resultados.actualizados += resultado.actualizados || 0;
@@ -337,18 +337,16 @@ async function importarProductos() {
                 });
             }
 
-            // Actualizar progreso
             const progreso = Math.round(((i + tamañoLote) / productosAImportar.length) * 100);
             btnImportar.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${progreso}%`;
         }
 
-        console.log('✅ Importación completada:', resultados);
+        console.log('Importación completada:', resultados);
         
-        // Mostrar resultados
         mostrarResultados(resultados);
 
     } catch (error) {
-        console.error('❌ Error en importación:', error);
+        console.error('Error en importación:', error);
         alert('Error durante la importación: ' + error.message);
     } finally {
         btnImportar.innerHTML = textoOriginal;
@@ -388,7 +386,6 @@ function mostrarResultados(resultados) {
         </div>
     `;
 
-    // Mostrar errores si los hay
     if (resultados.detallesErrores.length > 0) {
         html += `
             <div class="alert alert-warning">
@@ -426,7 +423,7 @@ function mostrarResultados(resultados) {
             <button class="btn btn-primary btn-lg me-2" onclick="window.location.reload()">
                 <i class="fas fa-redo"></i> Importar Otro Archivo
             </button>
-            <a href="{{ url_for('productos') }}" class="btn btn-success btn-lg">
+            <a href="/productos" class="btn btn-success btn-lg">
                 <i class="fas fa-eye"></i> Ver Productos Importados
             </a>
         </div>
@@ -434,8 +431,6 @@ function mostrarResultados(resultados) {
 
     contenedor.innerHTML = html;
     document.getElementById('resultadosImportacion').style.display = 'block';
-
-    // Scroll hacia resultados
     document.getElementById('resultadosImportacion').scrollIntoView({ behavior: 'smooth' });
 }
 </script>

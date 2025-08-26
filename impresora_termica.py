@@ -118,10 +118,14 @@ class ImpresoraTermica:
         try:
             # ENCABEZADO
             lineas.append("")
-            lineas.append(self.centrar_texto("TU EMPRESA S.A."))
-            lineas.append(self.centrar_texto("CUIT: 20-20385210-0"))
-            lineas.append(self.centrar_texto("Dir: Tu Direccion 123"))
-            lineas.append(self.centrar_texto("Tel: (011) 1234-5678"))
+            # Para máximo impacto:
+            
+            lineas.append("              \x1B\x45\x01\x1B\x21\x30CARNAVE\x1B\x21\x00\x1B\x45\x00")
+            lineas.append("")
+            lineas.append(self.centrar_texto("CUIT: 27-33342943-3"))
+            lineas.append(self.centrar_texto("IVA: Responsable Inscrípto"))
+            lineas.append(self.centrar_texto("Dir: Dorrego y Eva Perón"))
+            lineas.append(self.centrar_texto("La Esquina de Siempre"))
             lineas.append("")
             
             # TIPO DE COMPROBANTE
@@ -181,7 +185,7 @@ class ImpresoraTermica:
                     
                     # Formatear números de forma segura
                     try:
-                        cant_str = f"{int(detalle.cantidad)}"
+                        cant_str = f"{float(detalle.cantidad):.3f}"
                         precio_str = f"{float(detalle.precio_unitario):,.2f}"
                         total_str = f"{float(detalle.subtotal):,.2f}"
                     except (ValueError, AttributeError) as e:
@@ -335,7 +339,7 @@ class ImpresoraTermica:
             
             # PIE DE PÁGINA
             lineas.append("")
-            lineas.append(self.centrar_texto("Gracias por su compra"))
+            lineas.append(self.centrar_texto("Gracias por elegirnos"))
             lineas.append("")
             lineas.append("")
             lineas.append("")

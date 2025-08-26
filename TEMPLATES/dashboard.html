@@ -4,7 +4,14 @@
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Panel de Control</h1>
+   
+    <img src="{{ url_for('static', filename='images/factufacil.png') }}" alt="FactuFacil"  style="max-height: 100px;">
+    <!-- <div class="d-flex align-items-center">
+        <img src="{{ url_for('static', filename='images/factufacil.png') }}" 
+             alt="FactuFácil" 
+             class="logo-dashboard-xl me-3">
+        <h1 class="h2 mb-0">Panel de Control</h1>
+    </div> -->
     <div class="d-flex align-items-center">
         <!-- Indicador de Estado AFIP en el encabezado -->
         <div id="estadoAfipHeader" class="me-3">
@@ -1140,6 +1147,7 @@ document.addEventListener('DOMContentLoaded', function() {
 #reporte_medios_pago .alert-primary {
     border-left: 4px solid #007bff;
 }
+
 
 </style>
 
