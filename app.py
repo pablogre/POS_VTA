@@ -25,6 +25,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 import json
 import subprocess
 import MySQLdb.cursors
+from estadisticas import init_estadisticas
 
 # ================ FIX SSL COMPATIBLE PARA AFIP ================
 import ssl
@@ -1416,6 +1417,12 @@ class AFIPStatusMonitor:
 
 # Crear instancia del monitor
 afip_monitor = AFIPStatusMonitor(ARCA_CONFIG)
+
+
+# DESPUÉS DE DEFINIR LOS MODELOS Y ANTES DE LAS RUTAS:
+# Inicializar y registrar el blueprint de estadísticas
+estadisticas_bp = init_estadisticas(db, Factura, DetalleFactura, Producto)
+app.register_blueprint(estadisticas_bp)
 
 
 # Rutas de la aplicación
@@ -6163,5 +6170,20 @@ def obtener_productos_con_ofertas_volumen():
             'success': False,
             'error': str(e)
         }), 500
+
+
+# Agregar esta ruta en tu archivo principal de Flask (app.py)
+
+@app.route('/estadisticas')
+def estadisticas():
+    """Página de estadísticas y reportes avanzados"""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    try:
+        return render_template('estadisticas.html')
+    except Exception as e:
+        flash(f'Error cargando estadísticas: {str(e)}')
+        return redirect(url_for('index'))
 
 app.run(debug=True, host='0.0.0.0', port=5080)

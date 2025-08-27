@@ -955,8 +955,10 @@ function actualizarTablaVenta() {
             </td>
             <td>
                 <input type="number" class="form-control" value="${item.cantidad.toFixed(3)}"
+                       <input type="number" class="form-control cantidad-input" value="${item.cantidad.toFixed(3)}"
                        min="0.001" step="0.001"
                        onblur="actualizarCantidad(${item.id}, this.value)"
+                       onkeypress="manejarEnterCantidad(event, ${item.id})"
                        style="width: 100px;">
             </td>
             <td class="text-end ${clasePrecio}">$${item.precio_unitario.toFixed(2)}</td>
@@ -969,6 +971,34 @@ function actualizarTablaVenta() {
         </tr>
         `;
     }).join('');
+}
+
+
+function manejarEnterCantidad(event, itemId) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        
+        // Actualizar la cantidad primero
+        actualizarCantidad(itemId, event.target.value);
+        
+        // Simular comportamiento de TAB - ir al siguiente input
+        const todosLosInputs = document.querySelectorAll('.cantidad-input');
+        const inputActual = event.target;
+        const indiceActual = Array.from(todosLosInputs).indexOf(inputActual);
+        
+        if (indiceActual < todosLosInputs.length - 1) {
+            // Si hay un siguiente input, enfocarlo y seleccionar texto
+            setTimeout(() => {
+                todosLosInputs[indiceActual + 1].focus();
+                todosLosInputs[indiceActual + 1].select();
+            }, 50);
+        } else {
+            // Si es el último, enfocar el campo de búsqueda de productos
+            setTimeout(() => {
+                document.getElementById('buscar_producto').focus();
+            }, 50);
+        }
+    }
 }
 
 function actualizarCantidad(itemId, nuevaCantidadStr) {
