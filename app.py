@@ -471,6 +471,36 @@ class DetalleFactura(db.Model):
     factura = db.relationship('Factura', backref='detalles')
     producto = db.relationship('Producto', backref='detalles_factura')
 
+class DescuentoFactura(db.Model):
+    """Registro de descuentos aplicados a facturas - tabla independiente"""
+    __tablename__ = 'descuentos_factura'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    factura_id = db.Column(db.Integer, db.ForeignKey('factura.id'), unique=True, nullable=False)
+    porcentaje_descuento = db.Column(Numeric(5, 2), nullable=False)
+    monto_descuento = db.Column(Numeric(10, 2), nullable=False)
+    total_original = db.Column(Numeric(10, 2), nullable=False)  # total antes del descuento
+    fecha_aplicacion = db.Column(db.DateTime, default=datetime.now)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
+    
+    # Relaciones
+    factura = db.relationship('Factura', backref=db.backref('descuento_aplicado', uselist=False))
+    usuario = db.relationship('Usuario', backref='descuentos_aplicados')
+    
+    def __repr__(self):
+        return f'<DescuentoFactura {self.factura_id}: {self.porcentaje_descuento}% = ${self.monto_descuento}>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'factura_id': self.factura_id,
+            'porcentaje_descuento': float(self.porcentaje_descuento),
+            'monto_descuento': float(self.monto_descuento),
+            'total_original': float(self.total_original),
+            'fecha_aplicacion': self.fecha_aplicacion.isoformat(),
+            'usuario': self.usuario.nombre if self.usuario else None
+        }
+
 class MedioPago(db.Model):
     """Tabla para registrar los medios de pago de cada factura"""
     __tablename__ = 'medios_pago'
@@ -2638,8 +2668,29 @@ def migrar_productos_sin_costo_margen():
         print(f"❌ Error en migración: {e}")
 
 
-# FUNCIÓN PROCESAR_VENTA CORREGIDA
-# REEMPLAZA la función procesar_venta completa (línea ~1200 aprox) con esta versión corregida:
+# REGISTRAR DESCUENTOEN PROCESAR_VENTA 
+def registrar_descuento_factura(factura_id, porcentaje, monto, total_original, usuario_id):
+    """Registrar descuento en tabla separada - se llama DESPUÉS de crear factura"""
+    try:
+        if porcentaje > 0 and monto > 0:
+            descuento = DescuentoFactura(
+                factura_id=factura_id,
+                porcentaje_descuento=Decimal(str(porcentaje)),
+                monto_descuento=Decimal(str(monto)),
+                total_original=Decimal(str(total_original)),
+                usuario_id=usuario_id
+            )
+            db.session.add(descuento)
+            db.session.commit()
+            print(f"Descuento registrado: {porcentaje}% = ${monto} para factura {factura_id}")
+            return True
+    except Exception as e:
+        print(f"Error registrando descuento: {e}")
+        return False
+
+
+
+# FUNCIÓN PROCESAR_VENTA
 
 @app.route('/procesar_venta', methods=['POST'])
 def procesar_venta():
@@ -2878,6 +2929,17 @@ def procesar_venta():
         
         print(f"🎉 Venta procesada exitosamente: {factura.numero}")
         
+        # NUEVA LÍNEA: Registrar descuento si existe (tabla separada)
+        if data.get('descuento_monto', 0) > 0:
+            total_antes_descuento = float(data.get('subtotal', 0)) + float(data.get('iva', 0))
+            registrar_descuento_factura(
+                factura.id, 
+                data.get('descuento_porcentaje', 0),
+                data.get('descuento_monto', 0),
+                total_antes_descuento,
+                session['user_id']
+            )
+
         # PASO 8: Imprimir automáticamente si está configurado
         if imprimir_automatico and IMPRESION_DISPONIBLE:
             try:
@@ -4713,6 +4775,9 @@ def buscar_facturas():
         # Formatear resultados
         resultado = []
         for factura in facturas:
+            # ✅ BUSCAR DESCUENTO APLICADO
+            descuento = DescuentoFactura.query.filter_by(factura_id=factura.id).first()
+
             # Obtener información de medios de pago
             medios_pago = []
             for medio in factura.medios_pago:
@@ -4743,7 +4808,11 @@ def buscar_facturas():
                 'vto_cae': factura.vto_cae.strftime('%d/%m/%Y') if factura.vto_cae else None,
                 'medios_pago': medios_pago,
                 'cantidad_items': len(factura.detalles),
-                'usuario': factura.usuario.nombre if factura.usuario else 'Desconocido'
+                'usuario': factura.usuario.nombre if factura.usuario else 'Desconocido',
+                 'tiene_descuento': bool(descuento),
+                'descuento_porcentaje': float(descuento.porcentaje_descuento) if descuento else 0,
+                'descuento_monto': float(descuento.monto_descuento) if descuento else 0,
+                'total_original': float(descuento.total_original) if descuento else float(factura.total)
             }
             
             resultado.append(factura_dict)
@@ -6185,5 +6254,34 @@ def estadisticas():
     except Exception as e:
         flash(f'Error cargando estadísticas: {str(e)}')
         return redirect(url_for('index'))
+
+
+@app.route('/api/descuento_factura/<int:factura_id>')
+def obtener_descuento_factura(factura_id):
+    """Obtener información del descuento aplicado a una factura"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        descuento = DescuentoFactura.query.filter_by(factura_id=factura_id).first()
+        
+        #print(f"🔍 DEBUG API: Buscando descuento para factura {factura_id}")
+        #print(f"🔍 DEBUG API: Descuento encontrado: {bool(descuento)}")
+        
+        if descuento:
+            #print(f"🔍 DEBUG API: Descuento: {descuento.porcentaje_descuento}% = ${descuento.monto_descuento}")
+            return jsonify({
+                'success': True,
+                'tiene_descuento': True,
+                'descuento': descuento.to_dict()
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'tiene_descuento': False
+            })
+    except Exception as e:
+       # print(f"❌ DEBUG API: Error: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 app.run(debug=True, host='0.0.0.0', port=5080)

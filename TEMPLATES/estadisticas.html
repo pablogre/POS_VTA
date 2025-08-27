@@ -123,9 +123,14 @@
                     <div class="col-md-8">
                         <div class="card">
                             <div class="card-header bg-light">
-                                <h6 class="mb-0">
-                                    <i class="fas fa-chart-area"></i> Evolución Mensual
-                                    <span id="ano_grafico_titulo" class="text-muted"></span>
+                                <h6 class="mb-0 d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <i class="fas fa-chart-area"></i> Evolución Mensual
+                                        <span id="ano_grafico_titulo" class="text-muted"></span>
+                                    </span>
+                                    <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#modalExplicacionGrafico">
+                                        <i class="fas fa-question-circle"></i> ¿Qué significa?
+                                    </button>
                                 </h6>
                             </div>
                             <div class="card-body">
@@ -213,6 +218,121 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL DE EXPLICACIÓN -->
+<div class="modal fade" id="modalExplicacionGrafico" tabindex="-1" aria-labelledby="modalExplicacionGraficoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="modalExplicacionGraficoLabel">
+                    <i class="fas fa-chart-line"></i> Explicación del Gráfico de Estadísticas
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card border-danger">
+                            <div class="card-header bg-danger text-white">
+                                <h6 class="mb-0"><i class="fas fa-line-chart"></i> Cantidad de Ventas (Línea roja)</h6>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-unstyled mb-0">
+                                    <li><strong>Se refiere al número de facturas emitidas</strong></li>
+                                    <li>Es decir, cuántas transacciones/ventas realizaste</li>
+                                    <li><em>Ejemplo:</em> si vendiste a 10 clientes diferentes en un mes = 10 ventas</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-success">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="mb-0"><i class="fas fa-area-chart"></i> Facturación (Área verde)</h6>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-unstyled mb-0">
+                                    <li><strong>Se refiere al monto total en dinero facturado</strong></li>
+                                    <li>Es la suma de todos los importes de las facturas</li>
+                                    <li><em>Ejemplo:</em> si esas 10 ventas sumaron $50,000 = $50,000 de facturación</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header bg-warning">
+                        <h6 class="mb-0"><i class="fas fa-lightbulb"></i> Ejemplo Práctico</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-primary">📅 Enero:</h6>
+                                <ul>
+                                    <li>Cantidad de ventas: <strong>15 facturas</strong></li>
+                                    <li>Facturación: <strong>$25,000</strong></li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-primary">📅 Febrero:</h6>
+                                <ul>
+                                    <li>Cantidad de ventas: <strong>12 facturas</strong></li>
+                                    <li>Facturación: <strong>$30,000</strong></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="alert alert-info mt-3">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Análisis:</strong> Enero tuvo más ventas (más clientes) pero febrero tuvo mayor facturación (más dinero), 
+                            lo que podría indicar que en febrero vendiste productos más caros o cantidades mayores por factura.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="fas fa-question"></i> ¿Por qué es útil ver ambas métricas?</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-success">✅ Ventajas del análisis dual:</h6>
+                                <ol>
+                                    <li><strong>Volumen de clientes</strong> vs <strong>valor promedio por venta</strong></li>
+                                    <li>Te ayuda a entender si necesitas más clientes o vender más a los clientes existentes</li>
+                                </ol>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-warning">📊 Interpretaciones:</h6>
+                                <ul class="list-unstyled">
+                                    <li><span class="badge bg-danger">Muchas ventas + Poca facturación</span><br>
+                                        <small>= Ventas de bajo valor</small></li>
+                                    <li><span class="badge bg-success">Pocas ventas + Alta facturación</span><br>
+                                        <small>= Ventas de alto valor</small></li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-success mt-3">
+                            <i class="fas fa-chart-line"></i>
+                            <strong>Conclusión:</strong> El gráfico dual te permite analizar ambos aspectos de tu negocio simultáneamente 
+                            para tomar decisiones más informadas sobre tu estrategia de ventas.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="window.print()">
+                    <i class="fas fa-print"></i> Imprimir Explicación
+                </button>
             </div>
         </div>
     </div>
@@ -803,7 +923,6 @@ function obtenerColorMedioPago(codigo) {
 </script>
 
 <style>
-/* COPIAR AQUÍ TODOS LOS ESTILOS CSS DE ESTADÍSTICAS DESDE dashboard.html */
 .border-left-primary { border-left: 4px solid #4e73df !important; }
 .border-left-success { border-left: 4px solid #1cc88a !important; }
 .border-left-info { border-left: 4px solid #36b9cc !important; }

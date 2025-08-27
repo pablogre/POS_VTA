@@ -265,7 +265,7 @@ function mostrarMensajeLimite() {
 function actualizarTablaFacturas(facturas) {
     const tbody = document.querySelector('table tbody');
     
-    console.log(`📊 Actualizando tabla con ${facturas.length} facturas`);
+    console.log(`Actualizando tabla con ${facturas.length} facturas`);
     
     if (facturas.length === 0) {
         tbody.innerHTML = `
@@ -291,6 +291,25 @@ function actualizarTablaFacturas(facturas) {
             `<small><code>${factura.cae}</code></small>` : 
             '<span class="text-muted">-</span>';
         
+        // ✅ MOSTRAR TOTAL CON DESCUENTO SI EXISTE
+        let totalHtml = `<strong>$${factura.total.toFixed(2)}</strong>`;
+        
+        if (factura.tiene_descuento) {
+            totalHtml = `
+                <strong class="text-success">$${factura.total.toFixed(2)}</strong>
+                <br><small class="text-success">
+                    <i class="fas fa-tag"></i> Desc. ${factura.descuento_porcentaje.toFixed(1)}% 
+                    (-$${factura.descuento_monto.toFixed(2)})
+                </small>
+                <br><small class="text-muted">Orig: $${factura.total_original.toFixed(2)}</small>
+            `;
+        } else {
+            totalHtml += `
+                <br><small class="text-muted">Subtotal: $${factura.subtotal.toFixed(2)}</small>
+                <br><small class="text-muted">IVA: $${factura.iva.toFixed(2)}</small>
+            `;
+        }
+        
         // Botones de acción
         const botones = generarBotonesAccion(factura);
         
@@ -310,9 +329,7 @@ function actualizarTablaFacturas(facturas) {
                 </td>
                 <td>${tipoBadge}</td>
                 <td class="text-end">
-                    <strong>$${factura.total.toFixed(2)}</strong>
-                    <br><small class="text-muted">Subtotal: $${factura.subtotal.toFixed(2)}</small>
-                    <br><small class="text-muted">IVA: $${factura.iva.toFixed(2)}</small>
+                    ${totalHtml}
                 </td>
                 <td>${estadoBadge}</td>
                 <td>${caeHtml}</td>
@@ -321,7 +338,7 @@ function actualizarTablaFacturas(facturas) {
         `;
     }).join('');
     
-    console.log('✅ Tabla de facturas actualizada correctamente');
+    console.log('Tabla de facturas actualizada correctamente');
 }
 
 function obtenerBadgeTipo(tipo) {

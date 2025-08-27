@@ -198,11 +198,27 @@
                         <td><strong>Subtotal:</strong></td>
                         <td class="text-end">${{ "%.2f"|format(factura.subtotal or 0) }}</td>
                     </tr>
+                    
                     <tr>
                         <td><strong>IVA:</strong></td>
                         <td class="text-end">${{ "%.2f"|format(factura.iva or 0) }}</td>
                     </tr>
                     {% endif %}
+
+                    <!-- SECCIÓN DE DESCUENTO -->
+                    <tbody id="seccion_descuento" style="display: none;">
+                        <tr class="text-success">
+                            <td>
+                                <i class="fas fa-tag"></i> Descuento (<span id="porcentaje_desc"></span>%):
+                            </td>
+                            <td class="text-end">-$<span id="monto_desc"></span></td>
+                        </tr>
+                        <tr class="text-muted">
+                            <td><small>Subtotal original:</small></td>
+                            <td class="text-end"><small>$<span id="total_original"></span></small></td>
+                        </tr>
+                    </tbody>
+
                     <tr class="table-dark">
                         <td><strong>TOTAL:</strong></td>
                         <td class="text-end"><strong>${{ "%.2f"|format(factura.total) }}</strong></td>
@@ -267,7 +283,6 @@ function imprimirFactura() {
 
 function reintentarAFIP(facturaId) {
     if (confirm('¿Reintentar autorización en AFIP para esta factura?')) {
-        // Implementar llamada AJAX para reintentar AFIP
         fetch(`/factura/${facturaId}/reintentar-afip`, {
             method: 'POST',
             headers: {
@@ -288,6 +303,59 @@ function reintentarAFIP(facturaId) {
         });
     }
 }
+
+// Cargar descuento al cargar página
+// Cargar descuento al cargar página - VERSIÓN CON DEBUG
+document.addEventListener('DOMContentLoaded', function() {
+    const facturaId = {{ factura.id }};
+    
+    console.log('🔍 DEBUG: Buscando descuento para factura ID:', facturaId);
+    console.log('🔍 DEBUG: URL llamada:', `/api/descuento_factura/${facturaId}`);
+    
+    fetch(`/api/descuento_factura/${facturaId}`)
+    .then(response => {
+        console.log('🔍 DEBUG: Respuesta HTTP status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('🔍 DEBUG: Datos recibidos:', data);
+        
+        if (data.success && data.tiene_descuento) {
+            console.log('🔍 DEBUG: Factura tiene descuento, mostrando...');
+            const desc = data.descuento;
+            
+            // Verificar que los elementos existen
+            const elemPorcentaje = document.getElementById('porcentaje_desc');
+            const elemMonto = document.getElementById('monto_desc');
+            const elemOriginal = document.getElementById('total_original');
+            const seccionDescuento = document.getElementById('seccion_descuento');
+            
+            console.log('🔍 DEBUG: Elementos encontrados:', {
+                porcentaje: !!elemPorcentaje,
+                monto: !!elemMonto,
+                original: !!elemOriginal,
+                seccion: !!seccionDescuento
+            });
+            
+            if (elemPorcentaje && elemMonto && elemOriginal && seccionDescuento) {
+                elemPorcentaje.textContent = desc.porcentaje_descuento.toFixed(1);
+                elemMonto.textContent = desc.monto_descuento.toFixed(2);
+                elemOriginal.textContent = (desc.total_original - {{ factura.iva }}).toFixed(2);
+                seccionDescuento.style.display = 'table-row-group';
+                
+                console.log('✅ DEBUG: Descuento mostrado correctamente');
+            } else {
+                console.log('❌ DEBUG: Faltan elementos HTML');
+            }
+        } else {
+            console.log('🔍 DEBUG: Factura no tiene descuento o error en respuesta');
+        }
+    })
+    .catch(error => {
+        console.log('❌ DEBUG: Error en llamada API:', error);
+    });
+});
+
 </script>
 
 <!-- Estilos para impresión -->
