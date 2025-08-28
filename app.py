@@ -1722,7 +1722,7 @@ def obtener_producto_detalle(producto_id):
             'descripcion': producto.descripcion or '',
             'precio': float(producto.precio),
             'costo': round(costo, 2),
-            'margen': round(margen, 1),
+            'margen': float(margen),
             'stock': producto.stock,
             'categoria': producto.categoria or '',
             'iva': float(producto.iva),
@@ -1854,6 +1854,9 @@ def guardar_producto():
         print(f"Error guardando producto: {str(e)}")
         return jsonify({'error': f'Error al guardar producto: {str(e)}'}), 500
 
+
+
+
 @app.route('/ajustar_stock', methods=['POST'])
 def ajustar_stock():
     """Ajustar stock de un producto"""
@@ -1951,6 +1954,7 @@ def buscar_productos_admin():
         buscar = request.args.get('buscar', '').strip()
         categoria = request.args.get('categoria', '').strip()
         filtro_stock = request.args.get('stock', '').strip()
+        estado = request.args.get('estado', '').strip()
         
         # ✅ NUEVOS PARÁMETROS PARA COMBOS
         solo_combos = request.args.get('solo_combos', '').strip().lower() == 'true'
@@ -4457,9 +4461,9 @@ def importar_productos_lote():
                             codigo=codigo,
                             nombre=descripcion,
                             descripcion=descripcion,
-                            precio=Decimal(str(precio)),
-                            costo=Decimal(str(costo_calculado)),
-                            margen=Decimal(str(margen_defecto)),
+                            precio=Decimal(str(precio)),                    # <- Del Excel
+                            costo=Decimal(str(float(producto_data.get('costo', 0)))),   # <- Del Excel
+                            margen=Decimal(str(float(producto_data.get('margen', 30)))), # <- Del Excel
                             stock=0,  # Stock inicial en 0
                             categoria=categoria,
                             iva=Decimal('21.0'),  # IVA por defecto 21%
@@ -6261,7 +6265,7 @@ def obtener_descuento_factura(factura_id):
     """Obtener información del descuento aplicado a una factura"""
     if 'user_id' not in session:
         return jsonify({'error': 'No autorizado'}), 401
-    
+
     try:
         descuento = DescuentoFactura.query.filter_by(factura_id=factura_id).first()
         

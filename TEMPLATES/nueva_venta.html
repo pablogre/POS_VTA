@@ -1226,50 +1226,75 @@ function agregarMedioPago() {
     const importeInput = document.getElementById('importe_pago');
     
     const medio = medioSelect.value;
-    const importeOriginal = parseFloat(importeInput.value) || 0;
+    const importeIngresado = parseFloat(importeInput.value) || 0;
     
-    // Validaciones
+    // Validaciones básicas
     if (!medio) {
         mostrarError('Seleccione un medio de pago');
         medioSelect.focus();
         return;
     }
     
-    if (importeOriginal <= 0) {
+    if (importeIngresado <= 0) {
         mostrarError('El importe debe ser mayor a cero');
         importeInput.focus();
         return;
     }
     
-    // Calcular cuánto falta pagar
+    // Calcular cuánto falta pagar (considerando descuentos)
     const totalIngresado = mediosPagoIngresados.reduce((sum, mp) => sum + mp.importe, 0);
-    const faltante = totalVenta - totalIngresado;
+    const totalAPagar = totalVenta - montoDescuento;
+    const faltante = totalAPagar - totalIngresado;
     
-    let importeAUsar = importeOriginal;
+    console.log('=== DEBUG AGREGAR MEDIO ===');
+    console.log('Total a pagar (con descuento):', totalAPagar);
+    console.log('Ya ingresado:', totalIngresado);
+    console.log('Faltante:', faltante);
+    console.log('Importe ingresado:', importeIngresado);
+    console.log('Medio:', medio);
     
-    // Solo para efectivo: si el importe es mayor al faltante, usar solo el faltante
-    if (medio === 'efectivo' && importeOriginal > faltante && faltante > 0) {
-        importeAUsar = faltante;
-        importeInput.value = importeAUsar.toFixed(2);
+    // LÓGICA ESPECIAL PARA EFECTIVO CON VUELTO
+    if (medio === 'efectivo') {
+        // Para efectivo, siempre permitir el importe completo (para calcular vuelto)
+        const medioPago = {
+            id: contadorMediosPago++,
+            medio: medio,
+            medio_nombre: getMedioNombre(medio),
+            medio_icono: getMedioIcono(medio),
+            importe: Math.min(importeIngresado, totalAPagar), // Lo que realmente se aplica al pago
+            importe_original: importeIngresado, // Lo que el cliente entregó
+            es_efectivo_con_vuelto: importeIngresado > totalAPagar
+        };
+        
+        mediosPagoIngresados.push(medioPago);
+        
+        const vuelto = Math.max(0, importeIngresado - totalAPagar);
+        
+        if (vuelto > 0) {
+            mostrarMensajeExito(`Efectivo: $${importeIngresado.toFixed(2)} - Vuelto: $${vuelto.toFixed(2)}`);
+        } else {
+            mostrarMensajeExito(`Efectivo agregado: $${importeIngresado.toFixed(2)}`);
+        }
+    } else {
+        // Para otros medios de pago, no permitir exceso
+        if (importeIngresado > faltante * 1.1) { // 10% de tolerancia
+            mostrarError(`El importe excede el faltante ($${faltante.toFixed(2)}). Para otros medios de pago no se puede dar vuelto.`);
+            return;
+        }
+        
+        const medioPago = {
+            id: contadorMediosPago++,
+            medio: medio,
+            medio_nombre: getMedioNombre(medio),
+            medio_icono: getMedioIcono(medio),
+            importe: importeIngresado,
+            importe_original: importeIngresado,
+            es_efectivo_con_vuelto: false
+        };
+        
+        mediosPagoIngresados.push(medioPago);
+        mostrarMensajeExito(`Agregado: ${medioPago.medio_nombre} $${importeIngresado.toFixed(2)}`);
     }
-    
-    // Verificar que no exceda el total (para otros medios de pago)
-    if (medio !== 'efectivo' && totalIngresado + importeOriginal > totalVenta * 1.5) {
-        mostrarError('El importe excede significativamente el total de la venta');
-        return;
-    }
-    
-    // Agregar medio de pago (guardando AMBOS importes si es efectivo con vuelto)
-    const medioPago = {
-        id: contadorMediosPago++,
-        medio: medio,
-        medio_nombre: getMedioNombre(medio),
-        medio_icono: getMedioIcono(medio),
-        importe: importeAUsar,
-        importe_original: medio === 'efectivo' ? importeOriginal : importeAUsar
-    };
-    
-    mediosPagoIngresados.push(medioPago);
     
     // Actualizar displays
     actualizarTablaMediosPago();
@@ -1279,15 +1304,9 @@ function agregarMedioPago() {
     medioSelect.value = '';
     importeInput.value = '';
     medioSelect.focus();
-    
-    // Mostrar mensaje
-    const vuelto = importeOriginal - importeAUsar;
-    if (vuelto > 0) {
-        mostrarMensajeExito(`Efectivo agregado: ${formatearMoneda(importeAUsar)}. Vuelto: ${formatearMoneda(vuelto)}`);
-    } else {
-        mostrarMensajeExito(`Agregado: ${medioPago.medio_nombre} ${formatearMoneda(importeAUsar)}`);
-    }
 }
+
+
 
 function eliminarMedioPago(id) {
     if (confirm('¿Eliminar este medio de pago?')) {
@@ -1327,60 +1346,59 @@ function actualizarTablaMediosPago() {
 }
 
 function actualizarResumenPago() {
-    const totalIngresado = mediosPagoIngresados.reduce((sum, mp) => sum + mp.importe, 0);
-    
-    // CORRECCIÓN CRÍTICA: Usar el total que ya incluye el descuento aplicado
+    const totalIngresadoReal = mediosPagoIngresados.reduce((sum, mp) => sum + mp.importe, 0);
     const totalAPagar = totalVenta - montoDescuento;
-    const diferencia = totalIngresado - totalAPagar;
+    const diferencia = totalIngresadoReal - totalAPagar;
     
-    // DEBUG: Mostrar cálculos en consola
-    console.log('=== DEBUG RESUMEN PAGO ===');
-    console.log('Total venta original:', totalVenta);
-    console.log('Monto descuento:', montoDescuento);
-    console.log('Total a pagar (con descuento):', totalAPagar);
-    console.log('Total ingresado:', totalIngresado);
-    console.log('Diferencia real:', diferencia);
-    console.log('========================');
+    // Calcular vuelto para efectivo
+    let vueltoTotal = 0;
+    let efectivoRecibidoTotal = 0;
+    
+    mediosPagoIngresados.forEach(mp => {
+        if (mp.medio === 'efectivo') {
+            efectivoRecibidoTotal += mp.importe_original;
+            if (mp.es_efectivo_con_vuelto) {
+                vueltoTotal += (mp.importe_original - mp.importe);
+            }
+        }
+    });
+    
+    console.log('=== DEBUG RESUMEN ACTUALIZADO ===');
+    console.log('Total a pagar:', totalAPagar);
+    console.log('Total ingresado (real):', totalIngresadoReal);
+    console.log('Efectivo recibido total:', efectivoRecibidoTotal);
+    console.log('Vuelto total:', vueltoTotal);
+    console.log('Diferencia:', diferencia);
     
     // Actualizar displays
-    document.getElementById('total_ingresado').textContent = formatearMoneda(totalIngresado);
+    document.getElementById('total_ingresado').textContent = formatearMoneda(totalIngresadoReal);
     
     const diferenciasSpan = document.getElementById('diferencia_pago');
     const estadoPago = document.getElementById('estado_pago');
     const btnConfirmar = document.getElementById('btn_confirmar_pago');
     
+    // Lógica de estado de pago
     if (Math.abs(diferencia) < 0.01) {
-        // Pago exacto
-        diferenciasSpan.textContent = formatearMoneda(0);
-        diferenciasSpan.className = 'h5 diferencia-cero';
-        estadoPago.innerHTML = '<span class="badge bg-success">✅ Pago completo</span>';
-        btnConfirmar.disabled = false;
-        ocultarSeccionVuelto();
-        
-    } else if (diferencia > 0.01) {
-        // Hay exceso - solo mostrar vuelto si TODO el pago es en efectivo
-        const efectivoTotal = mediosPagoIngresados
-            .filter(mp => mp.medio === 'efectivo')
-            .reduce((sum, mp) => sum + mp.importe, 0);
-        
-        const soloEfectivo = mediosPagoIngresados.length === 1 && 
-                            mediosPagoIngresados[0].medio === 'efectivo';
-        
-        if (soloEfectivo && efectivoTotal >= totalAPagar) {
-            // Mostrar como vuelto
-            diferenciasSpan.innerHTML = `💰 Vuelto a entregar <span class="text-warning">${formatearMoneda(diferencia)}</span>`;
-            diferenciasSpan.className = 'h5 diferencia-positiva';
-            estadoPago.innerHTML = '<span class="badge bg-warning">💰 Vuelto a entregar</span>';
-            mostrarSeccionVuelto(efectivoTotal, diferencia);
-            btnConfirmar.disabled = false;
+        // Pago exacto o completo con vuelto
+        if (vueltoTotal > 0) {
+            diferenciasSpan.innerHTML = `✅ Completo <span class="text-warning">(Vuelto: ${formatearMoneda(vueltoTotal)})</span>`;
+            estadoPago.innerHTML = '<span class="badge bg-warning text-dark">💰 Entregar vuelto</span>';
+            mostrarSeccionVuelto(efectivoRecibidoTotal, vueltoTotal);
         } else {
-            // Exceso problemático
-            diferenciasSpan.textContent = `❌ Exceso de ${formatearMoneda(diferencia)}`;
-            diferenciasSpan.className = 'h5 diferencia-negativa';
-            estadoPago.innerHTML = '<span class="badge bg-danger">❌ Exceso en pago</span>';
-            btnConfirmar.disabled = true;
+            diferenciasSpan.textContent = formatearMoneda(0);
+            estadoPago.innerHTML = '<span class="badge bg-success">✅ Pago completo</span>';
             ocultarSeccionVuelto();
         }
+        diferenciasSpan.className = 'h5 diferencia-cero';
+        btnConfirmar.disabled = false;
+        
+    } else if (diferencia > 0.01) {
+        // Sobrepago - esto no debería pasar con la nueva lógica
+        diferenciasSpan.innerHTML = `⚠️ Sobrepago: ${formatearMoneda(diferencia)}`;
+        diferenciasSpan.className = 'h5 diferencia-negativa';
+        estadoPago.innerHTML = '<span class="badge bg-danger">❌ Error en cálculo</span>';
+        btnConfirmar.disabled = true;
+        ocultarSeccionVuelto();
         
     } else {
         // Falta dinero
@@ -1393,10 +1411,14 @@ function actualizarResumenPago() {
     }
 }
 
+
+
 function mostrarSeccionVuelto(efectivoRecibido, vuelto) {
     document.getElementById('efectivo_recibido').textContent = efectivoRecibido.toFixed(2);
     document.getElementById('vuelto_cantidad').textContent = vuelto.toFixed(2);
     document.getElementById('seccion_vuelto').style.display = 'block';
+    
+    console.log('👀 Mostrando sección de vuelto:', { efectivoRecibido, vuelto });
 }
 
 function ocultarSeccionVuelto() {
@@ -1405,7 +1427,8 @@ function ocultarSeccionVuelto() {
 
 function completarConEfectivo() {
     const totalIngresado = mediosPagoIngresados.reduce((sum, mp) => sum + mp.importe, 0);
-    const faltante = totalVenta - totalIngresado;
+    const totalAPagar = totalVenta - montoDescuento;
+    const faltante = totalAPagar - totalIngresado;
     
     if (faltante <= 0) {
         mostrarError('El pago ya está completo');
@@ -1413,13 +1436,16 @@ function completarConEfectivo() {
     }
     
     document.getElementById('medio_pago_select').value = 'efectivo';
+    // Para efectivo, sugerir el faltante pero permitir modificación para vuelto
     document.getElementById('importe_pago').value = faltante.toFixed(2);
     document.getElementById('importe_pago').focus();
+    document.getElementById('importe_pago').select(); // Seleccionar para fácil edición
 }
 
 function completarConTarjeta(tipoTarjeta) {
     const totalIngresado = mediosPagoIngresados.reduce((sum, mp) => sum + mp.importe, 0);
-    const faltante = totalVenta - totalIngresado;
+    const totalAPagar = totalVenta - montoDescuento;
+    const faltante = totalAPagar - totalIngresado;
     
     if (faltante <= 0) {
         mostrarError('El pago ya está completo');
@@ -1433,7 +1459,8 @@ function completarConTarjeta(tipoTarjeta) {
 
 function completarConMercadoPago() {
     const totalIngresado = mediosPagoIngresados.reduce((sum, mp) => sum + mp.importe, 0);
-    const faltante = totalVenta - totalIngresado;
+    const totalAPagar = totalVenta - montoDescuento;
+    const faltante = totalAPagar - totalIngresado;
     
     if (faltante <= 0) {
         mostrarError('El pago ya está completo');
@@ -1470,31 +1497,20 @@ function confirmarMediosPago() {
     const totalAPagar = totalVenta - montoDescuento;
     const diferencia = totalIngresado - totalAPagar;
     
-    console.log('=== DEBUG CONFIRMACIÓN ===');
+    console.log('=== DEBUG CONFIRMACIÓN FINAL ===');
     console.log('Total a pagar:', totalAPagar);
     console.log('Total ingresado:', totalIngresado);
     console.log('Diferencia:', diferencia);
-    console.log('=========================');
+    console.log('Medios de pago:', mediosPagoIngresados);
     
-    // Si falta dinero, no permitir
+    // Verificar que el pago esté completo (permitir exacto o con vuelto en efectivo)
     if (diferencia < -0.01) {
         const faltante = Math.abs(diferencia);
         mostrarError(`Faltan $${faltante.toFixed(2)} para completar el pago`);
         return;
     }
     
-    // Si hay exceso pero no es efectivo, no permitir
-    if (diferencia > 0.01) {
-        const soloEfectivo = mediosPagoIngresados.length === 1 && 
-                            mediosPagoIngresados[0].medio === 'efectivo';
-        
-        if (!soloEfectivo) {
-            mostrarError(`Hay un exceso de $${diferencia.toFixed(2)} y no es posible dar vuelto`);
-            return;
-        }
-    }
-    
-    // Todo OK - procesar
+    // Si todo está bien, procesar
     const modal = bootstrap.Modal.getInstance(document.getElementById('modalMediosPago'));
     modal.hide();
     
@@ -1720,7 +1736,7 @@ function validarQRFactura() {
         if (data.qr_valido) {
             mensaje = `
                 <div class="alert alert-success">
-                    <h5><i class="fas fa-check-circle"></i> QR AFIP Válido</h5>
+                    <h5><i class="fas fa-check-circle"></i> QR ARCA Válido</h5>
                     <p><strong>Factura:</strong> ${data.numero}</p>
                     <p><strong>Estado:</strong> ${data.mensaje}</p>
                     <small><strong>URL QR:</strong><br>
@@ -1955,15 +1971,15 @@ function mostrarResultadoVenta(resultado) {
     
     if (resultado.estado === 'autorizada') {
         estadoHtml = `<div class="alert alert-success">
-            <i class="fas fa-check-circle"></i> <strong>¡Factura autorizada por AFIP!</strong>
+            <i class="fas fa-check-circle"></i> <strong>¡Factura autorizada por ARCA!</strong>
             <br><strong>CAE:</strong> ${resultado.cae}
-            <br><small class="text-success">✅ Código QR AFIP disponible</small>
+            <br><small class="text-success">✅ Código QR ARCA disponible</small>
         </div>`;
     } else if (resultado.estado === 'error_afip') {
         estadoHtml = `<div class="alert alert-warning">
             <i class="fas fa-exclamation-triangle"></i> <strong>Venta procesada localmente</strong>
-            <br>Error de conexión con AFIP - La factura se guardó localmente
-            <br><small class="text-warning">⚠️ QR AFIP no disponible</small>
+            <br>Error de conexión con ARCA - La factura se guardó localmente
+            <br><small class="text-warning">⚠️ QR ARCA no disponible</small>
         </div>`;
     } else {
         estadoHtml = `<div class="alert alert-info">

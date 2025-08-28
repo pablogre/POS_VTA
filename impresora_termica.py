@@ -419,14 +419,24 @@ class ImpresoraTermica:
     def _obtener_tipo_comprobante(self, tipo):
         """Obtener descripción del tipo de comprobante"""
         tipos = {
-            '01': 'FACTURA A',
-            '06': 'FACTURA B', 
-            '11': 'FACTURA C',
-            '03': 'NOTA CRED A',
-            '08': 'NOTA CRED B',
-            '13': 'NOTA CRED C'
+            '01': 'FACTURA A', '1': 'FACTURA A',
+            '06': 'FACTURA B', '6': 'FACTURA B',
+            '11': 'FACTURA C', '11': 'FACTURA C',
+            '03': 'NOTA CRED A', '3': 'NOTA CRED A',
+            '08': 'NOTA CRED B', '8': 'NOTA CRED B',
+            '13': 'NOTA CRED C', '13': 'NOTA CRED C'
         }
-        return tipos.get(str(tipo), f'CBTE {tipo}')
+        
+        # Convertir a string para buscar
+        tipo_str = str(tipo)
+        
+        # Buscar primero el valor exacto, luego con cero adelante
+        if tipo_str in tipos:
+            return tipos[tipo_str]
+        elif tipo_str.zfill(2) in tipos:  # Agregar cero adelante si es necesario
+            return tipos[tipo_str.zfill(2)]
+        else:
+            return f'CBTE {tipo}'
 
 
     

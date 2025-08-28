@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR AFIP - Factura {{ factura.numero }}</title>
+    <title>QR ARCA - Factura {{ factura.numero }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -85,9 +85,9 @@
                     <div class="text-center mb-4">
                         <h2 class="mb-3">
                             <i class="fas fa-qrcode text-primary"></i>
-                            Código QR AFIP
+                            Código QR ARCA
                         </h2>
-                        <p class="text-muted">Escanea para verificar en AFIP</p>
+                        <p class="text-muted">Escanea para verificar en ARCA</p>
                     </div>
                     
                     <!-- Información de la factura -->
@@ -119,7 +119,7 @@
                     {% if qr_info.valido %}
                         <div class="alert alert-success alert-custom text-center mb-4">
                             <i class="fas fa-check-circle fa-2x mb-2"></i>
-                            <h5 class="mb-2">✅ QR AFIP Válido</h5>
+                            <h5 class="mb-2">✅ QR ARCA Válido</h5>
                             <p class="mb-0">{{ qr_info.mensaje }}</p>
                         </div>
                     {% else %}
@@ -135,12 +135,12 @@
                         <div class="text-center mb-4">
                             <div class="pulse">
                                 <img src="data:image/png;base64,{{ qr_image }}" 
-                                     alt="Código QR AFIP" 
+                                     alt="Código QR ARCA" 
                                      class="qr-image">
                             </div>
                             <p class="mt-3 text-muted">
                                 <i class="fas fa-mobile-alt"></i>
-                                Escanea con la app de AFIP o cualquier lector QR
+                                Escanea con la app de ARCA o cualquier lector QR
                             </p>
                         </div>
                         
@@ -150,7 +150,7 @@
                                target="_blank" 
                                class="btn btn-primary btn-custom">
                                 <i class="fas fa-external-link-alt"></i>
-                                Abrir en AFIP
+                                Abrir en ARCA
                             </a>
                             
                             <button type="button" 
@@ -169,7 +169,7 @@
                                 {% if factura.cae %}
                                     Esta factura está autorizada pero no tiene QR válido.
                                 {% else %}
-                                    Esta factura no fue autorizada por AFIP.
+                                    Esta factura no fue autorizada por ARCA.
                                 {% endif %}
                             </p>
                         </div>
@@ -219,7 +219,7 @@
                 <div class="text-center mt-4">
                     <small class="text-white-50">
                         <i class="fas fa-shield-alt"></i>
-                        Sistema POS Argentina - Verificación AFIP
+                        Sistema POS Argentina - Verificación ARCA
                     </small>
                 </div>
             </div>

@@ -33,6 +33,15 @@
                     <option value="sin_stock">Sin stock</option>
                 </select>
             </div>
+            <!-- NUEVO FILTRO DE ESTADO -->
+            <div class="col-md-2">
+                <label class="form-label">Estado</label>
+                <select class="form-select" id="filtroEstado">
+                    <option value="">Todos los estados</option>
+                    <option value="activo" selected>Solo activos</option>
+                    <option value="inactivo">Solo inactivos</option>
+                </select>
+            </div>
             <div class="col-md-2">
                 <label class="form-label">&nbsp;</label>
                 <div class="d-grid gap-2">
@@ -231,7 +240,7 @@
                                     <div class="mb-3">
                                         <label for="margen" class="form-label">Margen de Ganancia %</label>
                                         <div class="input-group">
-                                            <input type="number" class="form-control" id="margen" step="0.1" min="0" value="30">
+                                            <input type="number" class="form-control" id="margen" step="0.01" min="0" value="30">
                                             <span class="input-group-text">%</span>
                                         </div>
                                         <small class="form-text text-muted">Porcentaje sobre el costo</small>
@@ -242,7 +251,7 @@
                                         <label for="precio" class="form-label">Precio de Venta</label>
                                         <div class="input-group">
                                             <span class="input-group-text">$</span>
-                                            <input type="number" class="form-control bg-warning" id="precio" step="0.01" readonly>
+                                            <input type="number" class="form-control bg-warning" id="precio" step="0.01">
                                         </div>
                                         <small class="form-text text-primary"><strong>Calculado automáticamente</strong></small>
                                     </div>
@@ -355,28 +364,72 @@ let productosBase = [];
 
 // ===== FUNCIONES PARA PRODUCTOS =====
 
-// Función para calcular precio automáticamente
+// Variables para controlar el comportamiento del cálculo
+let modoEdicion = false;
+let calculoManual = false;
+
+// Función mejorada para calcular precio o margen automáticamente
 function calcularPrecio() {
     const costo = parseFloat(document.getElementById('costo').value) || 0;
     const margen = parseFloat(document.getElementById('margen').value) || 0;
+    const precioActual = parseFloat(document.getElementById('precio').value) || 0;
     
-    // Fórmula: precio = costo * (1 + (margen/100))
-    const precio = costo * (1 + (margen / 100));
-    
-    // Actualizar campo precio
-    document.getElementById('precio').value = precio.toFixed(2);
-    
-    // Actualizar ejemplo visual
-    const formulaEjemplo = document.getElementById('formulaEjemplo');
-    if (formulaEjemplo) {
-        formulaEjemplo.textContent = `Ejemplo: $${costo.toFixed(2)} × (1 + ${margen}%/100) = $${precio.toFixed(2)}`;
+    // Si estamos en modo edición y no es un cálculo manual, calcular el margen
+    if (modoEdicion && !calculoManual && costo > 0 && precioActual > 0) {
+        // Calcular margen basado en precio existente: margen = ((precio / costo) - 1) * 100
+        const margenCalculado = ((precioActual / costo) - 1) * 100;
+        document.getElementById('margen').value = margenCalculado.toFixed(2);
+        
+        // Actualizar ejemplo visual
+        const formulaEjemplo = document.getElementById('formulaEjemplo');
+        if (formulaEjemplo) {
+            formulaEjemplo.textContent = `Margen calculado: (($${precioActual.toFixed(2)} / $${costo.toFixed(2)}) - 1) × 100 = ${margenCalculado.toFixed(2)}%`;
+        }
+        
+        console.log(`📊 Margen calculado: Costo=$${costo.toFixed(2)}, Precio=$${precioActual.toFixed(2)}, Margen=${margenCalculado.toFixed(2)}%`);
+    } else {
+        // Cálculo normal del precio basado en costo y margen
+        const precio = costo * (1 + (margen / 100));
+        document.getElementById('precio').value = precio.toFixed(2);
+        
+        // Actualizar ejemplo visual
+        const formulaEjemplo = document.getElementById('formulaEjemplo');
+        if (formulaEjemplo) {
+            formulaEjemplo.textContent = `Ejemplo: $${costo.toFixed(2)} × (1 + ${margen}%/100) = $${precio.toFixed(2)}`;
+        }
+        
+        console.log(`💰 Precio calculado: Costo=$${costo.toFixed(2)}, Margen=${margen}%, Precio=$${precio.toFixed(2)}`);
     }
     
-    console.log(`💰 Precio calculado: Costo=$${costo.toFixed(2)}, Margen=${margen}%, Precio=$${precio.toFixed(2)}`);
+    // Resetear flag de cálculo manual
+    calculoManual = false;
+}
+
+
+// Función para calcular margen basado en precio
+function calcularMargen() {
+    const costo = parseFloat(document.getElementById('costo').value) || 0;
+    const precio = parseFloat(document.getElementById('precio').value) || 0;
+    
+    if (costo > 0 && precio > 0) {
+        const margen = ((precio / costo) - 1) * 100;
+        document.getElementById('margen').value = margen.toFixed(2);
+        
+        // Actualizar ejemplo visual
+        const formulaEjemplo = document.getElementById('formulaEjemplo');
+        if (formulaEjemplo) {
+            formulaEjemplo.textContent = `Margen calculado: (($${precio.toFixed(2)} / $${costo.toFixed(2)}) - 1) × 100 = ${margen.toFixed(2)}%`;
+        }
+        
+        console.log(`📈 Margen recalculado: Costo=$${costo.toFixed(2)}, Precio=$${precio.toFixed(2)}, Margen=${margen.toFixed(2)}%`);
+    }
 }
 
 // Función para limpiar el formulario
 function limpiarFormProducto() {
+    modoEdicion = false; // Desactivar modo edición
+    calculoManual = false;
+    
     document.getElementById('formProducto').reset();
     document.getElementById('productoId').value = '';
     document.getElementById('tituloModal').innerHTML = '<i class="fas fa-plus"></i> Nuevo Producto';
@@ -407,6 +460,11 @@ function limpiarFormProducto() {
 
 // Función para cargar datos de producto en el formulario
 function cargarProductoEnFormulario(producto) {
+    modoEdicion = true; // Activar modo edición
+
+    console.log('Producto completo:', producto); // DEBUG
+    console.log('Margen específico:', producto.margen, typeof producto.margen); // DEBUG
+    
     document.getElementById('productoId').value = producto.id;
     document.getElementById('codigo').value = producto.codigo;
     document.getElementById('nombre').value = producto.nombre;
@@ -415,12 +473,23 @@ function cargarProductoEnFormulario(producto) {
     document.getElementById('iva').value = producto.iva;
     document.getElementById('activo').checked = producto.activo;
     
-    // Cargar costo y margen
+    // Cargar costo y precio ANTES de calcular margen
     document.getElementById('costo').value = producto.costo || 0;
-    document.getElementById('margen').value = producto.margen || 30;
+    document.getElementById('precio').value = producto.precio || 0;
+
+    console.log('Costo cargado:', producto.costo); // DEBUG
+    console.log('Precio cargado:', producto.precio); // DEBUG
+    console.log('Margen cargado:', producto.margen); // DEBUG
     
-    // El precio se calculará automáticamente
-    calcularPrecio();
+    // Si tenemos margen guardado, usarlo; sino calcularlo
+    if (producto.margen && parseFloat(producto.margen) > 0) {
+        document.getElementById('margen').value = producto.margen;
+        console.log('Margen asignado al input:', producto.margen); // DEBUG
+    } else {
+        // Calcular margen basado en precio existente
+        console.log('Calculando margen porque no existe o es 0'); // DEBUG
+        calcularPrecio();
+    }
     
     // Ocultar campo de stock inicial para edición
     document.getElementById('stockInicialContainer').style.display = 'none';
@@ -682,6 +751,7 @@ function limpiarFiltros() {
     document.getElementById('buscarProducto').value = '';
     document.getElementById('filtroCategoria').value = '';
     document.getElementById('filtroStock').value = '';
+    document.getElementById('filtroEstado').value = 'activo';  // ← NUEVA LÍNEA
     aplicarFiltrosProductos();
 }
 
@@ -690,13 +760,15 @@ function aplicarFiltrosProductos() {
     const buscar = document.getElementById('buscarProducto').value.trim();
     const categoria = document.getElementById('filtroCategoria').value;
     const stock = document.getElementById('filtroStock').value;
+    const estado = document.getElementById('filtroEstado').value;
     
     // Construir URL con parámetros
     const params = new URLSearchParams();
     if (buscar) params.append('buscar', buscar);
     if (categoria) params.append('categoria', categoria);
     if (stock) params.append('stock', stock);
-    
+    if (estado) params.append('estado', estado);
+
     fetch(`/buscar_productos_admin?${params.toString()}`)
         .then(response => response.json())
         .then(data => {
@@ -766,7 +838,7 @@ function actualizarTablaProductos(productos) {
                     <small class="text-muted">$</small><strong>${costo.toFixed(2)}</strong>
                 </td>
                 <td class="text-center">
-                    <span class="badge bg-warning text-dark">${margen.toFixed(1)}%</span>
+                    <span class="badge bg-warning text-dark">${margen.toFixed(2)}%</span>
                 </td>
                 <td class="text-end">
                     <strong>${precio.toFixed(2)}</strong>
@@ -1115,7 +1187,7 @@ function actualizarTablaProductos(productos) {
                     <small class="text-muted">$</small><strong>${costo.toFixed(2)}</strong>
                 </td>
                 <td class="text-center">
-                    <span class="badge bg-warning text-dark">${margen.toFixed(1)}%</span>
+                    <span class="badge bg-warning text-dark">${margen.toFixed(2)}%</span>
                 </td>
                 <td class="text-end">
                     <strong>$${precio.toFixed(2)}</strong>
@@ -1161,9 +1233,31 @@ document.addEventListener('DOMContentLoaded', function() {
     cargarCategorias();
     
     
-    // Event listeners para cálculo automático de precio
-    document.getElementById('costo').addEventListener('input', calcularPrecio);
-    document.getElementById('margen').addEventListener('input', calcularPrecio);
+    // Event listeners para cálculo automático de precio MODIFICADOS
+    document.getElementById('costo').addEventListener('input', function() {
+        calcularPrecio();
+    });
+
+    document.getElementById('margen').addEventListener('input', function() {
+        calculoManual = true; // Marcar que fue un cambio manual del margen
+        calcularPrecio();
+    });
+
+    // NUEVO: Event listener para precio
+    document.getElementById('precio').addEventListener('input', function() {
+        // Solo calcular margen si no estamos en medio de un cálculo automático
+        if (!calculoManual) {
+            calcularMargen();
+        }
+    });
+
+    // NUEVO: Event listener para cuando el precio pierde el foco
+    document.getElementById('precio').addEventListener('blur', function() {
+        if (!modoEdicion) {
+            // En productos nuevos, el precio debería ser calculado, no manual
+            calcularPrecio();
+        }
+});
     
     // Cambiar ayuda según tipo de movimiento de stock
     document.getElementById('tipoMovimiento').addEventListener('change', function() {
@@ -1201,7 +1295,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Aplicar filtros cuando cambien los selects
     document.getElementById('filtroCategoria').addEventListener('change', aplicarFiltrosProductos);
     document.getElementById('filtroStock').addEventListener('change', aplicarFiltrosProductos);
-    
+    document.getElementById('filtroEstado').addEventListener('change', aplicarFiltrosProductos);
+
     // Validar formulario en tiempo real
     const form = document.getElementById('formProducto');
     const inputs = form.querySelectorAll('input, select, textarea');

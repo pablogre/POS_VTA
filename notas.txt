@@ -2,7 +2,7 @@
 *** cuado un art. supera x cant. >= se utiliza precio de oferta   
 
 listas de precios familia	
-descuento x%
+***descuento x%
 
 *** en ventas efect. vuelto  
 *** gracias por elegirnos  
@@ -13,5 +13,10 @@ descuento x%
 https://claude.ai/settings/billing
 Tu suscripción se renovará automáticamente el 26 sept 2025.
  
+
+
+ARCA
+27-33342943-3
+CLAVE: Noelia1983
 
 
