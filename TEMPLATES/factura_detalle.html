@@ -33,17 +33,21 @@
                         <td><strong>Fecha:</strong></td>
                         <td>{{ factura.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
                     </tr>
+                   <!-- Reemplazar la sección del tipo en factura_detalle.html -->
                     <tr>
                         <td><strong>Tipo:</strong></td>
                         <td>
-                            {% if factura.tipo_comprobante == '01' %}
+                            {% set tipo_str = factura.tipo_comprobante|string %}
+                            {% if tipo_str == '1' or tipo_str == '01' %}
                                 <span class="badge bg-primary">Factura A</span>
-                            {% elif factura.tipo_comprobante == '06' %}
+                            {% elif tipo_str == '6' or tipo_str == '06' %}
                                 <span class="badge bg-info">Factura B</span>
-                            {% elif factura.tipo_comprobante == '11' %}
+                            {% elif tipo_str == '11' %}
                                 <span class="badge bg-secondary">Factura C</span>
+                            {% elif tipo_str == '51' %}
+                                <span class="badge bg-warning text-dark">Factura M</span>
                             {% else %}
-                                <span class="badge bg-dark">{{ factura.tipo_comprobante }}</span>
+                                <span class="badge bg-dark">Tipo {{ factura.tipo_comprobante }}</span>
                             {% endif %}
                         </td>
                     </tr>

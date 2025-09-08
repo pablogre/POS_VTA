@@ -342,9 +342,16 @@ function actualizarTablaFacturas(facturas) {
 }
 
 function obtenerBadgeTipo(tipo) {
+    // Asegurar que el tipo sea string y tenga el formato correcto
+    const tipoStr = String(tipo).padStart(2, '0');
     const tipos = {
         '01': '<span class="badge bg-primary">Factura A</span>',
         '06': '<span class="badge bg-info">Factura B</span>',
+        '11': '<span class="badge bg-secondary">Factura C</span>',
+        '51': '<span class="badge bg-warning text-dark">Factura M</span>',
+         // También mapear los valores sin ceros por si acaso
+        '1': '<span class="badge bg-primary">Factura A</span>',
+        '6': '<span class="badge bg-info">Factura B</span>',
         '11': '<span class="badge bg-secondary">Factura C</span>',
         '51': '<span class="badge bg-warning text-dark">Factura M</span>'
     };
