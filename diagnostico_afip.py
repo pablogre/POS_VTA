@@ -77,8 +77,10 @@ def crear_session_afip():
 
 # Configuración
 class ConfigAFIP:
-    CUIT = '20203852100'
-    PUNTO_VENTA = 3
+    #CUIT = '20203852100'
+    #PUNTO_VENTA = 3
+    CUIT = '27333429433'
+    PUNTO_VENTA = 4
     CERT_PATH = 'certificados/certificado.crt'
     KEY_PATH = 'certificados/private.key'
     USE_HOMOLOGACION = False  # PRODUCCIÓN

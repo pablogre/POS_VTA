@@ -1,0 +1,254 @@
+<!-- templates/mostrar_qr.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR ARCA - Factura {{ factura.numero }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .qr-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 2rem;
+            max-width: 500px;
+            margin: 2rem auto;
+        }
+        
+        .qr-image {
+            max-width: 100%;
+            height: auto;
+            border: 3px solid #f8f9fa;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        
+        .factura-info {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .btn-custom {
+            border-radius: 50px;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .alert-custom {
+            border: none;
+            border-radius: 15px;
+            padding: 1.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            .qr-container {
+                margin: 1rem;
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-12">
+                <div class="qr-container">
+                    <!-- Encabezado -->
+                    <div class="text-center mb-4">
+                        <h2 class="mb-3">
+                            <i class="fas fa-qrcode text-primary"></i>
+                            Código QR ARCA
+                        </h2>
+                        <p class="text-muted">Escanea para verificar en ARCA</p>
+                    </div>
+                    
+                    <!-- Información de la factura -->
+                    <div class="factura-info">
+                        <div class="row">
+                            <div class="col-6">
+                                <h6 class="text-muted mb-1">Factura</h6>
+                                <p class="mb-2"><strong>{{ factura.numero }}</strong></p>
+                            </div>
+                            <div class="col-6 text-end">
+                                <h6 class="text-muted mb-1">Fecha</h6>
+                                <p class="mb-2">{{ factura.fecha.strftime('%d/%m/%Y %H:%M') }}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-6">
+                                <h6 class="text-muted mb-1">Cliente</h6>
+                                <p class="mb-0">{{ factura.cliente.nombre if factura.cliente else 'Consumidor Final' }}</p>
+                            </div>
+                            <div class="col-6 text-end">
+                                <h6 class="text-muted mb-1">Total</h6>
+                                <p class="mb-0 h5 text-success">${{ "%.2f"|format(factura.total) }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Estado del QR -->
+                    {% if qr_info.valido %}
+                        <div class="alert alert-success alert-custom text-center mb-4">
+                            <i class="fas fa-check-circle fa-2x mb-2"></i>
+                            <h5 class="mb-2">✅ QR ARCA Válido</h5>
+                            <p class="mb-0">{{ qr_info.mensaje }}</p>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning alert-custom text-center mb-4">
+                            <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                            <h5 class="mb-2">⚠️ QR No Disponible</h5>
+                            <p class="mb-0">{{ qr_info.mensaje }}</p>
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Código QR -->
+                    {% if qr_image and qr_info.valido %}
+                        <div class="text-center mb-4">
+                            <div class="pulse">
+                                <img src="data:image/png;base64,{{ qr_image }}" 
+                                     alt="Código QR ARCA" 
+                                     class="qr-image">
+                            </div>
+                            <p class="mt-3 text-muted">
+                                <i class="fas fa-mobile-alt"></i>
+                                Escanea con la app de ARCA o cualquier lector QR
+                            </p>
+                        </div>
+                        
+                        <!-- Botones de acción -->
+                        <div class="d-grid gap-2">
+                            <a href="{{ qr_info.url }}" 
+                               target="_blank" 
+                               class="btn btn-primary btn-custom">
+                                <i class="fas fa-external-link-alt"></i>
+                                Abrir en ARCA
+                            </a>
+                            
+                            <button type="button" 
+                                    class="btn btn-outline-secondary btn-custom"
+                                    onclick="window.print()">
+                                <i class="fas fa-print"></i>
+                                Imprimir QR
+                            </button>
+                        </div>
+                    {% else %}
+                        <!-- Información alternativa si no hay QR -->
+                        <div class="text-center">
+                            <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                            <h5>Código QR no disponible</h5>
+                            <p class="text-muted">
+                                {% if factura.cae %}
+                                    Esta factura está autorizada pero no tiene QR válido.
+                                {% else %}
+                                    Esta factura no fue autorizada por ARCA.
+                                {% endif %}
+                            </p>
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Información técnica (colapsable) -->
+                    <div class="mt-4">
+                        <button class="btn btn-link text-muted" 
+                                type="button" 
+                                data-bs-toggle="collapse" 
+                                data-bs-target="#infoTecnica">
+                            <i class="fas fa-info-circle"></i>
+                            Información técnica
+                        </button>
+                        
+                        <div class="collapse" id="infoTecnica">
+                            <div class="card card-body mt-2">
+                                <small class="text-muted">
+                                    <strong>CAE:</strong> {{ factura.cae or 'N/A' }}<br>
+                                    <strong>Tipo:</strong> {{ factura.tipo_comprobante }}<br>
+                                    <strong>Punto Venta:</strong> {{ factura.punto_venta }}<br>
+                                    {% if factura.vto_cae %}
+                                        <strong>Vto CAE:</strong> {{ factura.vto_cae.strftime('%d/%m/%Y') }}<br>
+                                    {% endif %}
+                                    <strong>Estado:</strong> {{ factura.estado }}<br>
+                                    {% if qr_info.valido and qr_info.url %}
+                                        <strong>URL QR:</strong><br>
+                                        <span style="word-break: break-all; font-size: 0.8em;">{{ qr_info.url }}</span>
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Botón cerrar -->
+                    <div class="text-center mt-4">
+                        <button type="button" 
+                                class="btn btn-secondary btn-custom"
+                                onclick="window.close()">
+                            <i class="fas fa-times"></i>
+                            Cerrar
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Footer -->
+                <div class="text-center mt-4">
+                    <small class="text-white-50">
+                        <i class="fas fa-shield-alt"></i>
+                        Sistema POS Argentina - Verificación ARCA
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Auto-cerrar después de 5 minutos si no hay interacción
+        let timeout = setTimeout(() => {
+            if (confirm('¿Cerrar esta ventana?')) {
+                window.close();
+            }
+        }, 300000); // 5 minutos
+        
+        // Resetear timeout en cualquier interacción
+        document.addEventListener('click', () => {
+            clearTimeout(timeout);
+        });
+        
+        // Optimización para impresión
+        window.addEventListener('beforeprint', () => {
+            document.body.style.background = 'white';
+        });
+        
+        window.addEventListener('afterprint', () => {
+            document.body.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,382 @@
+<!-- templates/factura_detalle.html -->
+{% extends "base.html" %}
+
+{% block title %}Factura {{ factura.numero }} - POS Argentina{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-file-invoice"></i> Detalle de Factura</h1>
+    <div>
+        <a href="{{ url_for('facturas') }}" class="btn btn-secondary me-2">
+            <i class="fas fa-arrow-left"></i> Volver
+        </a>
+        <button class="btn btn-primary" onclick="imprimirFactura()">
+            <i class="fas fa-print"></i> Imprimir
+        </button>
+    </div>
+</div>
+
+<!-- Información de la factura -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> Información General</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <td><strong>Número:</strong></td>
+                        <td><code>{{ factura.numero }}</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Fecha:</strong></td>
+                        <td>{{ factura.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                    </tr>
+                   <!-- Reemplazar la sección del tipo en factura_detalle.html -->
+                    <tr>
+                        <td><strong>Tipo:</strong></td>
+                        <td>
+                            {% set tipo_str = factura.tipo_comprobante|string %}
+                            {% if tipo_str == '1' or tipo_str == '01' %}
+                                <span class="badge bg-primary">Factura A</span>
+                            {% elif tipo_str == '6' or tipo_str == '06' %}
+                                <span class="badge bg-info">Factura B</span>
+                            {% elif tipo_str == '11' %}
+                                <span class="badge bg-secondary">Factura C</span>
+                            {% elif tipo_str == '51' %}
+                                <span class="badge bg-warning text-dark">Factura M</span>
+                            {% else %}
+                                <span class="badge bg-dark">Tipo {{ factura.tipo_comprobante }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Estado:</strong></td>
+                        <td>
+                            {% if factura.estado == 'autorizada' %}
+                                <span class="badge bg-success">Autorizada</span>
+                            {% elif factura.estado == 'error_afip' %}
+                                <span class="badge bg-warning text-dark">Error AFIP</span>
+                            {% elif factura.estado == 'anulada' %}
+                                <span class="badge bg-danger">Anulada</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ factura.estado.title() }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if factura.cae %}
+                    <tr>
+                        <td><strong>CAE:</strong></td>
+                        <td><code>{{ factura.cae }}</code></td>
+                    </tr>
+                    {% endif %}
+                    {% if factura.vto_cae %}
+                    <tr>
+                        <td><strong>Venc. CAE:</strong></td>
+                        <td>{{ factura.vto_cae.strftime('%d/%m/%Y') if factura.vto_cae else '-' }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if factura.punto_venta %}
+                    <tr>
+                        <td><strong>Punto de Venta:</strong></td>
+                        <td>{{ factura.punto_venta }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-user"></i> Datos del Cliente</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <td><strong>Nombre:</strong></td>
+                        <td>{{ factura.cliente.nombre }}</td>
+                    </tr>
+                    {% if factura.cliente.documento %}
+                    <tr>
+                        <td><strong>{{ factura.cliente.tipo_documento }}:</strong></td>
+                        <td>{{ factura.cliente.documento }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if factura.cliente.condicion_iva %}
+                    <tr>
+                        <td><strong>Condición IVA:</strong></td>
+                        <td>{{ factura.cliente.condicion_iva }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if factura.cliente.direccion %}
+                    <tr>
+                        <td><strong>Dirección:</strong></td>
+                        <td>{{ factura.cliente.direccion }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if factura.cliente.telefono %}
+                    <tr>
+                        <td><strong>Teléfono:</strong></td>
+                        <td>{{ factura.cliente.telefono }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if factura.cliente.email %}
+                    <tr>
+                        <td><strong>Email:</strong></td>
+                        <td>{{ factura.cliente.email }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detalle de items -->
+<div class="card mt-3">
+    <div class="card-header">
+        <h5><i class="fas fa-list"></i> Detalle de Items</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Producto</th>
+                        <th class="text-center">Cantidad</th>
+                        <th class="text-end">Precio Unit.</th>
+                        <th class="text-end">Subtotal</th>
+                        {% if factura.tipo_comprobante in ['01', '06'] %}
+                        <th class="text-end">IVA</th>
+                        {% endif %}
+                        <th class="text-end">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for detalle in factura.detalles %}
+                    <tr>
+                        <td>
+                            <strong>{{ detalle.producto.nombre }}</strong>
+                            {% if detalle.producto.codigo %}
+                            <br><small class="text-muted">Código: {{ detalle.producto.codigo }}</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ detalle.cantidad }}</td>
+                        <td class="text-end">${{ "%.2f"|format(detalle.precio_unitario) }}</td>
+                        <td class="text-end">${{ "%.2f"|format(detalle.subtotal) }}</td>
+                        {% if factura.tipo_comprobante in ['01', '06'] %}
+                        <td class="text-end">
+                            {% if detalle.producto.iva %}
+                                ${{ "%.2f"|format(detalle.subtotal * detalle.producto.iva / 100) }}
+                            {% else %}
+                                $0.00
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                        <td class="text-end">
+                            <strong>${{ "%.2f"|format(detalle.subtotal + (detalle.subtotal * (detalle.producto.iva or 0) / 100)) }}</strong>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Totales -->
+<div class="row mt-3">
+    <div class="col-md-8"></div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-calculator"></i> Totales</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    {% if factura.tipo_comprobante in ['01', '06'] %}
+                    <tr>
+                        <td><strong>Subtotal:</strong></td>
+                        <td class="text-end">${{ "%.2f"|format(factura.subtotal or 0) }}</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>IVA:</strong></td>
+                        <td class="text-end">${{ "%.2f"|format(factura.iva or 0) }}</td>
+                    </tr>
+                    {% endif %}
+
+                    <!-- SECCIÓN DE DESCUENTO -->
+                    <tbody id="seccion_descuento" style="display: none;">
+                        <tr class="text-success">
+                            <td>
+                                <i class="fas fa-tag"></i> Descuento (<span id="porcentaje_desc"></span>%):
+                            </td>
+                            <td class="text-end">-$<span id="monto_desc"></span></td>
+                        </tr>
+                        <tr class="text-muted">
+                            <td><small>Subtotal original:</small></td>
+                            <td class="text-end"><small>$<span id="total_original"></span></small></td>
+                        </tr>
+                    </tbody>
+
+                    <tr class="table-dark">
+                        <td><strong>TOTAL:</strong></td>
+                        <td class="text-end"><strong>${{ "%.2f"|format(factura.total) }}</strong></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Observaciones -->
+{% if factura.observaciones %}
+<div class="card mt-3">
+    <div class="card-header">
+        <h5><i class="fas fa-comment"></i> Observaciones</h5>
+    </div>
+    <div class="card-body">
+        <p>{{ factura.observaciones }}</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Información de anulación -->
+{% if factura.estado == 'anulada' and (factura.fecha_anulacion or factura.motivo_anulacion) %}
+<div class="card mt-3 border-danger">
+    <div class="card-header bg-danger text-white">
+        <h5><i class="fas fa-ban"></i> Información de Anulación</h5>
+    </div>
+    <div class="card-body">
+        {% if factura.fecha_anulacion %}
+        <p><strong>Fecha de anulación:</strong> {{ factura.fecha_anulacion.strftime('%d/%m/%Y %H:%M') }}</p>
+        {% endif %}
+        {% if factura.motivo_anulacion %}
+        <p><strong>Motivo:</strong> {{ factura.motivo_anulacion }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Información AFIP -->
+{% if factura.estado == 'error_afip' %}
+<div class="card mt-3 border-warning">
+    <div class="card-header bg-warning text-dark">
+        <h5><i class="fas fa-exclamation-triangle"></i> Error AFIP</h5>
+    </div>
+    <div class="card-body">
+        <p class="text-danger">Hubo un error al comunicarse con AFIP. Verifique la conexión e intente nuevamente.</p>
+        <button class="btn btn-warning" onclick="reintentarAFIP({{ factura.id }})">
+            <i class="fas fa-redo"></i> Reintentar Autorización
+        </button>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function imprimirFactura() {
+    window.print();
+}
+
+function reintentarAFIP(facturaId) {
+    if (confirm('¿Reintentar autorización en AFIP para esta factura?')) {
+        fetch(`/factura/${facturaId}/reintentar-afip`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Reintento exitoso. La página se recargará.');
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error de conexión: ' + error);
+        });
+    }
+}
+
+// Cargar descuento al cargar página
+// Cargar descuento al cargar página - VERSIÓN CON DEBUG
+document.addEventListener('DOMContentLoaded', function() {
+    const facturaId = {{ factura.id }};
+    
+    console.log('🔍 DEBUG: Buscando descuento para factura ID:', facturaId);
+    console.log('🔍 DEBUG: URL llamada:', `/api/descuento_factura/${facturaId}`);
+    
+    fetch(`/api/descuento_factura/${facturaId}`)
+    .then(response => {
+        console.log('🔍 DEBUG: Respuesta HTTP status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('🔍 DEBUG: Datos recibidos:', data);
+        
+        if (data.success && data.tiene_descuento) {
+            console.log('🔍 DEBUG: Factura tiene descuento, mostrando...');
+            const desc = data.descuento;
+            
+            // Verificar que los elementos existen
+            const elemPorcentaje = document.getElementById('porcentaje_desc');
+            const elemMonto = document.getElementById('monto_desc');
+            const elemOriginal = document.getElementById('total_original');
+            const seccionDescuento = document.getElementById('seccion_descuento');
+            
+            console.log('🔍 DEBUG: Elementos encontrados:', {
+                porcentaje: !!elemPorcentaje,
+                monto: !!elemMonto,
+                original: !!elemOriginal,
+                seccion: !!seccionDescuento
+            });
+            
+            if (elemPorcentaje && elemMonto && elemOriginal && seccionDescuento) {
+                elemPorcentaje.textContent = desc.porcentaje_descuento.toFixed(1);
+                elemMonto.textContent = desc.monto_descuento.toFixed(2);
+                elemOriginal.textContent = (desc.total_original - {{ factura.iva }}).toFixed(2);
+                seccionDescuento.style.display = 'table-row-group';
+                
+                console.log('✅ DEBUG: Descuento mostrado correctamente');
+            } else {
+                console.log('❌ DEBUG: Faltan elementos HTML');
+            }
+        } else {
+            console.log('🔍 DEBUG: Factura no tiene descuento o error en respuesta');
+        }
+    })
+    .catch(error => {
+        console.log('❌ DEBUG: Error en llamada API:', error);
+    });
+});
+
+</script>
+
+<!-- Estilos para impresión -->
+<style>
+@media print {
+    .btn, .card-header, .border-bottom {
+        display: none !important;
+    }
+    
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    body {
+        background: white !important;
+    }
+}
+</style>
+{% endblock %}

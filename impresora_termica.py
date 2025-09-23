@@ -260,16 +260,22 @@ class ImpresoraTermica:
                         
                 lineas.append(self.linea_separadora())
                 lineas.append(self.justificar_texto("TOTAL:", f"${total:,.2f}"))
+
+                
                 
             except (ValueError, AttributeError) as e:
                 print(f"⚠️ Error formateando totales: {e}")
                 lineas.append(self.justificar_texto("TOTAL:", "$0.00"))
             
             lineas.append(self.linea_separadora())
+
             
+
             # INFORMACIÓN AFIP CON CAE (SIN QR)
             cae = getattr(factura, 'cae', None)
             if cae:
+                lineas.append("")
+                lineas.append("Transparencia Fiscal al Consumidor - Ley 27.743")
                 lineas.append("")
                 lineas.append(self.centrar_texto("*** AUTORIZADO AFIP ***"))
                 lineas.append("")
@@ -342,6 +348,8 @@ class ImpresoraTermica:
                 lineas.append(self.centrar_texto("www.arca.gob.ar"))
                 
             else:
+                lineas.append("")
+                lineas.append("Transparencia Fiscal al Consumidor - Ley 27.743")
                 lineas.append("")
                 lineas.append(self.centrar_texto("*** NO AUTORIZADO ***"))
                 lineas.append(self.centrar_texto("VERIFICAR AFIP"))
@@ -861,3 +869,97 @@ def imprimir_factura_termica(datos_factura):
             'success': False,
             'error': str(e)
         }
+
+def imprimir_cartel_precio(self, producto, tiene_ofertas=False):
+    """Imprimir cartel de precio individual para producto"""
+    try:
+        if not self.verificar_disponibilidad():
+            print("Impresora no disponible para carteles")
+            return False
+        
+        print(f"Imprimiendo cartel para: {producto.codigo}")
+        
+        # Preparar datos
+        precio = float(producto.precio)
+        nombre_corto = producto.nombre[:30] if len(producto.nombre) > 30 else producto.nombre
+        descripcion_corta = ""
+        if producto.descripcion:
+            descripcion_corta = producto.descripcion[:35] if len(producto.descripcion) > 35 else producto.descripcion
+        
+        # Crear contenido del cartel
+        contenido = []
+        
+        # Encabezado con nombre del negocio (opcional)
+        contenido.append("=" * self.caracteres_linea)
+        contenido.append("     PRECIO DE VENTA")
+        contenido.append("=" * self.caracteres_linea)
+        
+        # Indicador de oferta
+        if tiene_ofertas:
+            contenido.append("")
+            contenido.append("★" * self.caracteres_linea)
+            contenido.append("        ¡OFERTA ESPECIAL!")
+            contenido.append("★" * self.caracteres_linea)
+        
+        contenido.append("")
+        
+        # Nombre del producto (centrado y en negrita)
+        nombre_centrado = nombre_corto.center(self.caracteres_linea)
+        contenido.append(f"**{nombre_centrado}**")
+        
+        # Descripción si existe
+        if descripcion_corta:
+            contenido.append("")
+            desc_centrada = descripcion_corta.center(self.caracteres_linea)
+            contenido.append(desc_centrada)
+        
+        contenido.append("")
+        contenido.append("-" * self.caracteres_linea)
+        
+        # Precio principal (grande y centrado)
+        precio_texto = f"$ {precio:.2f}"
+        precio_centrado = precio_texto.center(self.caracteres_linea)
+        contenido.append("")
+        contenido.append(f"**{precio_centrado}**")
+        contenido.append("")
+        
+        contenido.append("-" * self.caracteres_linea)
+        
+        # Código del producto
+        codigo_texto = f"Código: {producto.codigo}"
+        codigo_centrado = codigo_texto.center(self.caracteres_linea)
+        contenido.append(codigo_centrado)
+        
+        # Información adicional para ofertas
+        if tiene_ofertas:
+            if producto.es_combo and hasattr(producto, 'calcular_ahorro_combo'):
+                ahorro = producto.calcular_ahorro_combo()
+                if ahorro > 0:
+                    contenido.append("")
+                    ahorro_texto = f"Ahorro: $ {ahorro:.2f}"
+                    ahorro_centrado = ahorro_texto.center(self.caracteres_linea)
+                    contenido.append(ahorro_centrado)
+        
+        contenido.append("")
+        contenido.append("=" * self.caracteres_linea)
+        
+        # Timestamp (opcional)
+        from datetime import datetime
+        fecha_hora = datetime.now().strftime("%d/%m/%Y %H:%M")
+        fecha_centrada = fecha_hora.center(self.caracteres_linea)
+        contenido.append(fecha_centrada)
+        
+        contenido.append("=" * self.caracteres_linea)
+        
+        # Espacios finales para separar del siguiente cartel
+        contenido.extend([""] * 3)
+        
+        # Unir todo el contenido
+        texto_completo = "\n".join(contenido)
+        
+        # Enviar a impresora
+        return self._enviar_texto_a_impresora(texto_completo)
+        
+    except Exception as e:
+        print(f"Error imprimiendo cartel para {producto.codigo}: {e}")
+        return False        

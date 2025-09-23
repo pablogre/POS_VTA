@@ -1,0 +1,1040 @@
+{% extends "base.html" %}
+
+{% block title %}Estadísticas - FactuFacil{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-chart-line"></i> Estadísticas y Reportes
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()">
+                <i class="fas fa-print"></i> Imprimir
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="location.reload()">
+                <i class="fas fa-sync-alt"></i> Actualizar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- SECCIÓN: Reporte de Medios de Pago -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-credit-card"></i> Reporte de Medios de Pago</h5>
+            </div>
+            <div class="card-body">
+                <!-- Filtros de fecha -->
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label for="fecha_desde" class="form-label">Desde:</label>
+                        <input type="date" class="form-control" id="fecha_desde">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="fecha_hasta" class="form-label">Hasta:</label>
+                        <input type="date" class="form-control" id="fecha_hasta">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="button" class="btn btn-success w-100" onclick="cargarReporteMediosPago()">
+                            <i class="fas fa-search"></i> Generar Reporte
+                        </button>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="establecerFechasHoy()">
+                            <i class="fas fa-calendar-day"></i> Hoy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Resultados del reporte -->
+                <div id="reporte_medios_pago">
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-chart-pie fa-3x mb-3"></i>
+                        <h6>Selecciona un rango de fechas para ver el reporte</h6>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SECCIÓN: Estadísticas de Ventas Mensuales -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-area"></i> Estadísticas de Ventas Mensuales
+                </h5>
+                <div class="d-flex align-items-center">
+                    <label for="ano_estadisticas" class="form-label text-white me-2 mb-0">Año:</label>
+                    <select id="ano_estadisticas" class="form-select form-select-sm" onchange="cargarEstadisticasVentas()" style="width: auto;">
+                        <!-- Se llenará dinámicamente -->
+                    </select>
+                    <button class="btn btn-light btn-sm ms-2" onclick="cargarEstadisticasVentas()" title="Actualizar">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Resumen anual -->
+                <div class="row mb-4" id="resumen_anual">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <h4 id="total_ventas_ano">0</h4>
+                                <small>Ventas Totales</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <h4 id="total_dinero_ano">$0</h4>
+                                <small>Facturación</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-dark">
+                            <div class="card-body text-center">
+                                <h4 id="promedio_mensual">$0</h4>
+                                <small>Promedio Mensual</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card" id="card_crecimiento">
+                            <div class="card-body text-center">
+                                <h4 id="crecimiento_anual">0%</h4>
+                                <small>vs Año Anterior</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Gráfico principal -->
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0 d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <i class="fas fa-chart-area"></i> Evolución Mensual
+                                        <span id="ano_grafico_titulo" class="text-muted"></span>
+                                    </span>
+                                    <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#modalExplicacionGrafico">
+                                        <i class="fas fa-question-circle"></i> ¿Qué significa?
+                                    </button>
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="grafico_ventas_mensuales" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <!-- Top productos del mes -->
+                        <div class="card">
+                            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-trophy"></i> Top Productos
+                                </h6>
+                                <select id="mes_top_productos" class="form-select form-select-sm" onchange="cargarTopProductos()" style="width: auto; font-size: 0.8rem;">
+                                    <option value="1">Enero</option>
+                                    <option value="2">Febrero</option>
+                                    <option value="3">Marzo</option>
+                                    <option value="4">Abril</option>
+                                    <option value="5">Mayo</option>
+                                    <option value="6">Junio</option>
+                                    <option value="7">Julio</option>
+                                    <option value="8">Agosto</option>
+                                    <option value="9">Septiembre</option>
+                                    <option value="10">Octubre</option>
+                                    <option value="11">Noviembre</option>
+                                    <option value="12">Diciembre</option>
+                                </select>
+                            </div>
+                            <div class="card-body p-2">
+                                <div id="lista_top_productos" style="max-height: 300px; overflow-y: auto;">
+                                    <div class="text-center text-muted py-3">
+                                        <i class="fas fa-spinner fa-spin"></i> Cargando...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Comparación de años -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-dark text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-balance-scale"></i> Comparación entre Años
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="grafico_comparacion_anos" width="400" height="150"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Enlaces a otros reportes -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card bg-light">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-external-link-alt"></i> Otros Reportes Disponibles
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <a href="/reporte_ventas" class="btn btn-outline-primary w-100 mb-2">
+                                            <i class="fas fa-chart-bar"></i> Ventas por Producto
+                                        </a>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <a href="{{ url_for('facturas') }}" class="btn btn-outline-info w-100 mb-2">
+                                            <i class="fas fa-file-invoice"></i> Historial de Facturas
+                                        </a>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <a href="{{ url_for('index') }}" class="btn btn-outline-success w-100 mb-2">
+                                            <i class="fas fa-tachometer-alt"></i> Volver al Dashboard
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL DE EXPLICACIÓN -->
+<div class="modal fade" id="modalExplicacionGrafico" tabindex="-1" aria-labelledby="modalExplicacionGraficoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="modalExplicacionGraficoLabel">
+                    <i class="fas fa-chart-line"></i> Explicación del Gráfico de Estadísticas
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card border-danger">
+                            <div class="card-header bg-danger text-white">
+                                <h6 class="mb-0"><i class="fas fa-line-chart"></i> Cantidad de Ventas (Línea roja)</h6>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-unstyled mb-0">
+                                    <li><strong>Se refiere al número de facturas emitidas</strong></li>
+                                    <li>Es decir, cuántas transacciones/ventas realizaste</li>
+                                    <li><em>Ejemplo:</em> si vendiste a 10 clientes diferentes en un mes = 10 ventas</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-success">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="mb-0"><i class="fas fa-area-chart"></i> Facturación (Área verde)</h6>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-unstyled mb-0">
+                                    <li><strong>Se refiere al monto total en dinero facturado</strong></li>
+                                    <li>Es la suma de todos los importes de las facturas</li>
+                                    <li><em>Ejemplo:</em> si esas 10 ventas sumaron $50,000 = $50,000 de facturación</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header bg-warning">
+                        <h6 class="mb-0"><i class="fas fa-lightbulb"></i> Ejemplo Práctico</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-primary">📅 Enero:</h6>
+                                <ul>
+                                    <li>Cantidad de ventas: <strong>15 facturas</strong></li>
+                                    <li>Facturación: <strong>$25,000</strong></li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-primary">📅 Febrero:</h6>
+                                <ul>
+                                    <li>Cantidad de ventas: <strong>12 facturas</strong></li>
+                                    <li>Facturación: <strong>$30,000</strong></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="alert alert-info mt-3">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Análisis:</strong> Enero tuvo más ventas (más clientes) pero febrero tuvo mayor facturación (más dinero), 
+                            lo que podría indicar que en febrero vendiste productos más caros o cantidades mayores por factura.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="fas fa-question"></i> ¿Por qué es útil ver ambas métricas?</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-success">✅ Ventajas del análisis dual:</h6>
+                                <ol>
+                                    <li><strong>Volumen de clientes</strong> vs <strong>valor promedio por venta</strong></li>
+                                    <li>Te ayuda a entender si necesitas más clientes o vender más a los clientes existentes</li>
+                                </ol>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-warning">📊 Interpretaciones:</h6>
+                                <ul class="list-unstyled">
+                                    <li><span class="badge bg-danger">Muchas ventas + Poca facturación</span><br>
+                                        <small>= Ventas de bajo valor</small></li>
+                                    <li><span class="badge bg-success">Pocas ventas + Alta facturación</span><br>
+                                        <small>= Ventas de alto valor</small></li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-success mt-3">
+                            <i class="fas fa-chart-line"></i>
+                            <strong>Conclusión:</strong> El gráfico dual te permite analizar ambos aspectos de tu negocio simultáneamente 
+                            para tomar decisiones más informadas sobre tu estrategia de ventas.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="window.print()">
+                    <i class="fas fa-print"></i> Imprimir Explicación
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// Variables globales para los gráficos
+let graficoVentasMensuales = null;
+let graficoComparacionAnos = null;
+
+// Inicializar estadísticas cuando esté listo el DOM
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Verificando Chart.js...', typeof Chart);
+    if (typeof Chart !== 'undefined') {
+        console.log('Chart.js disponible, inicializando estadísticas...');
+        inicializarEstadisticas();
+        establecerFechasHoy();
+        cargarReporteMediosPago();
+    } else {
+        console.warn('Chart.js no disponible');
+        mostrarErrorChart();
+    }
+});
+
+function mostrarErrorChart() {
+    const contenedores = ['grafico_ventas_mensuales', 'grafico_comparacion_anos'];
+    contenedores.forEach(id => {
+        const canvas = document.getElementById(id);
+        if (canvas) {
+            const container = canvas.parentElement;
+            container.innerHTML = '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> <strong>Error:</strong> Chart.js no se pudo cargar. Verifique la conexión a internet.</div>';
+        }
+    });
+}
+
+function inicializarEstadisticas() {
+    console.log('Inicializando estadísticas de ventas...');
+    
+    const selectAno = document.getElementById('ano_estadisticas');
+    const anoActual = new Date().getFullYear();
+    
+    selectAno.innerHTML = '';
+    
+    for (let i = anoActual; i >= anoActual - 4; i--) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = i;
+        if (i === anoActual) option.selected = true;
+        selectAno.appendChild(option);
+    }
+    
+    const mesActual = new Date().getMonth() + 1;
+    document.getElementById('mes_top_productos').value = mesActual;
+    
+    document.getElementById('ano_grafico_titulo').textContent = `- ${anoActual}`;
+    
+    cargarEstadisticasVentas();
+    cargarComparacionAnos();
+}
+
+function cargarEstadisticasVentas() {
+    const ano = document.getElementById('ano_estadisticas').value;
+    
+    console.log(`Cargando estadísticas para el año ${ano}...`);
+    
+    document.getElementById('ano_grafico_titulo').textContent = `- ${ano}`;
+    mostrarCargandoResumen();
+    
+    fetch(`/api/estadisticas_ventas?ano=${ano}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Estadísticas cargadas correctamente:', data);
+                actualizarResumenAnual(data.resumen);
+                crearGraficoVentasMensuales(data.datos_mensuales);
+                cargarTopProductos();
+            } else {
+                console.error('Error en respuesta:', data.error);
+                mostrarErrorEstadisticas(data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error cargando estadísticas:', error);
+            mostrarErrorEstadisticas('Error de conexión');
+        });
+}
+
+function mostrarCargandoResumen() {
+    const elementos = [
+        'total_ventas_ano',
+        'total_dinero_ano', 
+        'promedio_mensual',
+        'crecimiento_anual'
+    ];
+    
+    elementos.forEach(id => {
+        const elem = document.getElementById(id);
+        if (elem) {
+            elem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        }
+    });
+}
+
+function mostrarErrorEstadisticas(mensaje) {
+    console.error('Error en estadísticas:', mensaje);
+    
+    const elementos = [
+        { id: 'total_ventas_ano', texto: 'Error' },
+        { id: 'total_dinero_ano', texto: 'Error' },
+        { id: 'promedio_mensual', texto: 'Error' },
+        { id: 'crecimiento_anual', texto: 'Error' }
+    ];
+    
+    elementos.forEach(elem => {
+        const element = document.getElementById(elem.id);
+        if (element) {
+            element.textContent = elem.texto;
+            element.style.color = '#dc3545';
+        }
+    });
+    
+    const contenedores = ['grafico_ventas_mensuales', 'grafico_comparacion_anos'];
+    contenedores.forEach(id => {
+        const canvas = document.getElementById(id);
+        if (canvas) {
+            const container = canvas.parentElement;
+            container.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Error cargando gráfico: ${mensaje}</div>`;
+        }
+    });
+}
+
+function actualizarResumenAnual(resumen) {
+    try {
+        console.log('Actualizando resumen anual:', resumen);
+        
+        document.getElementById('total_ventas_ano').textContent = resumen.total_ventas_ano.toLocaleString();
+        document.getElementById('total_dinero_ano').textContent = `$${resumen.total_dinero_ano.toLocaleString()}`;
+        document.getElementById('promedio_mensual').textContent = `$${resumen.promedio_mensual.toLocaleString()}`;
+        
+        const crecimientoElement = document.getElementById('crecimiento_anual');
+        const cardCrecimiento = document.getElementById('card_crecimiento');
+        
+        crecimientoElement.textContent = `${resumen.crecimiento_anual > 0 ? '+' : ''}${resumen.crecimiento_anual}%`;
+        
+        if (resumen.crecimiento_anual > 0) {
+            cardCrecimiento.className = 'card bg-success text-white';
+        } else if (resumen.crecimiento_anual < 0) {
+            cardCrecimiento.className = 'card bg-danger text-white';
+        } else {
+            cardCrecimiento.className = 'card bg-secondary text-white';
+        }
+        
+        console.log('Resumen actualizado correctamente');
+    } catch (error) {
+        console.error('Error actualizando resumen:', error);
+    }
+}
+
+function crearGraficoVentasMensuales(datos) {
+    const ctx = document.getElementById('grafico_ventas_mensuales');
+    if (!ctx) {
+        console.error('Canvas no encontrado');
+        return;
+    }
+    
+    try {
+        if (graficoVentasMensuales) {
+            graficoVentasMensuales.destroy();
+        }
+        
+        const labels = datos.map(d => d.nombre_corto);
+        const ventasData = datos.map(d => d.total_ventas);
+        const cantidadData = datos.map(d => d.cantidad_ventas);
+        
+        graficoVentasMensuales = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Facturación ($)',
+                    data: ventasData,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    yAxisID: 'y'
+                }, {
+                    label: 'Cantidad de Ventas',
+                    data: cantidadData,
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.4,
+                    yAxisID: 'y1'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: `Ventas Mensuales ${document.getElementById('ano_estadisticas').value}`,
+                        font: {
+                            size: 16
+                        }
+                    },
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Facturación ($)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toLocaleString();
+                            }
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Cantidad de Ventas'
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                    }
+                }
+            }
+        });
+        
+        console.log('Gráfico mensual creado correctamente');
+    } catch (error) {
+        console.error('Error creando gráfico mensual:', error);
+    }
+}
+
+function cargarTopProductos() {
+    const mes = document.getElementById('mes_top_productos').value;
+    const ano = document.getElementById('ano_estadisticas').value;
+    
+    console.log(`Cargando top productos para ${mes}/${ano}...`);
+    
+    document.getElementById('lista_top_productos').innerHTML = `
+        <div class="text-center text-muted py-3">
+            <i class="fas fa-spinner fa-spin"></i> Cargando productos...
+        </div>
+    `;
+    
+    fetch(`/api/top_productos_mes?mes=${mes}&ano=${ano}&limite=10`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarTopProductos(data.productos, data.nombre_mes);
+            } else {
+                console.error('Error cargando top productos:', data.error);
+                mostrarErrorTopProductos();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarErrorTopProductos();
+        });
+}
+
+function mostrarTopProductos(productos, nombreMes) {
+    const container = document.getElementById('lista_top_productos');
+    
+    if (productos.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-3">
+                <i class="fas fa-inbox"></i><br>
+                <small>Sin ventas en ${nombreMes}</small>
+            </div>
+        `;
+        return;
+    }
+    
+    const html = productos.map((producto, index) => {
+        const medalla = index < 3 ? ['🥇', '🥈', '🥉'][index] : `${index + 1}.`;
+        const colorPosicion = index < 3 ? ['text-warning', 'text-secondary', 'text-warning'][index] : '';
+        
+        return `
+            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                <div class="flex-grow-1">
+                    <div class="d-flex align-items-center">
+                        <span class="me-2 ${colorPosicion}" style="font-weight: bold;">${medalla}</span>
+                        <div>
+                            <div class="fw-bold" style="font-size: 0.9em;">${producto.nombre}</div>
+                            <small class="text-muted">${producto.codigo}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <div class="fw-bold text-success" style="font-size: 0.9em;">$${producto.total_vendido.toFixed(2)}</div>
+                    <small class="text-muted">${producto.cantidad_vendida} und.</small>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = html;
+    console.log(`Top productos mostrados: ${productos.length} productos`);
+}
+
+function mostrarErrorTopProductos() {
+    const container = document.getElementById('lista_top_productos');
+    container.innerHTML = `
+        <div class="text-center text-danger py-3">
+            <i class="fas fa-exclamation-triangle"></i><br>
+            <small>Error cargando productos</small>
+        </div>
+    `;
+}
+
+function cargarComparacionAnos() {
+    const anoActual = new Date().getFullYear();
+    const anos = [anoActual - 1, anoActual];
+    
+    console.log('Cargando comparación de años:', anos);
+    
+    fetch(`/api/comparacion_anos?anos=${anos.join('&anos=')}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                crearGraficoComparacionAnos(data);
+            } else {
+                console.error('Error cargando comparación:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+}
+
+function crearGraficoComparacionAnos(data) {
+    const ctx = document.getElementById('grafico_comparacion_anos');
+    if (!ctx) return;
+    
+    try {
+        if (graficoComparacionAnos) {
+            graficoComparacionAnos.destroy();
+        }
+        
+        const datasets = data.datos.map((ano, index) => ({
+            label: `${ano.ano} ($${ano.total_ano.toLocaleString()})`,
+            data: ano.ventas_mensuales,
+            borderColor: index === 0 ? 'rgb(54, 162, 235)' : 'rgb(255, 205, 86)',
+            backgroundColor: index === 0 ? 'rgba(54, 162, 235, 0.1)' : 'rgba(255, 205, 86, 0.1)',
+            borderWidth: 3,
+            fill: false,
+            tension: 0.4
+        }));
+        
+        graficoComparacionAnos = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.meses,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Comparación de Ventas por Año'
+                    },
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Ventas ($)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        console.log('Gráfico de comparación creado correctamente');
+    } catch (error) {
+        console.error('Error creando gráfico de comparación:', error);
+    }
+}
+
+// === FUNCIONES PARA REPORTE DE MEDIOS DE PAGO ===
+
+function establecerFechasHoy() {
+    const ahora = new Date();
+    const fechaArgentina = new Date(ahora.toLocaleString("en-US", {timeZone: "America/Argentina/Buenos_Aires"}));
+    const hoy = fechaArgentina.toISOString().split('T')[0];
+    
+    document.getElementById('fecha_desde').value = hoy;
+    document.getElementById('fecha_hasta').value = hoy;
+}
+
+function cargarReporteMediosPago() {
+    const fechaDesde = document.getElementById('fecha_desde').value;
+    const fechaHasta = document.getElementById('fecha_hasta').value;
+    
+    if (!fechaDesde || !fechaHasta) {
+        mostrarErrorReporte('Debe seleccionar ambas fechas');
+        return;
+    }
+    
+    if (fechaDesde > fechaHasta) {
+        mostrarErrorReporte('La fecha "desde" no puede ser mayor que la fecha "hasta"');
+        return;
+    }
+    
+    const contenedor = document.getElementById('reporte_medios_pago');
+    contenedor.innerHTML = `
+        <div class="text-center py-4">
+            <i class="fas fa-spinner fa-spin fa-2x text-primary mb-3"></i>
+            <h6>Generando reporte...</h6>
+        </div>
+    `;
+    
+    fetch(`/api/reporte_medios_pago?desde=${fechaDesde}&hasta=${fechaHasta}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarReporteMediosPago(data.reporte, fechaDesde, fechaHasta);
+            } else {
+                mostrarErrorReporte(data.error || 'Error al generar el reporte');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarErrorReporte('Error de conexión al cargar el reporte');
+        });
+}
+
+function mostrarReporteMediosPago(reporte, fechaDesde, fechaHasta) {
+    const contenedor = document.getElementById('reporte_medios_pago');
+    
+    if (!reporte.medios_pago || reporte.medios_pago.length === 0) {
+        contenedor.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                <strong>Sin datos:</strong> No se encontraron transacciones en el período seleccionado.
+            </div>
+        `;
+        return;
+    }
+    
+    const totalGeneral = reporte.medios_pago.reduce((sum, medio) => sum + parseFloat(medio.total), 0);
+    
+    let html = `
+        <div class="alert alert-primary">
+            <div class="row">
+                <div class="col-md-6">
+                    <strong><i class="fas fa-calendar-alt"></i> Período:</strong> ${formatearFecha(fechaDesde)} - ${formatearFecha(fechaHasta)}
+                </div>
+                <div class="col-md-6">
+                    <strong><i class="fas fa-dollar-sign"></i> Total General:</strong> 
+                    <span class="h5 text-success">$${totalGeneral.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-8">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th><i class="fas fa-credit-card"></i> Medio de Pago</th>
+                                <th class="text-center"><i class="fas fa-hash"></i> Transacciones</th>
+                                <th class="text-end"><i class="fas fa-dollar-sign"></i> Total</th>
+                                <th class="text-end"><i class="fas fa-percentage"></i> % del Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+    `;
+    
+    reporte.medios_pago.forEach(medio => {
+        const total = parseFloat(medio.total);
+        const porcentaje = (total / totalGeneral * 100);
+        const icono = obtenerIconoMedioPago(medio.medio_pago);
+        
+        html += `
+            <tr>
+                <td>
+                    <i class="${icono}"></i> ${obtenerNombreMedioPago(medio.medio_pago)}
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-primary">${medio.cantidad}</span>
+                </td>
+                <td class="text-end">
+                    <strong>$${total.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                </td>
+                <td class="text-end">
+                    <span class="badge bg-secondary">${porcentaje.toFixed(1)}%</span>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `</tbody></table></div></div></div>`;
+    
+    contenedor.innerHTML = html;
+}
+
+function mostrarErrorReporte(mensaje) {
+    const contenedor = document.getElementById('reporte_medios_pago');
+    contenedor.innerHTML = `
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Error:</strong> ${mensaje}
+        </div>
+    `;
+}
+
+function formatearFecha(fecha) {
+    const fechaObj = new Date(fecha + 'T12:00:00');
+    return fechaObj.toLocaleDateString('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit'
+    });
+}
+
+function obtenerNombreMedioPago(codigo) {
+    const nombres = {
+        'efectivo': 'Efectivo',
+        'credito': 'Tarjeta de Crédito',
+        'debito': 'Tarjeta de Débito',
+        'mercado_pago': 'Mercado Pago',
+        'transferencia': 'Transferencia',
+        'cheque': 'Cheque'
+    };
+    return nombres[codigo] || codigo.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+function obtenerIconoMedioPago(codigo) {
+    const iconos = {
+        'efectivo': 'fas fa-money-bill-wave text-success',
+        'credito': 'fas fa-credit-card text-primary',
+        'debito': 'fas fa-credit-card text-info',
+        'mercado_pago': 'fas fa-mobile-alt text-warning',
+        'transferencia': 'fas fa-exchange-alt text-secondary',
+        'cheque': 'fas fa-money-check text-dark'
+    };
+    return iconos[codigo] || 'fas fa-credit-card';
+}
+
+function obtenerColorMedioPago(codigo) {
+    const colores = {
+        'efectivo': 'bg-success',
+        'credito': 'bg-primary',
+        'debito': 'bg-info',
+        'mercado_pago': 'bg-warning',
+        'transferencia': 'bg-secondary',
+        'cheque': 'bg-dark'
+    };
+    return colores[codigo] || 'bg-primary';
+}
+</script>
+
+<style>
+.border-left-primary { border-left: 4px solid #4e73df !important; }
+.border-left-success { border-left: 4px solid #1cc88a !important; }
+.border-left-info { border-left: 4px solid #36b9cc !important; }
+.border-left-warning { border-left: 4px solid #f6c23e !important; }
+
+.progress {
+    border-radius: 10px;
+}
+
+.progress-bar {
+    border-radius: 10px;
+    transition: width 0.6s ease;
+}
+
+.table th {
+    font-size: 0.9em;
+    font-weight: 600;
+}
+
+.card-header h6 {
+    margin-bottom: 0;
+    font-weight: 600;
+}
+
+#reporte_medios_pago .alert-primary {
+    border-left: 4px solid #007bff;
+}
+
+.card.bg-primary, .card.bg-success, .card.bg-warning, .card.bg-danger, .card.bg-secondary {
+    transition: all 0.3s ease;
+    cursor: default;
+}
+
+.card.bg-primary:hover, .card.bg-success:hover, .card.bg-warning:hover, 
+.card.bg-danger:hover, .card.bg-secondary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+#lista_top_productos .border-bottom:last-child {
+    border-bottom: none !important;
+}
+
+#lista_top_productos {
+    scrollbar-width: thin;
+    scrollbar-color: #ccc transparent;
+}
+
+#lista_top_productos::-webkit-scrollbar {
+    width: 4px;
+}
+
+#lista_top_productos::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#lista_top_productos::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 2px;
+}
+
+#lista_top_productos .d-flex:hover {
+    background-color: rgba(0,123,255,0.05);
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .row.mb-4 .col-md-3 {
+        margin-bottom: 1rem;
+    }
+    
+    .card-header .form-select-sm {
+        font-size: 0.8rem;
+    }
+    
+    #grafico_ventas_mensuales, #grafico_comparacion_anos {
+        height: 250px !important;
+    }
+    
+    #resumen_anual .card h4 {
+        font-size: 1.2rem;
+    }
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255,255,255,.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.card-body h4 {
+    font-weight: 600;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.card-header {
+    font-weight: 600;
+}
+
+canvas {
+    max-width: 100% !important;
+    height: auto !important;
+}
+</style>
+{% endblock %}

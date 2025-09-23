@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Importar Productos - POS Argentina{% endblock %}
+{% block title %}Importar Productos - FactuFacil{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -169,11 +169,47 @@ function procesarDatosExcel() {
     let duplicados = 0;
     let filasConErrores = 0;
 
-    console.log('Procesando datos del Excel (ESTRUCTURA CORRECTA)...');
+    console.log('Procesando datos del Excel...');
+    console.log('Primera fila:', datosExcel[0]);
+    console.log('Segunda fila (encabezados):', datosExcel[1]);
+    console.log('Tercera fila (ejemplo datos):', datosExcel[2]);
 
+    // CORRECCIÓN: Los encabezados están en la fila 1, no en la 0
+    const encabezados = datosExcel[1] || [];
+    let indiceCosto = -1;
+    let indiceMargen = -1;
+    let indicePrecio = -1;
+
+    // Buscar las columnas por nombre (case insensitive)
+    encabezados.forEach((encabezado, indice) => {
+        const enc = (encabezado || '').toString().toLowerCase().trim();
+        
+        if (enc.includes('costo') && enc.includes('bonif')) {
+            indiceCosto = indice;
+            console.log(`Columna COSTO C/BONIF encontrada en índice: ${indice}`);
+        } else if (enc.includes('margen') && enc.includes('%')) {
+            indiceMargen = indice;
+            console.log(`Columna MARGEN % encontrada en índice: ${indice}`);
+        } else if (enc.includes('precio') && enc.includes('iva')) {
+            indicePrecio = indice;
+            console.log(`Columna $ PRECIO C/IVA encontrada en índice: ${indice}`);
+        }
+    });
+
+    // Si no se encontraron automáticamente, usar índices fijos basados en la estructura real
+    if (indiceCosto === -1 || indiceMargen === -1 || indicePrecio === -1) {
+        console.log('Usando mapeo fijo de columnas...');
+        indiceCosto = 6;   // "COSTO C/BONIF."
+        indiceMargen = 7;  // "MARGEN %"
+        indicePrecio = 8;  // "$ PRECIO C/IVA"
+        
+        console.log(`Usando índices fijos - Costo: ${indiceCosto}, Margen: ${indiceMargen}, Precio: ${indicePrecio}`);
+    }
+
+    // CORRECCIÓN: Procesar filas de datos (saltear fila 0 y 1 que son encabezados, empezar desde fila 2)
     datosExcel.forEach((fila, indice) => {
-        // Saltar encabezados y filas de categorías
-        if (!fila || fila.length < 8 || indice < 3) {
+        // Saltar encabezados (filas 0 y 1) y filas vacías
+        if (!fila || fila.length < 3 || indice <= 1) {
             return;
         }
 
@@ -183,18 +219,34 @@ function procesarDatosExcel() {
         }
 
         try {
-            // MAPEO CORRECTO SEGÚN LA ESTRUCTURA REAL:
-            const codigo1 = fila[0];      // 2095
-            const descripcion1 = fila[1]; // POLLOS A 05
-            const codigo2 = fila[2];      // 1032
-            const presentacion = fila[3]; // X KG
-            const costo = fila[6];        // 3194.1 (costo con bonificación)
-            const margen_decimal = fila[7]; // 0.25 (25% como decimal)
-            const precio = fila[8];       // 3993
+            // Mapeo según la estructura real del Excel:
+            // Columna 0: COD (código principal)
+            // Columna 1: ARTICULO (descripción)
+            // Columna 2: COD (código secundario)
+            // Columna 3: PRESENTACIÓN
+            // Columna 6: COSTO C/BONIF.
+            // Columna 7: MARGEN %
+            // Columna 8: $ PRECIO C/IVA
+            
+            const codigo1 = fila[0];      // COD (primera columna)
+            const descripcion1 = fila[1]; // ARTICULO
+            const codigo2 = fila[2];      // COD (segunda columna)
+            const presentacion = fila[3]; // PRESENTACIÓN
+            
+            // Usar los índices encontrados o fijos
+            const costo = fila[indiceCosto];        // COSTO C/BONIF.
+            const margen_porcentaje = fila[indiceMargen];  // MARGEN %
+            const precio = fila[indicePrecio];      // $ PRECIO C/IVA
 
             // Validar datos críticos
-            if (!codigo1 || !codigo2 || !costo || !precio) {
+            if (!codigo1 || !codigo2 || costo === undefined || costo === null || 
+                precio === undefined || precio === null) {
                 filasConErrores++;
+                if (indice <= 10) {
+                    console.warn(`Fila ${indice}: datos incompletos`, {
+                        codigo1, codigo2, costo, precio, margen_porcentaje
+                    });
+                }
                 return;
             }
 
@@ -212,17 +264,23 @@ function procesarDatosExcel() {
             const costoLimpio = parseFloat(costo);
             const precioLimpio = parseFloat(precio);
             
-            // Convertir margen decimal a porcentaje (0.25 -> 25.0)
-            const margenLimpio = parseFloat(margen_decimal) * 100;
+            // Procesar margen - puede venir como decimal (0.25) o porcentaje (25)
+            let margenLimpio = parseFloat(margen_porcentaje);
+            if (isNaN(margenLimpio)) {
+                margenLimpio = 0;
+            } else if (margenLimpio <= 1) {
+                // Si es decimal (0.25), convertir a porcentaje (25)
+                margenLimpio = margenLimpio * 100;
+            }
+            // Si ya es porcentaje (25), mantenerlo como está
 
             // Validaciones
             if (isNaN(costoLimpio) || costoLimpio <= 0 || 
-                isNaN(precioLimpio) || precioLimpio <= 0 ||
-                isNaN(margenLimpio)) {
+                isNaN(precioLimpio) || precioLimpio <= 0) {
                 filasConErrores++;
                 if (indice <= 10) {
-                    console.warn(`Fila ${indice}: datos inválidos`, {
-                        codigo1, codigo2, costo, precio, margen_decimal,
+                    console.warn(`Fila ${indice}: valores numéricos inválidos`, {
+                        codigo1, codigo2, costo, precio, margen_porcentaje,
                         costoLimpio, precioLimpio, margenLimpio
                     });
                 }
@@ -232,6 +290,9 @@ function procesarDatosExcel() {
             // Verificar duplicados
             if (codigosVistos.has(codigoFinal)) {
                 duplicados++;
+                if (indice <= 10) {
+                    console.warn(`Fila ${indice}: código duplicado ${codigoFinal}`);
+                }
                 return;
             }
             codigosVistos.add(codigoFinal);
@@ -261,7 +322,7 @@ function procesarDatosExcel() {
 
     // Mostrar primeros 3 productos para verificar
     productosParaImportar.slice(0, 3).forEach(p => {
-        console.log(`${p.codigo} | ${p.descripcion} | $${p.precio} (Costo: $${p.costo}, Margen: ${p.margen}%)`);
+        console.log(`${p.codigo} | ${p.descripcion} | Precio: $${p.precio} | Costo: $${p.costo} | Margen: ${p.margen}%`);
     });
 
     document.getElementById('totalFilas').textContent = datosExcel.length;
@@ -379,7 +440,7 @@ async function importarProductos() {
         
         console.log(`Iniciando importación de ${productosAImportar.length} productos con costo y margen...`);
 
-        const tamañoLote = 20; // Aumentar tamaño de lote para mejor rendimiento
+        const tamañoLote = 5; // Reducir más para debugging
         const resultados = {
             nuevos: 0,
             actualizados: 0,
@@ -391,58 +452,89 @@ async function importarProductos() {
             const lote = productosAImportar.slice(i, i + tamañoLote);
             
             console.log(`Procesando lote ${Math.floor(i/tamañoLote) + 1}/${Math.ceil(productosAImportar.length/tamañoLote)}`);
+            console.log('Productos en este lote:', lote.map(p => p.codigo));
             
-            // MODIFICAR ESTRUCTURA DE DATOS PARA INCLUIR COSTO Y MARGEN
             const loteParaEnviar = lote.map(producto => ({
                 codigo: producto.codigo,
                 descripcion: producto.descripcion,
                 precio: producto.precio,
-                costo: producto.costo,        // ← NUEVO
-                margen: producto.margen       // ← NUEVO
+                costo: producto.costo,
+                margen: producto.margen
             }));
             
-            const response = await fetch('/api/importar_productos_lote', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    productos: loteParaEnviar,
-                    opciones: {
-                        solo_actualizar: document.getElementById('soloActualizar').checked,
-                        crear_nuevos: document.getElementById('crearNuevos').checked,
-                        incluir_costo_margen: true  // ← NUEVO FLAG
-                    }
-                })
-            });
-
-            const resultado = await response.json();
+            const requestBody = {
+                productos: loteParaEnviar,
+                opciones: {
+                    solo_actualizar: document.getElementById('soloActualizar').checked,
+                    crear_nuevos: document.getElementById('crearNuevos').checked,
+                    incluir_costo_margen: true
+                }
+            };
             
-            if (resultado.success && resultado.productos_procesados) {
-                resultado.productos_procesados.forEach(productoResult => {
-                    const productoIndex = productosParaImportar.findIndex(p => 
-                        p.codigo === productoResult.codigo && p.estado !== 'excluido'
-                    );
-                    if (productoIndex !== -1) {
-                        productosParaImportar[productoIndex].estado = productoResult.estado;
-                    }
+            console.log('Enviando request:', requestBody);
+            
+            try {
+                const response = await fetch('/api/importar_productos_lote', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
                 });
                 
-                mostrarVistaPrevia();
-            }
-
-            if (resultado.success) {
-                resultados.nuevos += resultado.nuevos || 0;
-                resultados.actualizados += resultado.actualizados || 0;
-                resultados.errores += resultado.errores || 0;
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
                 
-                if (resultado.detalles_errores) {
-                    resultados.detallesErrores.push(...resultado.detalles_errores);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Response error text:', errorText);
+                    throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
                 }
-            } else {
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const responseText = await response.text();
+                    console.error('Response no es JSON:', responseText);
+                    throw new Error(`Respuesta no es JSON. Content-Type: ${contentType}. Contenido: ${responseText.substring(0, 200)}`);
+                }
+                
+                const resultado = await response.json();
+                console.log('Resultado del lote:', resultado);
+                
+                if (resultado.success && resultado.productos_procesados) {
+                    resultado.productos_procesados.forEach(productoResult => {
+                        const productoIndex = productosParaImportar.findIndex(p => 
+                            p.codigo === productoResult.codigo && p.estado !== 'excluido'
+                        );
+                        if (productoIndex !== -1) {
+                            productosParaImportar[productoIndex].estado = productoResult.estado;
+                        }
+                    });
+                    
+                    mostrarVistaPrevia();
+                }
+
+                if (resultado.success) {
+                    resultados.nuevos += resultado.nuevos || 0;
+                    resultados.actualizados += resultado.actualizados || 0;
+                    resultados.errores += resultado.errores || 0;
+                    
+                    if (resultado.detalles_errores) {
+                        resultados.detallesErrores.push(...resultado.detalles_errores);
+                    }
+                } else {
+                    resultados.errores += lote.length;
+                    resultados.detallesErrores.push({
+                        error: resultado.error || 'Error desconocido en el lote',
+                        productos: lote.map(p => p.codigo)
+                    });
+                }
+
+            } catch (fetchError) {
+                console.error('Error en fetch del lote:', fetchError);
                 resultados.errores += lote.length;
                 resultados.detallesErrores.push({
-                    error: resultado.error || 'Error desconocido en el lote',
+                    error: `Error de conexión: ${fetchError.message}`,
                     productos: lote.map(p => p.codigo)
                 });
             }
@@ -450,22 +542,22 @@ async function importarProductos() {
             const progreso = Math.round(((i + tamañoLote) / productosAImportar.length) * 100);
             btnImportar.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${progreso}%`;
             
-            // Pequeña pausa para no saturar el servidor
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // Pausa para no saturar el servidor
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
 
         console.log('Importación completada:', resultados);
-        
         mostrarResultados(resultados);
 
     } catch (error) {
-        console.error('Error en importación:', error);
+        console.error('Error general en importación:', error);
         alert('Error durante la importación: ' + error.message);
     } finally {
         btnImportar.innerHTML = textoOriginal;
         btnImportar.disabled = false;
     }
 }
+
 
 function mostrarResultados(resultados) {
     const contenedor = document.getElementById('contenidoResultados');

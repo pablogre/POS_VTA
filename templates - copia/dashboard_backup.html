@@ -1,0 +1,141 @@
+<!-- templates/dashboard.html -->
+{% extends "base.html" %}
+
+{% block title %}Dashboard - POS Argentina{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dashboard</h1>
+</div>
+
+<div class="row">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Ventas Hoy
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">$12,500</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Facturas Emitidas
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">15</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-file-invoice fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Productos Activos
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">150</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-box fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Stock Bajo
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">5</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Acciones Rápidas</h5>
+            </div>
+            <div class="card-body">
+                <a href="{{ url_for('nueva_venta') }}" class="btn btn-primary btn-lg mb-2 w-100">
+                    <i class="fas fa-cash-register"></i> Nueva Venta
+                </a>
+                <a href="{{ url_for('facturas') }}" class="btn btn-secondary btn-lg mb-2 w-100">
+                    <i class="fas fa-file-invoice"></i> Ver Facturas
+                </a>
+                <a href="{{ url_for('productos') }}" class="btn btn-info btn-lg w-100">
+                    <i class="fas fa-box"></i> Gestionar Productos
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Últimas Ventas</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Factura</th>
+                                <th>Cliente</th>
+                                <th>Total</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>0001-00000001</td>
+                                <td>Juan Pérez</td>
+                                <td>$1,250.00</td>
+                                <td><span class="badge bg-success">Autorizada</span></td>
+                            </tr>
+                            <tr>
+                                <td>0001-00000002</td>
+                                <td>María González</td>
+                                <td>$850.50</td>
+                                <td><span class="badge bg-success">Autorizada</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

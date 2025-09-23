@@ -1,0 +1,904 @@
+<!-- templates/reporte_ventas_parcial.html -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}FactuFacil{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background-color: #343a40;
+        }
+        .sidebar a {
+            color: #fff;
+            text-decoration: none;
+            padding: 10px 15px;
+            display: block;
+        }
+        .sidebar a:hover {
+            background-color: #495057;
+            color: #fff;
+        }
+        .content {
+            margin-left: 250px;
+            padding: 20px;
+        }
+        @media (max-width: 768px) {
+            .content {
+                margin-left: 0;
+            }
+            .sidebar {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-chart-bar"></i> Reporte de Ventas por Producto</h1>
+    <div class="btn-group">
+        <button class="btn btn-success" id="btnExportarExcel" onclick="exportarExcel()" disabled>
+            <i class="fas fa-file-excel"></i> Exportar Excel
+        </button>
+        <button class="btn btn-info" id="btnExportarCSV" onclick="exportarCSV()" disabled>
+            <i class="fas fa-file-csv"></i> Exportar CSV
+        </button>
+    </div>
+</div>
+
+<!-- Filtros de búsqueda -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="fas fa-filter"></i> Filtros de Búsqueda</h5>
+    </div>
+    <div class="card-body">
+        <form class="row g-3">
+            <div class="col-md-3">
+                <label for="fechaDesde" class="form-label">Desde</label>
+                <input type="date" class="form-control" id="fechaDesde">
+            </div>
+            <div class="col-md-3">
+                <label for="fechaHasta" class="form-label">Hasta</label>
+                <input type="date" class="form-control" id="fechaHasta">
+            </div>
+            <div class="col-md-3">
+                <label for="categoria" class="form-label">Categoría</label>
+                <select id="categoria" class="form-select">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="orden" class="form-label">Ordenar por</label>
+                <select id="orden" class="form-select">
+                    <option value="total_desc">Mayor Venta</option>
+                    <option value="total_asc">Menor Venta</option>
+                    <option value="cantidad_desc">Mayor Cantidad</option>
+                    <option value="cantidad_asc">Menor Cantidad</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" id="soloConVentas">
+                    <label class="form-check-label" for="soloConVentas">Solo productos con ventas</label>
+                </div>
+            </div>
+            <div class="col-12">
+                <button type="button" class="btn btn-primary" onclick="generarReporte()">
+                    <i class="fas fa-search"></i> Generar Reporte
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Resumen -->
+<div class="card mb-4" id="cardResumen" style="display: none;">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Resumen del Período</h5>
+    </div>
+    <div class="card-body row text-center">
+        <div class="col-md-3">
+            <h4 id="totalProductos" class="text-primary">0</h4>
+            <small class="text-muted">Productos Diferentes</small>
+        </div>
+        <div class="col-md-3">
+            <h4 id="totalUnidades" class="text-info">0</h4>
+            <small class="text-muted">Unidades Vendidas</small>
+        </div>
+        <div class="col-md-3">
+            <h4 id="totalVentas" class="text-success">$0.00</h4>
+            <small class="text-muted">Total Vendido</small>
+        </div>
+        <div class="col-md-3">
+            <h4 id="promedioVenta" class="text-warning">$0.00</h4>
+            <small class="text-muted">Promedio por Producto</small>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla -->
+<div class="card" id="cardResultados" style="display: none;">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-table"></i> Detalle de Ventas por Producto</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover" id="tablaReporte">
+                <thead class="table-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>Código</th>
+                        <th>Producto</th>
+                        <th>Categoría</th>
+                        <th>Precio Unitario</th>
+                        <th>Cantidad Vendida</th>
+                        <th>Total Vendido</th>
+                        <th>% del Total</th>
+                        <th>Última Venta</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaReporteBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Loading -->
+<div class="text-center my-5" id="loadingSpinner" style="display: none;">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Generando reporte...</span>
+    </div>
+    <p class="mt-2 text-muted">Generando reporte, por favor espere...</p>
+</div>
+
+<!-- Modal error -->
+<div class="modal fade" id="modalError" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle"></i> Error</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="mensajeError"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+{% block scripts %}
+<script>
+// Variables globales
+let datosReporte = [];
+let parametrosBusqueda = {};
+
+// Inicializar fechas por defecto
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Inicializando reporte de ventas...');
+    
+    // Establecer fechas de hoy automáticamente
+    establecerFechasHoyVentas();
+    
+    // Si hay botón "Hoy", vincularlo a esta función
+    const botonHoy = document.getElementById('btn_hoy') || 
+                    document.querySelector('button[onclick*="establecer"]') ||
+                    document.querySelector('.btn:contains("Hoy")');
+    
+    if (botonHoy) {
+        botonHoy.addEventListener('click', establecerFechasHoyVentas);
+        console.log('✅ Botón "Hoy" vinculado');
+    }
+    
+    // Cargar categorías después de que el DOM esté completamente cargado
+    setTimeout(() => {
+        cargarCategorias();
+    }, 100);
+    
+    console.log('✅ DOM cargado, fechas configuradas');
+});
+
+// Función auxiliar para formatear fecha en YYYY-MM-DD en hora local
+function formatearFechaLocal(date) {
+    const anio = date.getFullYear();
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const dia = String(date.getDate()).padStart(2, '0');
+    return `${anio}-${mes}-${dia}`;
+}
+
+
+
+// Función para cargar categorías - CORREGIDA
+function cargarCategorias() {
+    console.log('📂 Cargando categorías...');
+    
+    // Verificar que el elemento existe antes de usarlo
+    const selectCategoria = document.getElementById('categoria');
+    if (!selectCategoria) {
+        console.error('❌ Elemento #categoria no encontrado en el DOM');
+        return;
+    }
+    
+    fetch('/obtener_categorias')
+        .then(response => {
+            console.log('📡 Respuesta categorías:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                selectCategoria.innerHTML = '<option value="">Todas las categorías</option>';
+                
+                data.categorias.forEach(categoria => {
+                    const option = document.createElement('option');
+                    option.value = categoria;
+                    option.textContent = categoria;
+                    selectCategoria.appendChild(option);
+                });
+                
+                console.log(`✅ ${data.categorias.length} categorías cargadas`);
+            } else {
+                console.warn('⚠️ No se pudieron cargar las categorías:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error cargando categorías:', error);
+            // No mostrar error al usuario, solo log
+        });
+}
+
+// Función principal para generar reporte
+function generarReporte() {
+    const fechaDesde = document.getElementById('fechaDesde').value;
+    const fechaHasta = document.getElementById('fechaHasta').value;
+    
+    // Validaciones
+    if (!fechaDesde || !fechaHasta) {
+        mostrarError('Por favor seleccione ambas fechas');
+        return;
+    }
+    
+    if (new Date(fechaDesde) > new Date(fechaHasta)) {
+        mostrarError('La fecha desde no puede ser mayor a la fecha hasta');
+        return;
+    }
+    
+    console.log('📊 Generando reporte de ventas...');
+    console.log(`📅 Período: ${fechaDesde} a ${fechaHasta}`);
+    console.log(`📂 Categoría: ${document.getElementById('categoria').value || 'Todas'}`);
+    console.log(`🔄 Orden: ${document.getElementById('orden').value}`);
+    console.log(`✅ Incluye TODAS las facturas (no solo autorizadas)`);
+    
+    // Mostrar loading
+    mostrarLoading(true);
+    
+    // Preparar parámetros - CORREGIDO
+    parametrosBusqueda = {
+        fecha_desde: fechaDesde,
+        fecha_hasta: fechaHasta,
+        categoria: document.getElementById('categoria').value, // Cambiado de 'filtroCategoria' a 'categoria'
+        orden: document.getElementById('orden').value, // Cambiado de 'filtroOrden' a 'orden'
+        solo_con_ventas: document.getElementById('soloConVentas').checked
+    };
+    
+    // Construir URL con parámetros
+    const params = new URLSearchParams(parametrosBusqueda);
+    
+    // Realizar petición
+    fetch(`/api/reporte_ventas_productos?${params.toString()}`)
+        .then(response => {
+            console.log('📡 Respuesta del servidor:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 Datos del reporte recibidos:', data);
+            
+            if (data.success) {
+                datosReporte = data.productos;
+                mostrarReporte(data);
+                
+                console.log('✅ Reporte generado exitosamente');
+                console.log(`📦 Productos: ${data.resumen.total_productos}`);
+                console.log(`📊 Unidades: ${data.resumen.total_unidades}`);
+                console.log(`💰 Total: $${data.resumen.total_ventas.toFixed(2)}`);
+            } else {
+                mostrarError(data.error || 'Error al generar el reporte');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error:', error);
+            mostrarError('No hay ventas en el período seleccionado');
+        })
+        .finally(() => {
+            mostrarLoading(false);
+        });
+}
+
+// Función para mostrar el reporte
+function mostrarReporte(data) {
+    // Mostrar resumen (actualizado para mostrar unidades reales)
+    document.getElementById('totalProductos').textContent = data.resumen.total_productos;
+    
+    // *** USAR UNIDADES REALES EN LUGAR DE TOTAL_UNIDADES ***
+    const unidadesReales = data.resumen.total_unidades_reales || data.resumen.total_unidades;
+    document.getElementById('totalUnidades').textContent = unidadesReales.toLocaleString();
+    
+    document.getElementById('totalVentas').textContent = '$' + data.resumen.total_ventas.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    document.getElementById('promedioVenta').textContent = '$' + data.resumen.promedio_por_producto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    
+    // Mostrar información sobre estados de facturas si está disponible
+    if (data.resumen.estados_facturas && Object.keys(data.resumen.estados_facturas).length > 1) {
+        mostrarInfoEstadosFacturas(data.resumen.estados_facturas);
+    }
+    
+    // *** MOSTRAR INFORMACIÓN DE CORRECCIÓN DE COMBOS ***
+    if (data.resumen.correccion_combos) {
+        mostrarInfoCorreccionCombos();
+    }
+    
+    // Mostrar tabla
+    const tbody = document.getElementById('tablaReporteBody');
+    tbody.innerHTML = '';
+    
+    if (data.productos.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="text-center text-muted py-4">
+                    <i class="fas fa-info-circle"></i> No se encontraron ventas en el período seleccionado
+                </td>
+            </tr>
+        `;
+    } else {
+        data.productos.forEach((producto, index) => {
+            const fila = document.createElement('tr');
+            
+            // Calcular porcentaje del total
+            const porcentaje = ((producto.total_vendido / data.resumen.total_ventas) * 100).toFixed(1);
+            
+            // Formatear fecha de última venta
+            const fechaUltimaVenta = producto.ultima_venta ? 
+                new Date(producto.ultima_venta).toLocaleDateString('es-AR') : 
+                'N/A';
+            
+            // *** FORMATEAR CANTIDAD VENDIDA CON INFORMACIÓN DE COMBO ***
+            let cantidadDisplay = `<span class="badge bg-primary fs-6">${producto.cantidad_vendida}</span>`;
+            let tipoProducto = '';
+            
+            if (producto.es_combo) {
+                tipoProducto = '<br><small class="text-info"><i class="fas fa-tags"></i> Combo/Oferta</small>';
+                
+                // Mostrar información adicional del combo
+                if (producto.info_combo) {
+                    cantidadDisplay += `<br><small class="text-muted">${producto.info_combo}</small>`;
+                }
+                
+                // Agregar unidad de medida si está disponible
+                if (producto.unidad_medida && producto.unidad_medida !== 'unidades') {
+                    cantidadDisplay = `<span class="badge bg-success fs-6">${producto.cantidad_vendida} ${producto.unidad_medida}</span>`;
+                    if (producto.info_combo) {
+                        cantidadDisplay += `<br><small class="text-muted">${producto.info_combo}</small>`;
+                    }
+                }
+            }
+            
+            fila.innerHTML = `
+                <td><strong>${index + 1}</strong></td>
+                <td><code>${producto.codigo}</code></td>
+                <td>
+                    <strong>${producto.nombre}</strong>${tipoProducto}
+                    ${producto.descripcion ? `<br><small class="text-muted">${producto.descripcion.substring(0, 50)}${producto.descripcion.length > 50 ? '...' : ''}</small>` : ''}
+                </td>
+                <td>
+                    <span class="badge bg-info">${producto.categoria || 'Sin categoría'}</span>
+                </td>
+                <td class="text-end">$${producto.precio_promedio.toFixed(2)}</td>
+                <td class="text-center">
+                    ${cantidadDisplay}
+                </td>
+                <td class="text-end">
+                    <strong>$${producto.total_vendido.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-warning text-dark">${porcentaje}%</span>
+                </td>
+                <td class="text-center">${fechaUltimaVenta}</td>
+            `;
+            
+            tbody.appendChild(fila);
+        });
+    }
+    
+    // Mostrar cards
+    document.getElementById('cardResumen').style.display = 'block';
+    document.getElementById('cardResultados').style.display = 'block';
+    
+    // Habilitar botones de exportación
+    document.getElementById('btnExportarExcel').disabled = false;
+    document.getElementById('btnExportarCSV').disabled = false;
+    
+    console.log('✅ Reporte mostrado correctamente - Botones de exportación habilitados');
+    console.log(`📊 Incluye todas las facturas: ${data.resumen.incluye_todas_facturas ? 'SÍ' : 'NO'}`);
+    console.log(`🔧 Corrección de combos aplicada: ${data.resumen.correccion_combos ? 'SÍ' : 'NO'}`);
+}
+
+// *** NUEVA FUNCIÓN PARA MOSTRAR INFO DE CORRECCIÓN DE COMBOS ***
+function mostrarInfoCorreccionCombos() {
+    const cardResumen = document.getElementById('cardResumen');
+    
+    // Remover info anterior si existe
+    const infoAnterior = cardResumen.querySelector('.info-correccion-combos');
+    if (infoAnterior) {
+        infoAnterior.remove();
+    }
+    
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'info-correccion-combos mt-3 p-3 bg-success bg-opacity-10 border border-success rounded';
+    infoDiv.innerHTML = `
+        <div class="row">
+            <div class="col-12">
+                <h6><i class="fas fa-check-circle text-success"></i> Visualizacón de Combos</h6>
+                <p class="mb-0">
+                    <small class="text-success">
+                        <i class="fas fa-tags"></i> Las cantidades de combos han sido convertidas a la cantidad real del producto base.<br>
+                        <strong>Ejemplo:</strong> Si vendiste 2 combos de 3kg c/u, se muestra "6 kg vendidos" en lugar de "2 combos".
+                    </small>
+                </p>
+            </div>
+        </div>
+    `;
+    
+    cardResumen.querySelector('.card-body').appendChild(infoDiv);
+    
+    console.log('✅ Info de corrección de combos agregada al reporte');
+}
+
+// Función para mostrar información sobre estados de facturas
+function mostrarInfoEstadosFacturas(estadosFacturas) {
+    // Buscar el card de resumen para agregar información
+    const cardResumen = document.getElementById('cardResumen');
+    
+    // Remover info anterior si existe
+    const infoAnterior = cardResumen.querySelector('.info-estados-facturas');
+    if (infoAnterior) {
+        infoAnterior.remove();
+    }
+    
+    // Calcular totales
+    let totalFacturas = 0;
+    let totalImporte = 0;
+    let facturasAutorizadas = 0;
+    let importeAutorizado = 0;
+    
+    for (const estado in estadosFacturas) {
+        const info = estadosFacturas[estado];
+        totalFacturas += info.cantidad;
+        totalImporte += info.total;
+        
+        if (estado === 'autorizada') {
+            facturasAutorizadas = info.cantidad;
+            importeAutorizado = info.total;
+        }
+    }
+    
+    // Solo mostrar si hay facturas no autorizadas
+    if (totalFacturas > facturasAutorizadas) {
+        const facturasPendientes = totalFacturas - facturasAutorizadas;
+        const importePendiente = totalImporte - importeAutorizado;
+        
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'info-estados-facturas mt-3 p-3 bg-light rounded';
+        infoDiv.innerHTML = `
+            <div class="row">
+                <div class="col-12">
+                    <h6><i class="fas fa-info-circle text-info"></i> Información Detallada de Facturas</h6>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <strong>Total Facturas:</strong> ${totalFacturas}<br>
+                            <strong>Total Importe:</strong> $${totalImporte.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Autorizadas:</strong> ${facturasAutorizadas}<br>
+                            <strong>Importe Autorizado:</strong> $${importeAutorizado.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Pendientes/Error:</strong> ${facturasPendientes}<br>
+                            <strong>Importe Pendiente:</strong> $${importePendiente.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                        </div>
+                    </div>
+                    <small class="text-muted">
+                        <i class="fas fa-check-circle text-success"></i> Este reporte incluye TODAS las facturas (autorizadas y pendientes)
+                    </small>
+                </div>
+            </div>
+        `;
+        
+        cardResumen.querySelector('.card-body').appendChild(infoDiv);
+        
+        console.log('📊 Info de estados agregada al reporte');
+        console.log(`   Total: ${totalFacturas} facturas ($${totalImporte.toFixed(2)})`);
+        console.log(`   Autorizadas: ${facturasAutorizadas} ($${importeAutorizado.toFixed(2)})`);
+        console.log(`   Pendientes: ${facturasPendientes} ($${importePendiente.toFixed(2)})`);
+    }
+}
+
+// Función para mostrar/ocultar loading
+function mostrarLoading(mostrar) {
+    document.getElementById('loadingSpinner').style.display = mostrar ? 'block' : 'none';
+    if (mostrar) {
+        document.getElementById('cardResumen').style.display = 'none';
+        document.getElementById('cardResultados').style.display = 'none';
+    }
+}
+
+// Función para mostrar errores
+function mostrarError(mensaje) {
+    document.getElementById('mensajeError').textContent = mensaje;
+    
+    // Verificar si Bootstrap está disponible
+    if (typeof bootstrap !== 'undefined') {
+        new bootstrap.Modal(document.getElementById('modalError')).show();
+    } else {
+        // Fallback si Bootstrap no está disponible
+        alert('Atencón: ' + mensaje);
+    }
+}
+
+// Función para mostrar notificaciones
+function mostrarNotificacion(mensaje, tipo = 'info') {
+    // Crear notificación temporal
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${tipo} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+    alertDiv.innerHTML = `
+        ${mensaje}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // Auto-remover después de 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
+// Función para exportar a Excel
+function exportarExcel() {
+    if (datosReporte.length === 0) {
+        mostrarError('No hay datos para exportar');
+        return;
+    }
+    
+    console.log('📤 Iniciando exportación a Excel...');
+    console.log(`📊 Exportando ${datosReporte.length} productos`);
+    console.log(`📅 Período: ${parametrosBusqueda.fecha_desde} a ${parametrosBusqueda.fecha_hasta}`);
+    
+    const params = new URLSearchParams(parametrosBusqueda);
+    params.append('formato', 'excel');
+    
+    const url = `/exportar_reporte_ventas?${params.toString()}`;
+    console.log(`🔗 URL de exportación: ${url}`);
+    
+    // Mostrar indicador de descarga
+    mostrarNotificacion('Generando archivo Excel...', 'info');
+    
+    // Crear enlace temporal para descarga
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `reporte_ventas_${parametrosBusqueda.fecha_desde}_${parametrosBusqueda.fecha_hasta}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    console.log('✅ Descarga de Excel iniciada');
+}
+
+// Función para exportar a CSV
+function exportarCSV() {
+    if (datosReporte.length === 0) {
+        mostrarError('No hay datos para exportar');
+        return;
+    }
+    
+    console.log('📤 Iniciando exportación a CSV...');
+    console.log(`📊 Exportando ${datosReporte.length} productos`);
+    
+    const params = new URLSearchParams(parametrosBusqueda);
+    params.append('formato', 'csv');
+    
+    const url = `/exportar_reporte_ventas?${params.toString()}`;
+    
+    // Mostrar indicador de descarga
+    mostrarNotificacion('Generando archivo CSV...', 'info');
+    
+    // Crear enlace temporal para descarga
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `reporte_ventas_${parametrosBusqueda.fecha_desde}_${parametrosBusqueda.fecha_hasta}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    console.log('✅ Descarga de CSV iniciada');
+}
+
+// Event listeners para mejorar UX
+document.getElementById('fechaDesde').addEventListener('change', function() {
+    const fechaHasta = document.getElementById('fechaHasta');
+    if (this.value && (!fechaHasta.value || new Date(this.value) > new Date(fechaHasta.value))) {
+        fechaHasta.value = this.value;
+    }
+});
+
+// Generar reporte al presionar Enter en los campos de fecha
+document.getElementById('fechaDesde').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        generarReporte();
+    }
+});
+
+document.getElementById('fechaHasta').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        generarReporte();
+    }
+});
+
+// Función para limpiar la vista (resetear todo)
+function limpiarVista() {
+    // Ocultar cards
+    document.getElementById('cardResumen').style.display = 'none';
+    document.getElementById('cardResultados').style.display = 'none';
+    
+    // Limpiar datos
+    datosReporte = [];
+    parametrosBusqueda = {};
+    
+    // Deshabilitar botones
+    document.getElementById('btnExportarExcel').disabled = true;
+    document.getElementById('btnExportarCSV').disabled = true;
+    
+    // Limpiar tabla
+    document.getElementById('tablaReporteBody').innerHTML = '';
+    
+    // Remover info de estados de facturas si existe
+    const infoAnterior = document.querySelector('.info-estados-facturas');
+    if (infoAnterior) {
+        infoAnterior.remove();
+    }
+    
+    console.log('🧹 Vista limpiada');
+}
+
+// Función auxiliar para debug en consola
+function debugReporte() {
+    console.log('🔍 DEBUG DEL REPORTE ACTUAL:');
+    console.log('📊 Datos del reporte:', datosReporte);
+    console.log('⚙️ Parámetros de búsqueda:', parametrosBusqueda);
+    console.log('📈 Cantidad de productos:', datosReporte.length);
+    
+    if (datosReporte.length > 0) {
+        const totalUnidades = datosReporte.reduce((sum, p) => sum + p.cantidad_vendida, 0);
+        const totalVentas = datosReporte.reduce((sum, p) => sum + p.total_vendido, 0);
+        console.log('📦 Total unidades calculado:', totalUnidades);
+        console.log('💰 Total ventas calculado:', totalVentas.toFixed(2));
+    }
+}
+
+// Función para test rápido (útil para debugging)
+function testRapido() {
+    console.log('🧪 Iniciando test rápido...');
+    
+    // Configurar fechas del último mes
+    const hoy = new Date();
+    const haceUnMes = new Date();
+    haceUnMes.setMonth(haceUnMes.getMonth() - 1);
+    
+    document.getElementById('fechaDesde').value = haceUnMes.toISOString().split('T')[0];
+    document.getElementById('fechaHasta').value = hoy.toISOString().split('T')[0];
+    
+    // Generar reporte automáticamente
+    setTimeout(() => {
+        generarReporte();
+    }, 500);
+}
+
+
+function establecerFechasHoyVentas() {
+    const ahora = new Date();
+    const haceUnMes = new Date();
+    haceUnMes.setMonth(haceUnMes.getMonth() - 1);
+    
+    const hoyStr = formatearFechaLocal(ahora);
+    const mesStr = formatearFechaLocal(haceUnMes);
+
+    const campoDesde = document.getElementById('fechaDesde');
+    const campoHasta = document.getElementById('fechaHasta');
+
+    if (campoDesde) {
+        campoDesde.value = mesStr;
+        console.log(`✅ Campo DESDE establecido: ${mesStr}`);
+    } else {
+        console.error('❌ No se encontró campo fechaDesde');
+    }
+
+    if (campoHasta) {
+        campoHasta.value = hoyStr;
+        console.log(`✅ Campo HASTA establecido: ${hoyStr}`);
+    } else {
+        console.error('❌ No se encontró campo fechaHasta');
+    }
+}
+
+
+// Hacer funciones disponibles globalmente para debugging
+window.debugReporte = debugReporte;
+window.limpiarVista = limpiarVista;
+window.testRapido = testRapido;
+
+// Log de inicialización
+console.log('✅ Reporte de Ventas inicializado correctamente');
+console.log('🔧 Funciones disponibles en consola:');
+console.log('   - debugReporte(): Mostrar info del reporte actual');
+console.log('   - limpiarVista(): Resetear la vista');
+console.log('   - testRapido(): Generar reporte del último mes');
+
+
+
+</script>
+
+<!-- CSS adicional para mejoras visuales -->
+<style>
+/* Mejoras para las notificaciones */
+.alert.position-fixed {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border: none;
+    border-radius: 8px;
+}
+
+/* Mejoras para la tabla */
+.table th {
+    position: sticky;
+    top: 0;
+    background-color: #212529 !important;
+    z-index: 10;
+}
+
+.table-responsive {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+/* Estilos para la información de estados de facturas */
+.info-estados-facturas {
+    border-left: 4px solid #17a2b8;
+    animation: slideIn 0.3s ease-in-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Mejoras para los badges */
+.badge.fs-6 {
+    font-size: 0.875rem !important;
+}
+
+/* Mejoras para loading */
+#loadingSpinner {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Mejoras para hover en filas de tabla */
+.table tbody tr:hover {
+    background-color: rgba(0,123,255,0.05) !important;
+    cursor: pointer;
+}
+
+/* Mejoras responsivas */
+@media (max-width: 768px) {
+    .btn-group {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .btn-group .btn {
+        margin-bottom: 5px;
+        border-radius: 0.375rem !important;
+    }
+    
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+}
+
+/* Mejoras para los filtros */
+.card-header.bg-primary {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+}
+
+.card-header.bg-info {
+    background: linear-gradient(135deg, #17a2b8 0%, #117a8b 100%) !important;
+}
+
+/* Efecto de pulsación para botones importantes */
+.btn-primary {
+    transition: all 0.2s ease;
+}
+
+.btn-primary:active {
+    transform: scale(0.98);
+}
+
+/* Mejoras para códigos de producto */
+code {
+    background-color: rgba(0,123,255,0.1);
+    color: #0056b3;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 0.875em;
+}
+
+/* Mejoras para los totales en el resumen */
+#cardResumen h4 {
+    font-weight: 700;
+    transition: color 0.3s ease;
+}
+
+/* Animación sutil para los números */
+@keyframes countUp {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+#totalProductos, #totalUnidades, #totalVentas, #promedioVenta {
+    animation: countUp 0.5s ease-out;
+}
+
+/* Estilos para la información de corrección de combos */
+.info-correccion-combos {
+    border-left: 4px solid #28a745;
+    animation: slideIn 0.3s ease-in-out;
+}
+
+/* Mejoras para badges de cantidad en combos */
+.badge.bg-success {
+    background-color: #28a745 !important;
+}
+
+/* Estilo para información de combo */
+.text-info small {
+    font-weight: 500;
+}
+
+/* Mejoras para la tabla cuando hay combos */
+.table tbody tr:hover {
+    background-color: rgba(0,123,255,0.05) !important;
+    cursor: pointer;
+}
+
+/* Estilos para información adicional de combos */
+.badge + small {
+    display: block;
+    margin-top: 2px;
+    font-style: italic;
+}
+</style>
+{% endblock %}

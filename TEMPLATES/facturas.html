@@ -1,7 +1,7 @@
 <!-- templates/facturas.html -->
 {% extends "base.html" %}
 
-{% block title %}Facturas - POS Argentina{% endblock %}
+{% block title %}Facturas - FactuFacil{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -139,7 +139,6 @@
 
 {% block scripts %}
 
-// REEMPLAZAR todo el script en facturas.html con esto:
 
 <script>
 // Variables globales
@@ -377,6 +376,9 @@ function generarBotonesAccion(factura) {
             <button class="btn btn-secondary" onclick="imprimirFactura(${factura.id})" title="Imprimir">
                 <i class="fas fa-print"></i>
             </button>
+            <button class="btn btn-success" onclick="reimprimirTermica(${factura.id})" title="Reimprimir Ticket Térmico">
+                <i class="fas fa-receipt"></i>
+            </button>
     `;
     
     // Botón de reintentar AFIP solo para pendientes o error
@@ -400,7 +402,6 @@ function generarBotonesAccion(factura) {
     botones += '</div>';
     return botones;
 }
-
 // ===== FUNCIONES DE ACCIÓN =====
 
 function imprimirFactura(facturaId) {
@@ -485,6 +486,32 @@ function anularFactura(facturaId) {
         alert('Debe ingresar un motivo para anular la factura');
     }
 }
+
+
+function reimprimirTermica(facturaId) {
+    const boton = event.target.closest('button');
+    const textoOriginal = boton.innerHTML;
+    boton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    boton.disabled = true;
+    
+    fetch(`/imprimir_factura/${facturaId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Factura reimpresa correctamente');
+            } else {
+                alert('Error al reimprimir: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error de conexión: ' + error.message);
+        })
+        .finally(() => {
+            boton.innerHTML = textoOriginal;
+            boton.disabled = false;
+        });
+}
+
 
 // ===== INICIALIZACIÓN =====
 

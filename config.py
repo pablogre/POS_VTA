@@ -11,7 +11,7 @@ class Config:
     MYSQL_HOST = os.environ.get('MYSQL_HOST') or 'localhost'
     MYSQL_USER = os.environ.get('MYSQL_USER') or 'pos_user'
     MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD') or 'pos_password'
-    MYSQL_DATABASE = os.environ.get('MYSQL_DATABASE') or 'pos_argentina'
+    MYSQL_DATABASE = os.environ.get('MYSQL_DATABASE') or 'pos_argentina'  
     
     # URI de SQLAlchemy
     SQLALCHEMY_DATABASE_URI = (
@@ -31,8 +31,8 @@ class ARCAConfig:
     
     # DATOS DE TU EMPRESA - CAMBIAR POR TUS DATOS REALES
     CUIT = '20203852100'  # TU CUIT AQUÍ
-    PUNTO_VENTA = 3       # TU PUNTO DE VENTA
-    RAZON_SOCIAL = 'PABLO GUSTAVO RE'
+    PUNTO_VENTA = 3      # TU PUNTO DE VENTA 3
+    RAZON_SOCIAL = 'PABLO GUSTAVO RE' # 'PABLO GUSTAVO RE'
     
     # RUTAS DE CERTIFICADOS
     CERT_PATH = os.path.join('certificados', 'certificado.crt')
@@ -41,14 +41,15 @@ class ARCAConfig:
     # URLs DE AFIP
     # HOMOLOGACIÓN (para pruebas)
     WSAA_URL_HOMO = 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms'
-    WSFEv1_URL_HOMO = 'https://wswhomo.afip.gov.ar/wsfev1/service.asmx?WSDL'
+    WSFEv1_URL_HOMO = 'https://wswhomo.afip.gov.ar/wsfev1/service.asmx'
     
     # PRODUCCIÓN (para uso real)
     WSAA_URL_PROD = 'https://wsaa.afip.gov.ar/ws/services/LoginCms'
-    WSFEv1_URL_PROD = 'https://servicios1.afip.gov.ar/wsfev1/service.asmx?WSDL'
+    WSFEv1_URL_PROD = 'https://servicios1.afip.gov.ar/wsfev1/service.asmx'
     
     # USAR HOMOLOGACIÓN POR DEFECTO (cambiar a False para producción)
     USE_HOMOLOGACION = False
+   
     
     @property
     def WSAA_URL(self):

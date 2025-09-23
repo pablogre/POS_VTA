@@ -1,14 +1,19 @@
 <!-- templates/ofertas_volumen.html -->
 {% extends "base.html" %}
 
-{% block title %}Ofertas por Volumen - POS Argentina{% endblock %}
+{% block title %}Ofertas por Volumen - FactuFacil{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2"><i class="fas fa-tags"></i> Gestión de Ofertas por Volumen</h1>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalOferta" onclick="limpiarFormOferta()">
-        <i class="fas fa-plus"></i> Nueva Oferta
-    </button>
+    <div class="btn-group">
+        <button class="btn btn-info me-2" onclick="mostrarAyudaOfertasVolumen()">
+            <i class="fas fa-question-circle"></i> ¿Cómo funcionan?
+        </button>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalOferta" onclick="limpiarFormOferta()">
+            <i class="fas fa-plus"></i> Nueva Oferta
+        </button>
+    </div>
 </div>
 
 <!-- Filtros -->
@@ -291,6 +296,334 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de Ayuda/Explicación de Ofertas por Volumen -->
+<div class="modal fade" id="modalAyudaOfertasVolumen" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-lightbulb"></i> ¿Cómo Funcionan las Ofertas por Volumen?
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Introducción -->
+                <div class="alert alert-primary">
+                    <h6><i class="fas fa-info-circle"></i> ¿Qué son las Ofertas por Volumen?</h6>
+                    <p class="mb-0">Las ofertas por volumen son <strong>descuentos automáticos</strong> que se aplican cuando un cliente compra <strong>una cantidad mínima</strong> de un mismo producto. Son ideales para incentivar compras por mayor y premiar la fidelidad del cliente.</p>
+                </div>
+
+                <!-- Diferencia con Combos -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <strong><i class="fas fa-percentage"></i> Ofertas por Volumen</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li><strong>Mismo producto</strong> en cantidad</li>
+                                    <li><strong>Descuento automático</strong> al superar mínimo</li>
+                                    <li><strong>Sin stock separado</strong> - usa el stock del producto</li>
+                                    <li><strong>Precio por unidad reducido</strong></li>
+                                </ul>
+                                <div class="mt-2 p-2 bg-light rounded">
+                                    <small><strong>Ejemplo:</strong> Detergente $300 c/u<br>
+                                    Si compras 5 o más → $250 c/u</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <strong><i class="fas fa-tags"></i> Combos/Ofertas</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li><strong>Producto especial</strong> con cantidad fija</li>
+                                    <li><strong>Precio fijo total</strong> del paquete</li>
+                                    <li><strong>Stock independiente</strong> del producto base</li>
+                                    <li><strong>Código y nombre únicos</strong></li>
+                                </ul>
+                                <div class="mt-2 p-2 bg-light rounded">
+                                    <small><strong>Ejemplo:</strong> "3 x Detergente (Oferta)"<br>
+                                    Precio fijo: $750 por el combo completo</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Proceso paso a paso -->
+                <h6><i class="fas fa-list-ol"></i> Proceso de Creación (Paso a Paso)</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <strong>1. Seleccionar Producto</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li>Busca el producto existente</li>
+                                    <li>Puede ser cualquier producto activo</li>
+                                    <li>Ejemplo: "Detergente 1L - $300"</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <strong>2. Definir Cantidad Mínima</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li>Cantidad mínima para el descuento</li>
+                                    <li>Acepta decimales si es necesario</li>
+                                    <li>Ejemplo: 5 unidades mínimas</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <strong>3. Definir Precio con Descuento</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li>Precio unitario con descuento</li>
+                                    <li>Debe ser menor al precio normal</li>
+                                    <li>Ejemplo: $250 por unidad</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <strong>4. El Sistema Calcula Automáticamente</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li><strong>Descuento %:</strong> 16.7%</li>
+                                    <li><strong>Ahorro total:</strong> $250</li>
+                                    <li><strong>Simulación en tiempo real</strong></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ejemplos prácticos -->
+                <h6><i class="fas fa-calculator"></i> Ejemplos Prácticos de Funcionamiento</h6>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-primary">
+                            <tr>
+                                <th>Producto</th>
+                                <th>Precio Normal</th>
+                                <th>Cantidad Mínima</th>
+                                <th>Precio c/Descuento</th>
+                                <th>Descuento</th>
+                                <th>Ejemplo de Compra</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Detergente 1L</td>
+                                <td>$300</td>
+                                <td>5 unidades</td>
+                                <td>$250</td>
+                                <td class="text-success"><strong>16.7%</strong></td>
+                                <td>
+                                    <small>
+                                        <strong>Compra 6 unidades:</strong><br>
+                                        Normal: 6 × $300 = $1,800<br>
+                                        Con oferta: 6 × $250 = $1,500<br>
+                                        <span class="text-success">Ahorro: $300</span>
+                                    </small>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Shampoo 400ml</td>
+                                <td>$800</td>
+                                <td>3 unidades</td>
+                                <td>$650</td>
+                                <td class="text-success"><strong>18.8%</strong></td>
+                                <td>
+                                    <small>
+                                        <strong>Compra 4 unidades:</strong><br>
+                                        Normal: 4 × $800 = $3,200<br>
+                                        Con oferta: 4 × $650 = $2,600<br>
+                                        <span class="text-success">Ahorro: $600</span>
+                                    </small>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Aceite 900ml</td>
+                                <td>$450</td>
+                                <td>10 unidades</td>
+                                <td>$400</td>
+                                <td class="text-success"><strong>11.1%</strong></td>
+                                <td>
+                                    <small>
+                                        <strong>Compra 12 unidades:</strong><br>
+                                        Normal: 12 × $450 = $5,400<br>
+                                        Con oferta: 12 × $400 = $4,800<br>
+                                        <span class="text-success">Ahorro: $600</span>
+                                    </small>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Cómo se aplica en la venta -->
+                <h6><i class="fas fa-cash-register"></i> ¿Cómo se Aplica en la Venta?</h6>
+                <div class="alert alert-success">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-1"></i> Cliente Agrega Productos</h6>
+                            <p class="mb-0">El cliente va agregando productos al carrito normalmente.</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-2"></i> Sistema Detecta Cantidad</h6>
+                            <p class="mb-0">Cuando la cantidad supera el mínimo, el sistema aplica automáticamente el precio con descuento.</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-3"></i> Descuento Automático</h6>
+                            <p class="mb-0">El cliente ve inmediatamente el precio reducido y el ahorro obtenido.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Casos especiales -->
+                <h6><i class="fas fa-exclamation-triangle"></i> Casos Especiales</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-layer-group"></i> Múltiples Ofertas</h6>
+                            <p class="mb-2">Un mismo producto puede tener varias ofertas:</p>
+                            <ul class="mb-0">
+                                <li><strong>3-4 unidades:</strong> $280 c/u (6.7% desc.)</li>
+                                <li><strong>5-9 unidades:</strong> $250 c/u (16.7% desc.)</li>
+                                <li><strong>10+ unidades:</strong> $220 c/u (26.7% desc.)</li>
+                            </ul>
+                            <small class="text-muted">Se aplica la mejor oferta disponible.</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-shopping-cart"></i> En el Carrito</h6>
+                            <p class="mb-2">El descuento se aplica línea por línea:</p>
+                            <ul class="mb-0">
+                                <li><strong>2 Detergentes:</strong> $300 c/u (sin descuento)</li>
+                                <li><strong>6 Shampoos:</strong> $650 c/u (con descuento)</li>
+                                <li><strong>1 Aceite:</strong> $450 c/u (sin descuento)</li>
+                            </ul>
+                            <small class="text-muted">Cada producto se evalúa independientemente.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ventajas del sistema -->
+                <h6><i class="fas fa-star"></i> Ventajas del Sistema</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="alert alert-success">
+                            <h6><i class="fas fa-check-circle"></i> Para el Negocio</h6>
+                            <ul class="mb-0">
+                                <li><strong>Aumenta volumen de ventas</strong></li>
+                                <li><strong>Fideliza clientes mayoristas</strong></li>
+                                <li><strong>Gestión automática</strong> - sin intervención manual</li>
+                                <li><strong>Múltiples niveles</strong> de descuento posibles</li>
+                                <li><strong>Reportes detallados</strong> de efectividad</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert alert-primary">
+                            <h6><i class="fas fa-heart"></i> Para el Cliente</h6>
+                            <ul class="mb-0">
+                                <li><strong>Ahorro transparente</strong> y automático</li>
+                                <li><strong>Incentivo a comprar más</strong></li>
+                                <li><strong>Sin códigos ni cupones</strong> complicados</li>
+                                <li><strong>Descuento inmediato</strong> visible</li>
+                                <li><strong>Precios justos</strong> por volumen</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Consejos de uso -->
+                <h6><i class="fas fa-lightbulb"></i> Consejos para Configurar Ofertas Efectivas</h6>
+                <div class="alert alert-warning">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-target"></i> Cantidad Mínima</h6>
+                            <ul class="mb-0">
+                                <li>Analiza tu rotación de stock</li>
+                                <li>Considera el comportamiento de compra</li>
+                                <li>Productos de alta rotación: cantidad más baja</li>
+                                <li>Productos especiales: cantidad más alta</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-percentage"></i> Descuento</h6>
+                            <ul class="mb-0">
+                                <li>Descuentos atractivos pero sostenibles</li>
+                                <li>Entre 10-25% suele ser efectivo</li>
+                                <li>Considera tu margen de ganancia</li>
+                                <li>Prueba y ajusta según resultados</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-chart-line"></i> Monitoreo</h6>
+                            <ul class="mb-0">
+                                <li>Revisa regularmente la efectividad</li>
+                                <li>Analiza el impacto en ventas</li>
+                                <li>Ajusta según temporadas</li>
+                                <li>Desactiva ofertas no efectivas</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Estados y gestión -->
+                <h6><i class="fas fa-cogs"></i> Gestión y Estados</h6>
+                <div class="d-flex justify-content-around text-center mb-3">
+                    <div>
+                        <span class="badge bg-success fs-6">Activa</span><br>
+                        <small>Se aplica automáticamente</small>
+                    </div>
+                    <div>
+                        <span class="badge bg-secondary fs-6">Inactiva</span><br>
+                        <small>Temporalmente deshabilitada</small>
+                    </div>
+                    <div>
+                        <span class="badge bg-warning text-dark fs-6">16.7%</span><br>
+                        <small>Porcentaje de descuento</small>
+                    </div>
+                    <div>
+                        <span class="badge bg-primary fs-6">5 unidades</span><br>
+                        <small>Cantidad mínima</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="document.querySelector('[data-bs-target=\'#modalOferta\']').click()">
+                    <i class="fas fa-plus"></i> Crear Mi Primera Oferta
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 {% endblock %}
 
@@ -839,6 +1172,13 @@ function mostrarError(mensaje) {
             </td>
         </tr>
     `;
+}
+
+// Función para mostrar el modal de ayuda de ofertas por volumen
+function mostrarAyudaOfertasVolumen() {
+    console.log('📚 Mostrando ayuda de ofertas por volumen...');
+    const modal = new bootstrap.Modal(document.getElementById('modalAyudaOfertasVolumen'));
+    modal.show();
 }
 
 </script>

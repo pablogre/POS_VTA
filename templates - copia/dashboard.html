@@ -1,0 +1,1255 @@
+{% extends "base.html" %}
+
+{% block title %}FactuFacil - Lo Hacemos Sencillo{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+   
+    <img src="{{ url_for('static', filename='images/factufacil.png') }}" alt="FactuFacil"  style="max-height: 100px;">
+    <!-- <div class="d-flex align-items-center">
+        <img src="{{ url_for('static', filename='images/factufacil.png') }}" 
+             alt="FactuFácil" 
+             class="logo-dashboard-xl me-3">
+        <h1 class="h2 mb-0">Panel de Control</h1>
+    </div> -->
+    <div class="d-flex align-items-center">
+        <!-- Indicador de Estado AFIP en el encabezado -->
+        <div id="estadoAfipHeader" class="me-3">
+            <span class="badge bg-secondary" id="badgeAfip">
+                <i class="fas fa-circle-notch fa-spin"></i> Verificando AFIP...
+            </span>
+        </div>
+        <small class="text-muted" id="ultimaVerificacion"></small>
+    </div>
+</div>
+
+<!-- Fila principal de métricas con Estado AFIP -->
+<div class="row">
+
+    <!-- <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Ventas Hoy
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">$12,500</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+ -->
+    <!-- Widget de Producto Top del Día -->
+    <div  class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h5 class="card-title mb-1">
+                            <i class="fas fa-crown"></i> Top Producto Hoy
+                        </h5>
+                        <h6 class="mb-0" id="topProductoNombre">Cargando...</h6>
+                        <small id="topProductoCodigo">-</small>
+                    </div>
+                    <div class="col-auto">
+                        <div class="text-center">
+                            <h4 class="mb-0" id="topProductoCantidad">0</h4>
+                            <small>vendidos</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-info bg-opacity-25">
+                <a href="/reporte_ventas" class="text-white text-decoration-none">
+                    <small><i class="fas fa-chart-bar"></i> Ver reporte completo</small>
+                </a>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Sistema Activo
+                        </div>
+                        <div class="h6 mb-0 font-weight-bold text-gray-800" id="fecha_hoy">
+                            <!-- Fecha se carga aquí -->
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-success" id="hora_actual">
+                            <!-- Hora se carga aquí -->
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-clock fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!--<div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Productos Activos
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">150</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-box fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div> -->
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h5 class="card-title mb-1">
+                            <i class="fas fa-chart-line"></i> Ventas Hoy
+                        </h5>
+                        <div class="row">
+                            <div class="col-6">
+                                <h6 class="mb-0" id="ventasHoyTotal">$0.00</h6>
+                                <small>Total vendido</small>
+                            </div>
+                            <div class="col-6">
+                                <h6 class="mb-0" id="ventasHoyFacturas">0</h6>
+                                <small>Facturas</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-cash-register fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-success bg-opacity-25">
+                <small id="ventasHoyUnidades">0 unidades vendidas</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- NUEVA CARD: Estado AFIP -->
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card shadow h-100 py-2" id="cardAfip" style="border-left: 4px solid #6c757d;">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-uppercase mb-1" style="color: #6c757d;">
+                            Estado AFIP
+                        </div>
+                        <div class="h6 mb-0 font-weight-bold text-gray-800" id="estadoAfipTexto">
+                            Verificando...
+                        </div>
+                        <small class="text-muted" id="detalleAfip">Conectando con servicios</small>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-server fa-2x text-gray-300" id="iconoAfip"></i>
+                    </div>
+                </div>
+                <!-- Botón para ver detalles -->
+                <div class="mt-2">
+                    <a href="{{ url_for('test_afip') }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-chart-line"></i> Ver Detalles
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- NUEVA FILA: Alerta si AFIP no funciona -->
+<div class="row" id="alertaAfip" style="display: none;">
+    <div class="col-12">
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Atención:</strong> <span id="mensajeAlertaAfip">Servicios AFIP no disponibles.</span>
+            Las ventas se procesarán en modo local y se sincronizarán cuando se restablezca la conexión.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Acciones Rápidas</h5>
+            </div>
+            <div class="card-body">
+                <a href="{{ url_for('nueva_venta') }}" class="btn btn-primary btn-lg mb-2 w-100">
+                    <i class="fas fa-cash-register"></i> Nueva Venta
+                </a>
+                <a href="{{ url_for('facturas') }}" class="btn btn-secondary btn-lg mb-2 w-100">
+                    <i class="fas fa-file-invoice"></i> Ver Facturas
+                </a>
+               <!--  <a href="{{ url_for('productos') }}" class="btn btn-info btn-lg mb-2 w-100">
+                    <i class="fas fa-box"></i> Gestionar Productos
+                </a> -->
+                <div class="row mb-2">
+                    <div class="col-6 pe-1">
+                        <a href="{{ url_for('productos') }}" class="btn btn-info btn-lg w-100">
+                            <i class="fas fa-box"></i> Productos
+                        </a>
+                    </div>
+                    <div class="col-6 ps-1">
+                        <a href="{{ url_for('combos') }}" class="btn btn-warning btn-lg w-100">
+                            <i class="fas fa-tags"></i> Combos
+                        </a>
+                    </div>
+                </div>
+                <a href="{{ url_for('importar_productos_vista') }}" class="btn btn-warning btn-lg mb-2 w-100">
+                    <i class="fas fa-file-excel"></i> Importar Excel
+                </a>
+                <!-- NUEVO BOTÓN: Estado AFIP -->
+                <a href="{{ url_for('test_afip') }}" class="btn btn-outline-primary btn-lg w-100">
+                    <i class="fas fa-server"></i> Monitor AFIP
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>Últimas Ventas</h5>
+                <button class="btn btn-outline-primary btn-sm" onclick="cargarUltimasVentas()">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <!-- Loading -->
+                <div id="ventas_loading" class="text-center py-3" style="display: none;">
+                    <i class="fas fa-spinner fa-spin"></i> Cargando...
+                </div>
+                
+                <!-- Tabla -->
+                <div class="table-responsive" id="ventas_tabla">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Factura</th>
+                                <th>Cliente</th>
+                                <th>Total</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ventas_tbody">
+                            <!-- Los datos se cargarán aquí -->
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">
+                                    <small>Cargando ventas...</small>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- NUEVA SECCIÓN: Reporte de Medios de Pago -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-chart-bar"></i> Reporte de Medios de Pago</h5>
+            </div>
+            <div class="card-body">
+                <!-- Filtros de fecha -->
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label for="fecha_desde" class="form-label">Desde:</label>
+                        <input type="date" class="form-control" id="fecha_desde">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="fecha_hasta" class="form-label">Hasta:</label>
+                        <input type="date" class="form-control" id="fecha_hasta">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="button" class="btn btn-success w-100" onclick="cargarReporteMediosPago()">
+                            <i class="fas fa-search"></i> Generar Reporte
+                        </button>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="establecerFechasHoy()">
+                            <i class="fas fa-calendar-day"></i> Hoy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Resultados del reporte -->
+                <div id="reporte_medios_pago">
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-chart-pie fa-3x mb-3"></i>
+                        <h6>Selecciona un rango de fechas para ver el reporte</h6>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript para el estado de AFIP en tiempo real -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Verificar estado AFIP al cargar
+    verificarEstadoAfip();
+    
+    // Auto-refresh cada 2 minutos
+    setInterval(verificarEstadoAfip, 120000);
+});
+
+function verificarEstadoAfip() {
+    fetch('/api/estado_afip_rapido')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                actualizarEstadoAfip(data.estado);
+            } else {
+                mostrarErrorAfip('Error de verificación');
+            }
+        })
+        .catch(error => {
+            console.error('Error verificando AFIP:', error);
+            mostrarErrorAfip('Sin conexión');
+        });
+}
+
+function actualizarEstadoAfip(estado) {
+    const operativo = estado.conectividad;
+    
+    // Elementos del encabezado
+    const badgeAfip = document.getElementById('badgeAfip');
+    const ultimaVerificacion = document.getElementById('ultimaVerificacion');
+    
+    // Elementos de la card
+    const cardAfip = document.getElementById('cardAfip');
+    const estadoTexto = document.getElementById('estadoAfipTexto');
+    const detalleAfip = document.getElementById('detalleAfip');
+    const iconoAfip = document.getElementById('iconoAfip');
+    const alertaAfip = document.getElementById('alertaAfip');
+    
+    if (operativo) {
+        // AFIP Operativo
+        badgeAfip.innerHTML = '<i class="fas fa-check-circle"></i> AFIP Operativo';
+        badgeAfip.className = 'badge bg-success';
+        
+        cardAfip.style.borderLeft = '4px solid #28a745';
+        estadoTexto.textContent = 'Operativo';
+        estadoTexto.style.color = '#28a745';
+        detalleAfip.textContent = 'Servicios disponibles';
+        iconoAfip.className = 'fas fa-check-circle fa-2x text-success';
+        
+        // Ocultar alerta
+        alertaAfip.style.display = 'none';
+        
+    } else {
+        // AFIP No disponible
+        badgeAfip.innerHTML = '<i class="fas fa-exclamation-triangle"></i> AFIP No Disponible';
+        badgeAfip.className = 'badge bg-warning';
+        
+        cardAfip.style.borderLeft = '4px solid #ffc107';
+        estadoTexto.textContent = 'No Disponible';
+        estadoTexto.style.color = '#ffc107';
+        detalleAfip.textContent = 'Modo offline activo';
+        iconoAfip.className = 'fas fa-exclamation-triangle fa-2x text-warning';
+        
+        // Mostrar alerta
+        document.getElementById('mensajeAlertaAfip').textContent = estado.mensaje || 'Servicios AFIP no disponibles.';
+        alertaAfip.style.display = 'block';
+    }
+    
+    // Actualizar timestamp
+    ultimaVerificacion.textContent = `Última verificación: ${new Date().toLocaleTimeString()}`;
+}
+
+function mostrarErrorAfip(mensaje) {
+    const badgeAfip = document.getElementById('badgeAfip');
+    const cardAfip = document.getElementById('cardAfip');
+    const estadoTexto = document.getElementById('estadoAfipTexto');
+    const detalleAfip = document.getElementById('detalleAfip');
+    const iconoAfip = document.getElementById('iconoAfip');
+    
+    badgeAfip.innerHTML = '<i class="fas fa-times-circle"></i> Error AFIP';
+    badgeAfip.className = 'badge bg-danger';
+    
+    cardAfip.style.borderLeft = '4px solid #dc3545';
+    estadoTexto.textContent = 'Error';
+    estadoTexto.style.color = '#dc3545';
+    detalleAfip.textContent = mensaje;
+    iconoAfip.className = 'fas fa-times-circle fa-2x text-danger';
+    
+    // Mostrar alerta de error
+    document.getElementById('mensajeAlertaAfip').textContent = `Error al verificar estado: ${mensaje}`;
+    document.getElementById('alertaAfip').style.display = 'block';
+}
+
+// Función para hacer test manual desde el dashboard
+function testAfipManual() {
+    const badgeAfip = document.getElementById('badgeAfip');
+    badgeAfip.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Verificando...';
+    badgeAfip.className = 'badge bg-secondary';
+    
+    fetch('/test_afip')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarNotificacion('✅ Test AFIP exitoso', 'success');
+            } else {
+                mostrarNotificacion('❌ Test AFIP falló: ' + data.mensaje, 'danger');
+            }
+            // Actualizar estado después del test
+            setTimeout(verificarEstadoAfip, 1000);
+        })
+        .catch(error => {
+            mostrarNotificacion('❌ Error en test: ' + error.message, 'danger');
+            setTimeout(verificarEstadoAfip, 1000);
+        });
+}
+
+function mostrarNotificacion(mensaje, tipo) {
+    // Crear toast de Bootstrap si está disponible
+    const toastContainer = document.querySelector('.toast-container');
+    if (toastContainer) {
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${tipo} border-0`;
+        toast.setAttribute('role', 'alert');
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${mensaje}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+        toastContainer.appendChild(toast);
+        
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+        
+        // Remover después de que se oculte
+        toast.addEventListener('hidden.bs.toast', () => {
+            toast.remove();
+        });
+    } else {
+        // Fallback: alert simple
+        alert(mensaje);
+    }
+}
+
+// Establecer fechas por defecto al cargar
+document.addEventListener('DOMContentLoaded', function() {
+    establecerFechasHoy();
+    cargarReporteMediosPago(); // Cargar reporte del día actual
+});
+
+function establecerFechasHoy() {
+    const ahora = new Date();
+    const fechaArgentina = new Date(ahora.toLocaleString("en-US", {timeZone: "America/Argentina/Buenos_Aires"}));
+    const hoy = fechaArgentina.toISOString().split('T')[0];
+    
+    document.getElementById('fecha_desde').value = hoy;
+    document.getElementById('fecha_hasta').value = hoy;
+}
+
+function cargarReporteMediosPago() {
+    const fechaDesde = document.getElementById('fecha_desde').value;
+    const fechaHasta = document.getElementById('fecha_hasta').value;
+    
+    if (!fechaDesde || !fechaHasta) {
+        mostrarErrorReporte('Debe seleccionar ambas fechas');
+        return;
+    }
+    
+    if (fechaDesde > fechaHasta) {
+        mostrarErrorReporte('La fecha "desde" no puede ser mayor que la fecha "hasta"');
+        return;
+    }
+    
+    // Mostrar loading
+    const contenedor = document.getElementById('reporte_medios_pago');
+    contenedor.innerHTML = `
+        <div class="text-center py-4">
+            <i class="fas fa-spinner fa-spin fa-2x text-primary mb-3"></i>
+            <h6>Generando reporte...</h6>
+        </div>
+    `;
+    
+    // Realizar petición al servidor
+    fetch(`/api/reporte_medios_pago?desde=${fechaDesde}&hasta=${fechaHasta}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarReporteMediosPago(data.reporte, fechaDesde, fechaHasta);
+            } else {
+                mostrarErrorReporte(data.error || 'Error al generar el reporte');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarErrorReporte('Error de conexión al cargar el reporte');
+        });
+}
+
+function mostrarReporteMediosPago(reporte, fechaDesde, fechaHasta) {
+    const contenedor = document.getElementById('reporte_medios_pago');
+    
+    if (!reporte.medios_pago || reporte.medios_pago.length === 0) {
+        contenedor.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                <strong>Sin datos:</strong> No se encontraron transacciones en el período seleccionado.
+            </div>
+        `;
+        return;
+    }
+    
+    // Calcular totales
+    const totalGeneral = reporte.medios_pago.reduce((sum, medio) => sum + parseFloat(medio.total), 0);
+    
+    let html = `
+        <!-- Resumen del período -->
+        <div class="alert alert-primary">
+            <div class="row">
+                <div class="col-md-6">
+                    <strong><i class="fas fa-calendar-alt"></i> Período:</strong> ${formatearFecha(fechaDesde)} - ${formatearFecha(fechaHasta)}
+                </div>
+                <div class="col-md-6">
+                    <strong><i class="fas fa-dollar-sign"></i> Total General:</strong> 
+                    <span class="h5 text-success">$${totalGeneral.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tabla de medios de pago -->
+        <div class="row">
+            <div class="col-md-8">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th><i class="fas fa-credit-card"></i> Medio de Pago</th>
+                                <th class="text-center"><i class="fas fa-hash"></i> Transacciones</th>
+                                <th class="text-end"><i class="fas fa-dollar-sign"></i> Total</th>
+                                <th class="text-end"><i class="fas fa-percentage"></i> % del Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+    `;
+    
+    // Agregar filas de medios de pago
+    reporte.medios_pago.forEach(medio => {
+        const total = parseFloat(medio.total);
+        const porcentaje = (total / totalGeneral * 100);
+        const icono = obtenerIconoMedioPago(medio.medio_pago);
+        
+        html += `
+            <tr>
+                <td>
+                    <i class="${icono}"></i> ${obtenerNombreMedioPago(medio.medio_pago)}
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-primary">${medio.cantidad}</span>
+                </td>
+                <td class="text-end">
+                    <strong>$${total.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                </td>
+                <td class="text-end">
+                    <span class="badge bg-secondary">${porcentaje.toFixed(1)}%</span>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <!-- Gráfico visual (barras simples con CSS) -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6><i class="fas fa-chart-bar"></i> Distribución Visual</h6>
+                    </div>
+                    <div class="card-body">
+    `;
+    
+    // Crear barras visuales
+    reporte.medios_pago.forEach(medio => {
+        const total = parseFloat(medio.total);
+        const porcentaje = (total / totalGeneral * 100);
+        const anchoBar = Math.max(porcentaje, 5); // Mínimo 5% para visibilidad
+        
+        html += `
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <small><strong>${obtenerNombreMedioPago(medio.medio_pago)}</strong></small>
+                    <small class="text-muted">${porcentaje.toFixed(1)}%</small>
+                </div>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar ${obtenerColorMedioPago(medio.medio_pago)}" 
+                         style="width: ${anchoBar}%"
+                         title="$${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}">
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Información adicional -->
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6><i class="fas fa-info-circle"></i> Estadísticas</h6>
+                        <ul class="list-unstyled mb-0">
+                            <li><strong>Total de transacciones:</strong> ${reporte.medios_pago.reduce((sum, m) => sum + parseInt(m.cantidad), 0)}</li>
+                            <li><strong>Promedio por transacción:</strong> $${(totalGeneral / reporte.medios_pago.reduce((sum, m) => sum + parseInt(m.cantidad), 0)).toLocaleString('es-AR', {minimumFractionDigits: 2})}</li>
+                            <li><strong>Medios de pago utilizados:</strong> ${reporte.medios_pago.length}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6><i class="fas fa-clock"></i> Actualización</h6>
+                        <p class="mb-0">
+                            <small class="text-muted">
+                                Reporte generado: ${new Date().toLocaleString('es-AR', {timeZone: 'America/Argentina/Buenos_Aires'})}<br>
+                                Datos en tiempo real
+                            </small>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    contenedor.innerHTML = html;
+}
+
+function mostrarErrorReporte(mensaje) {
+    const contenedor = document.getElementById('reporte_medios_pago');
+    contenedor.innerHTML = `
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Error:</strong> ${mensaje}
+        </div>
+    `;
+}
+
+function formatearFecha(fecha) {
+    const fechaObj = new Date(fecha + 'T12:00:00');
+    
+    // ✅ USAR EXACTAMENTE EL MISMO FORMATO QUE EL RELOJ
+    return fechaObj.toLocaleDateString('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        weekday: 'short',  // ← AGREGAR ESTO
+        day: '2-digit',    // ← AGREGAR ESTO
+        month: '2-digit'   // ← AGREGAR ESTO
+    });
+}
+
+function obtenerNombreMedioPago(codigo) {
+    const nombres = {
+        'efectivo': 'Efectivo',
+        'credito': 'Tarjeta de Crédito',
+        'debito': 'Tarjeta de Débito',
+        'mercado_pago': 'Mercado Pago',
+        'transferencia': 'Transferencia',
+        'cheque': 'Cheque'
+    };
+    return nombres[codigo] || codigo.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+function obtenerIconoMedioPago(codigo) {
+    const iconos = {
+        'efectivo': 'fas fa-money-bill-wave text-success',
+        'credito': 'fas fa-credit-card text-primary',
+        'debito': 'fas fa-credit-card text-info',
+        'mercado_pago': 'fas fa-mobile-alt text-warning',
+        'transferencia': 'fas fa-exchange-alt text-secondary',
+        'cheque': 'fas fa-money-check text-dark'
+    };
+    return iconos[codigo] || 'fas fa-credit-card';
+}
+
+function obtenerColorMedioPago(codigo) {
+    const colores = {
+        'efectivo': 'bg-success',
+        'credito': 'bg-primary',
+        'debito': 'bg-info',
+        'mercado_pago': 'bg-warning',
+        'transferencia': 'bg-secondary',
+        'cheque': 'bg-dark'
+    };
+    return colores[codigo] || 'bg-primary';
+}
+
+// Cargar datos de ventas del dashboard
+function cargarDashboardVentas() {
+    console.log('🔄 Iniciando carga de datos de ventas...');
+    
+    // Mostrar indicadores de carga
+    const elementos = {
+        'ventasHoyTotal': 'Cargando...',
+        'ventasHoyFacturas': '...',
+        'ventasHoyUnidades': 'Cargando datos...',
+        'topProductoNombre': 'Cargando...',
+        'topProductoCodigo': '...',
+        'topProductoCantidad': '...'
+    };
+    
+    // Aplicar indicadores de carga
+    Object.keys(elementos).forEach(id => {
+        const elemento = document.getElementById(id);
+        if (elemento) {
+            elemento.textContent = elementos[id];
+            elemento.style.color = '#6c757d'; // Color gris mientras carga
+        }
+    });
+    
+    fetch('/api/dashboard_ventas')
+        .then(response => {
+            console.log('📡 Respuesta recibida:', response.status, response.statusText);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 Datos recibidos del servidor:', data);
+            
+            if (data.success) {
+                // Actualizar widget de ventas del día
+                actualizarWidgetVentas(data.ventas_hoy);
+                
+                // Actualizar widget de producto top
+                actualizarWidgetProductoTop(data.producto_top_hoy);
+                
+                console.log('✅ Dashboard actualizado correctamente');
+                
+                // Mostrar mensaje de éxito discreto
+                console.log('📈 Datos cargados:', {
+                    facturas: data.ventas_hoy.num_facturas,
+                    total: data.ventas_hoy.total_vendido,
+                    unidades: data.ventas_hoy.unidades_vendidas
+                });
+                
+            } else {
+                throw new Error(data.error || 'Respuesta del servidor indica fallo');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error cargando dashboard ventas:', error);
+            
+            // Mostrar datos de error
+            mostrarErrorVentas(error.message);
+            
+            // Intentar cargar datos de debug después de 2 segundos
+            setTimeout(() => {
+                console.log('🔍 Intentando cargar datos de debug...');
+                cargarDatosDebug();
+            }, 2000);
+        });
+}
+
+
+
+function actualizarWidgetVentas(ventasHoy) {
+    try {
+        console.log('💰 Actualizando widget de ventas:', ventasHoy);
+        
+        // Total vendido
+        const totalElement = document.getElementById('ventasHoyTotal');
+        if (totalElement) {
+            const total = parseFloat(ventasHoy.total_vendido || 0);
+            const totalFormateado = formatearPesos(total);
+            totalElement.textContent = totalFormateado;
+            totalElement.style.color = total > 0 ? '#28a745' : '#6c757d'; // Verde si hay ventas
+            console.log(`💵 Total actualizado: ${totalFormateado}`);
+        }
+        
+        // Número de facturas
+        const facturasElement = document.getElementById('ventasHoyFacturas');
+        if (facturasElement) {
+            const numFacturas = parseInt(ventasHoy.num_facturas || 0);
+            facturasElement.textContent = numFacturas.toString();
+            facturasElement.style.color = numFacturas > 0 ? '#007bff' : '#6c757d';
+            console.log(`🧾 Facturas actualizadas: ${numFacturas}`);
+        }
+        
+        // Unidades vendidas
+        const unidadesElement = document.getElementById('ventasHoyUnidades');
+        if (unidadesElement) {
+            const unidades = parseInt(ventasHoy.unidades_vendidas || 0);
+            unidadesElement.textContent = `${unidades} unidades vendidas`;
+            unidadesElement.style.color = unidades > 0 ? '#17a2b8' : '#6c757d';
+            console.log(`📦 Unidades actualizadas: ${unidades}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ Error actualizando widget de ventas:', error);
+    }
+}
+
+function actualizarWidgetProductoTop(productoTop) {
+    try {
+        console.log('👑 Actualizando widget producto top:', productoTop);
+        
+        const nombreElement = document.getElementById('topProductoNombre');
+        const codigoElement = document.getElementById('topProductoCodigo');
+        const cantidadElement = document.getElementById('topProductoCantidad');
+        
+        if (productoTop && productoTop.nombre) {
+            // Hay producto top
+            if (nombreElement) {
+                nombreElement.textContent = productoTop.nombre;
+                nombreElement.style.color = '#495057';
+            }
+            if (codigoElement) {
+                codigoElement.textContent = productoTop.codigo || '-';
+                codigoElement.style.color = '#6c757d';
+            }
+            if (cantidadElement) {
+                cantidadElement.textContent = productoTop.cantidad || 0;
+                cantidadElement.style.color = '#28a745';
+            }
+            
+            console.log(`🏆 Producto top: ${productoTop.codigo} - ${productoTop.nombre} (${productoTop.cantidad})`);
+        } else {
+            // No hay producto top
+            if (nombreElement) {
+                nombreElement.textContent = 'Sin ventas hoy';
+                nombreElement.style.color = '#6c757d';
+            }
+            if (codigoElement) {
+                codigoElement.textContent = '-';
+                codigoElement.style.color = '#6c757d';
+            }
+            if (cantidadElement) {
+                cantidadElement.textContent = '0';
+                cantidadElement.style.color = '#6c757d';
+            }
+            
+            console.log('📊 No hay producto top para hoy');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error actualizando widget producto top:', error);
+    }
+}
+
+function mostrarErrorVentas(mensaje) {
+    console.error('🚨 Error en ventas:', mensaje);
+    
+    // Mostrar error en los elementos
+    const elementos = [
+        { id: 'ventasHoyTotal', texto: 'Error' },
+        { id: 'ventasHoyFacturas', texto: '??' },
+        { id: 'ventasHoyUnidades', texto: 'Error cargando datos' },
+        { id: 'topProductoNombre', texto: 'Error al cargar' },
+        { id: 'topProductoCodigo', texto: 'ERR' },
+        { id: 'topProductoCantidad', texto: '??' }
+    ];
+    
+    elementos.forEach(elem => {
+        const element = document.getElementById(elem.id);
+        if (element) {
+            element.textContent = elem.texto;
+            element.style.color = '#dc3545'; // Color rojo
+        }
+    });
+    
+    // Solo mostrar alerta si es un error importante
+    if (mensaje.includes('401') || mensaje.includes('500')) {
+        alert(`Error cargando datos del dashboard: ${mensaje}`);
+    }
+}
+
+function cargarDatosDebug() {
+    console.log('🔍 Cargando datos de debug...');
+    
+    fetch('/debug/dashboard_data')
+        .then(response => response.json())
+        .then(data => {
+            console.log('🔎 Datos de debug:', data);
+            
+            if (data.success) {
+                const info = data.debug_info;
+                console.log('📊 Información de base de datos:');
+                console.log(`   Total facturas: ${info.total_facturas_bd}`);
+                console.log(`   Facturas hoy: ${info.facturas_hoy}`);
+                console.log(`   Últimas facturas:`, info.ultimas_facturas);
+                
+                // Si no hay datos hoy pero sí hay facturas en la BD
+                if (info.facturas_hoy === 0 && info.total_facturas_bd > 0) {
+                    console.log('💡 Sugerencia: Hay facturas en la BD pero ninguna para hoy');
+                    
+                    // Mostrar mensaje informativo
+                    const ventasElement = document.getElementById('ventasHoyTotal');
+                    const unidadesElement = document.getElementById('ventasHoyUnidades');
+                    
+                    if (ventasElement) ventasElement.textContent = '$0,00';
+                    if (unidadesElement) unidadesElement.textContent = 'Sin ventas hoy';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error en debug:', error);
+        });
+}
+
+// Función auxiliar para formatear pesos argentinos
+function formatearPesos(cantidad) {
+    if (cantidad === null || cantidad === undefined || isNaN(cantidad)) {
+        return '$0,00';
+    }
+    
+    return '$' + parseFloat(cantidad).toLocaleString('es-AR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+// Función para forzar actualización manual (para debugging)
+function actualizarDashboardManual() {
+    console.log('🔄 Actualización manual solicitada por usuario');
+    cargarDashboardVentas();
+}
+// Cargar datos al inicializar la página
+document.addEventListener('DOMContentLoaded', function() {
+    cargarDashboardVentas();
+    
+    // Actualizar cada 5 minutos
+    setInterval(cargarDashboardVentas, 300000);
+});
+
+// Hacer disponible globalmente para debugging desde consola
+window.actualizarDashboardManual = actualizarDashboardManual;
+window.cargarDatosDebug = cargarDatosDebug;
+
+function cargarUltimasVentas() {
+    console.log('📋 Cargando últimas ventas...');
+    
+    // Mostrar loading
+    document.getElementById('ventas_loading').style.display = 'block';
+    document.getElementById('ventas_tabla').style.opacity = '0.5';
+    
+    fetch('/api/buscar_facturas?limite=5')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarVentasEnTabla(data.facturas);
+            } else {
+                console.error('Error:', data.error);
+                mostrarErrorVentas();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarErrorVentas();
+        })
+        .finally(() => {
+            // Ocultar loading
+            document.getElementById('ventas_loading').style.display = 'none';
+            document.getElementById('ventas_tabla').style.opacity = '1';
+        });
+}
+
+function mostrarVentasEnTabla(facturas) {
+    const tbody = document.getElementById('ventas_tbody');
+    
+    if (facturas.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-muted">
+                    <small>No hay ventas registradas</small>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    let html = '';
+    facturas.forEach(factura => {
+        // Badge de estado
+        let estadoBadge = '';
+        switch(factura.estado) {
+            case 'autorizada':
+                estadoBadge = '<span class="badge bg-success">Autorizada</span>';
+                break;
+            case 'pendiente':
+                estadoBadge = '<span class="badge bg-warning">Pendiente</span>';
+                break;
+            case 'error_afip':
+                estadoBadge = '<span class="badge bg-danger">Error</span>';
+                break;
+            default:
+                estadoBadge = `<span class="badge bg-secondary">${factura.estado}</span>`;
+        }
+        
+        // Truncar nombre del cliente si es muy largo
+        const clienteNombre = factura.cliente.nombre.length > 15 
+            ? factura.cliente.nombre.substring(0, 15) + '...'
+            : factura.cliente.nombre;
+        
+        html += `
+            <tr title="Ver factura ${factura.numero}" style="cursor: pointer;" onclick="window.open('/factura/${factura.id}', '_blank')">
+                <td><code>${factura.numero}</code></td>
+                <td>${clienteNombre}</td>
+                <td><strong>$${parseFloat(factura.total).toLocaleString()}</strong></td>
+                <td>${estadoBadge}</td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    console.log('✅ Ventas cargadas en tabla');
+}
+
+function mostrarErrorVentas() {
+    const tbody = document.getElementById('ventas_tbody');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="4" class="text-center text-warning">
+                <small><i class="fas fa-exclamation-triangle"></i> Error cargando ventas</small>
+            </td>
+        </tr>
+    `;
+}
+
+// Cargar ventas al inicializar la página
+document.addEventListener('DOMContentLoaded', function() {
+    // Esperar un poco para que cargue todo
+    setTimeout(cargarUltimasVentas, 1000);
+});
+
+// Auto-actualizar cada 2 minutos
+setInterval(cargarUltimasVentas, 2 * 60 * 1000);
+
+// Función para actualizar fecha y hora
+function actualizarRelojDashboard() {
+    const ahora = new Date();
+    
+    const fecha = ahora.toLocaleDateString('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit'
+    });
+    
+    const hora = ahora.toLocaleTimeString('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+    
+    const fechaElement = document.getElementById('fecha_hoy');
+    const horaElement = document.getElementById('hora_actual');
+    
+    if (fechaElement) fechaElement.textContent = fecha;
+    if (horaElement) horaElement.textContent = hora;
+}
+
+// Actualizar cada segundo
+setInterval(actualizarRelojDashboard, 1000);
+
+// Inicializar inmediatamente
+document.addEventListener('DOMContentLoaded', function() {
+    actualizarRelojDashboard();
+});
+
+
+
+
+</script>
+
+
+<!-- CSS adicional para mejorar la apariencia -->
+<style>
+.border-left-primary { border-left: 4px solid #4e73df !important; }
+.border-left-success { border-left: 4px solid #1cc88a !important; }
+.border-left-info { border-left: 4px solid #36b9cc !important; }
+.border-left-warning { border-left: 4px solid #f6c23e !important; }
+
+#cardAfip {
+    transition: all 0.3s ease;
+}
+
+#cardAfip:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+}
+
+#badgeAfip {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+#badgeAfip:hover {
+    transform: scale(1.05);
+}
+
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+}
+
+/* <!-- Estilos adicionales para el reporte --> */
+.progress {
+    border-radius: 10px;
+}
+
+.progress-bar {
+    border-radius: 10px;
+    transition: width 0.6s ease;
+}
+
+.table th {
+    font-size: 0.9em;
+    font-weight: 600;
+}
+
+.card-header h6 {
+    margin-bottom: 0;
+    font-weight: 600;
+}
+
+#reporte_medios_pago .alert-primary {
+    border-left: 4px solid #007bff;
+}
+
+/* CSS adicional para estadísticas */
+
+/* Estilos para las tarjetas de resumen */
+.card.bg-primary, .card.bg-success, .card.bg-warning, .card.bg-danger, .card.bg-secondary {
+    transition: all 0.3s ease;
+    cursor: default;
+}
+
+.card.bg-primary:hover, .card.bg-success:hover, .card.bg-warning:hover, 
+.card.bg-danger:hover, .card.bg-secondary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+/* Estilos para el top de productos */
+#lista_top_productos .border-bottom:last-child {
+    border-bottom: none !important;
+}
+
+#lista_top_productos {
+    scrollbar-width: thin;
+    scrollbar-color: #ccc transparent;
+}
+
+#lista_top_productos::-webkit-scrollbar {
+    width: 4px;
+}
+
+#lista_top_productos::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#lista_top_productos::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 2px;
+}
+
+/* Hover effects para las filas de productos */
+#lista_top_productos .d-flex:hover {
+    background-color: rgba(0,123,255,0.05);
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+}
+
+/* Responsive para pantallas pequeñas */
+@media (max-width: 768px) {
+    .row.mb-4 .col-md-3 {
+        margin-bottom: 1rem;
+    }
+    
+    .card-header .form-select-sm {
+        font-size: 0.8rem;
+    }
+    
+    #grafico_ventas_mensuales, #grafico_comparacion_anos {
+        height: 250px !important;
+    }
+    
+    #resumen_anual .card h4 {
+        font-size: 1.2rem;
+    }
+}
+
+/* Indicadores de carga mejorados */
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255,255,255,.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Mejorar legibilidad de números */
+.card-body h4 {
+    font-weight: 600;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Separadores visuales */
+.card-header {
+    font-weight: 600;
+}
+
+/* Canvas responsive */
+canvas {
+    max-width: 100% !important;
+    height: auto !important;
+}
+
+
+</style>
+
+<!-- Container para toasts si no existe -->
+<div class="toast-container"></div>
+{% endblock %}

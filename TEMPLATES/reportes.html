@@ -4,426 +4,1467 @@
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-<h1 class="h2"><i class="fas fa-chart-line"></i> Centro de Reportes</h1>
-<div class="btn-toolbar mb-2 mb-md-0">
-<button class="btn btn-outline-secondary" onclick="exportarReportes()" type="button">
-<i class="fas fa-download"></i> Exportar
+    <h1 class="h2"><i class="fas fa-chart-line"></i> Centro de Reportes</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button class="btn btn-outline-secondary" onclick="exportarReportes()" type="button">
+            <i class="fas fa-download"></i> Exportar
         </button>
+    </div>
 </div>
-</div>
+
 <!-- Navegación de pestañas -->
 <ul class="nav nav-tabs" id="reportesTabs" role="tablist">
-<li class="nav-item" role="presentation">
-<button class="nav-link active" data-bs-target="#ventas-producto" data-bs-toggle="tab" id="ventas-producto-tab" role="tab" type="button">
-<i class="fas fa-box"></i> Ventas por Producto
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" data-bs-target="#ventas-producto" data-bs-toggle="tab" id="ventas-producto-tab" role="tab" type="button">
+            <i class="fas fa-box"></i> Ventas por Producto
         </button>
-</li>
-<li class="nav-item" role="presentation">
-<button class="nav-link" data-bs-target="#medios-pago" data-bs-toggle="tab" id="medios-pago-tab" role="tab" type="button">
-<i class="fas fa-credit-card"></i> Medios de Pago
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" data-bs-target="#medios-pago" data-bs-toggle="tab" id="medios-pago-tab" role="tab" type="button">
+            <i class="fas fa-credit-card"></i> Medios de Pago
         </button>
-</li>
-<li class="nav-item" role="presentation">
-<button class="nav-link" data-bs-target="#gastos" data-bs-toggle="tab" id="gastos-tab" role="tab" type="button">
-<i class="fas fa-money-bill-alt"></i> Gastos y Egresos
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" data-bs-target="#gastos" data-bs-toggle="tab" id="gastos-tab" role="tab" type="button">
+            <i class="fas fa-money-bill-alt"></i> Gastos y Egresos
         </button>
-</li>
-<li class="nav-item" role="presentation">
-<button class="nav-link" data-bs-target="#caja-diaria" data-bs-toggle="tab" id="caja-diaria-tab" role="tab" type="button">
-<i class="fas fa-calculator"></i> Caja Diaria
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" data-bs-target="#caja-diaria" data-bs-toggle="tab" id="caja-diaria-tab" role="tab" type="button">
+            <i class="fas fa-calculator"></i> Caja Diaria
         </button>
-</li>
+    </li>
 </ul>
+
 <!-- Contenido de las pestañas -->
 <div class="tab-content" id="reportesTabContent">
-<!-- PESTAÑA 1: VENTAS POR PRODUCTO -->
-<div class="tab-pane fade show active" id="ventas-producto" role="tabpanel">
-<div class="card mt-3">
-<div class="card-header bg-primary text-white">
-<h5><i class="fas fa-chart-bar"></i> Reporte de Ventas por Producto</h5>
-</div>
-    <div class="card-body p-0"><iframe src="/reporte_ventas_parcial" style="width:100%; height:900px; border:none;"></iframe></div>
-</div>
-</div>
-<!-- PESTAÑA 2: MEDIOS DE PAGO -->
-<div class="tab-pane fade" id="medios-pago" role="tabpanel">
-<div class="card mt-3">
-<div class="card-header bg-success text-white">
-<h5><i class="fas fa-credit-card"></i> Reporte de Medios de Pago</h5>
-</div>
-<div class="card-body">
-<!-- Filtros -->
-<div class="row mb-3">
-<div class="col-md-3">
-<label class="form-label" for="fecha_medios_desde">Desde:</label>
-<input class="form-control" id="fecha_medios_desde" type="date"/>
-</div>
-<div class="col-md-3">
-<label class="form-label" for="fecha_medios_hasta">Hasta:</label>
-<input class="form-control" id="fecha_medios_hasta" type="date"/>
-</div>
-<div class="col-md-3">
-<label class="form-label"> </label>
-<button class="btn btn-success w-100" onclick="cargarReporteMediosPago()" type="button">
-<i class="fas fa-search"></i> Generar Reporte
+    <!-- PESTAÑA 1: VENTAS POR PRODUCTO -->
+    <div class="tab-pane fade" id="ventas-producto" role="tabpanel">
+        <div class="card mt-3">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-chart-bar"></i> Reporte de Ventas por Producto</h5>
+            </div>
+            <div class="card-body p-0">
+                <iframe src="/reporte_ventas_parcial" style="width:100%; height:900px; border:none;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- PESTAÑA 2: MEDIOS DE PAGO -->
+    <div class="tab-pane fade" id="medios-pago" role="tabpanel">
+        <div class="card mt-3">
+            <div class="card-header bg-success text-white">
+                <h5><i class="fas fa-credit-card"></i> Reporte de Medios de Pago</h5>
+            </div>
+            <div class="card-body">
+                <!-- Filtros -->
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label" for="fecha_medios_desde">Desde:</label>
+                        <input class="form-control" id="fecha_medios_desde" type="date"/>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="fecha_medios_hasta">Hasta:</label>
+                        <input class="form-control" id="fecha_medios_hasta" type="date"/>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label"> </label>
+                        <button class="btn btn-success w-100" onclick="cargarReporteMediosPago()" type="button">
+                            <i class="fas fa-search"></i> Generar Reporte
                         </button>
-</div>
-<div class="col-md-3">
-<label class="form-label"> </label>
-<button class="btn btn-outline-secondary w-100" onclick="establecerFechasMediosHoy()" type="button">
-<i class="fas fa-calendar-day"></i> Hoy
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label"> </label>
+                        <button class="btn btn-outline-secondary w-100" onclick="establecerFechasMediosHoy()" type="button">
+                            <i class="fas fa-calendar-day"></i> Hoy
                         </button>
-</div>
-</div>
-<!-- Resultados -->
-<div id="reporte_medios_pago">
-<div class="text-center text-muted py-4">
-<i class="fas fa-chart-pie fa-3x mb-3"></i>
-<h6>Selecciona un rango de fechas para ver el reporte de medios de pago</h6>
-</div>
-</div>
-</div>
-</div>
-</div>
-<!-- PESTAÑA 3: GASTOS -->
-<div class="tab-pane fade" id="gastos" role="tabpanel">
-<div class="card mt-3">
-<div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
-<h5><i class="fas fa-money-bill-alt"></i> Reporte de Gastos y Egresos</h5>
-<button class="btn btn-light btn-sm" data-bs-target="#modalNuevoGasto" data-bs-toggle="modal" type="button">
-<i class="fas fa-plus"></i> Nuevo Gasto
+                    </div>
+                </div>
+                <!-- Resultados -->
+                <div id="reporte_medios_pago">
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-chart-pie fa-3x mb-3"></i>
+                        <h6>Selecciona un rango de fechas para ver el reporte de medios de pago</h6>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PESTAÑA 3: GASTOS -->
+    <div class="tab-pane fade" id="gastos" role="tabpanel">
+        <div class="card mt-3">
+            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-money-bill-alt"></i> Reporte de Gastos y Egresos</h5>
+                <button class="btn btn-light btn-sm" data-bs-target="#modalNuevoGasto" data-bs-toggle="modal" type="button">
+                    <i class="fas fa-plus"></i> Nuevo Gasto
                 </button>
-</div>
-<div class="card-body">
-<!-- Filtros -->
-<div class="row mb-3">
-<div class="col-md-3">
-<label class="form-label" for="fecha_gastos_desde">Desde:</label>
-<input class="form-control" id="fecha_gastos_desde" type="date"/>
-</div>
-<div class="col-md-3">
-<label class="form-label" for="fecha_gastos_hasta">Hasta:</label>
-<input class="form-control" id="fecha_gastos_hasta" type="date"/>
-</div>
-<div class="col-md-3">
-<label class="form-label"> </label>
-<button class="btn btn-danger w-100" onclick="cargarReporteGastos()" type="button">
-<i class="fas fa-search"></i> Generar Reporte
+            </div>
+            <div class="card-body">
+                <!-- Filtros -->
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label" for="fecha_gastos_desde">Desde:</label>
+                        <input class="form-control" id="fecha_gastos_desde" type="date"/>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="fecha_gastos_hasta">Hasta:</label>
+                        <input class="form-control" id="fecha_gastos_hasta" type="date"/>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label"> </label>
+                        <button class="btn btn-danger w-100" onclick="cargarReporteGastos()" type="button">
+                            <i class="fas fa-search"></i> Generar Reporte
                         </button>
-</div>
-<div class="col-md-3">
-<label class="form-label"> </label>
-<button class="btn btn-outline-secondary w-100" onclick="establecerFechasGastosHoy()" type="button">
-<i class="fas fa-calendar-day"></i> Hoy
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label"> </label>
+                        <button class="btn btn-outline-secondary w-100" onclick="establecerFechasGastosHoy()" type="button">
+                            <i class="fas fa-calendar-day"></i> Hoy
                         </button>
-</div>
-</div>
-<!-- Resultados de gastos -->
-<div class="row">
-<div class="col-md-8">
-<h6><i class="fas fa-list"></i> Gastos del Período</h6>
-<div id="listaGastos">
-<div class="text-center text-muted py-4">
-<i class="fas fa-receipt fa-3x mb-3"></i>
-<h6>Selecciona un período para ver los gastos</h6>
-</div>
-</div>
-</div>
-<div class="col-md-4">
-<h6><i class="fas fa-chart-pie"></i> Categorías de Gastos</h6>
-<div id="categoriasGastos">
-<div class="text-center text-muted py-4">
-<i class="fas fa-tags fa-2x mb-3"></i>
-<p>Sin datos de categorías</p>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-<!-- PESTAÑA 4: CAJA DIARIA -->
-<div class="tab-pane fade" id="caja-diaria" role="tabpanel">
-<div class="card mt-3">
-<div class="card-header bg-info text-white">
-<h5><i class="fas fa-calculator"></i> Resumen de Caja Diaria</h5>
-</div>
-<div class="card-body">
-<!-- Filtros -->
-<div class="row mb-4">
-<div class="col-md-3">
-<label class="form-label" for="fecha_caja_desde">Desde:</label>
-<input class="form-control" id="fecha_caja_desde" type="date"/>
-</div>
-<div class="col-md-3">
-<label class="form-label" for="fecha_caja_hasta">Hasta:</label>
-<input class="form-control" id="fecha_caja_hasta" type="date"/>
-</div>
-<div class="col-md-3">
-<label class="form-label"> </label>
-<button class="btn btn-info w-100" onclick="cargarCajaDiaria()" type="button">
-<i class="fas fa-calculator"></i> Calcular Caja
+                    </div>
+                </div>
+                <!-- Resultados de gastos -->
+                <div class="row">
+                    <div class="col-md-8">
+                        <h6><i class="fas fa-list"></i> Gastos del Período</h6>
+                        <div id="listaGastos">
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-receipt fa-3x mb-3"></i>
+                                <h6>Selecciona un período para ver los gastos</h6>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-chart-pie"></i> Categorías de Gastos</h6>
+                        <div id="categoriasGastos">
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-tags fa-2x mb-3"></i>
+                                <p>Sin datos de categorías</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PESTAÑA 4: CAJA DIARIA CORREGIDA -->
+    <div class="tab-pane fade show active" id="caja-diaria" role="tabpanel">
+        <!-- Estado de la caja -->
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="card" id="estadoCajaCard">
+                    <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                        <h6><i class="fas fa-cash-register"></i> Estado de Caja</h6>
+                        <div>
+                            <button class="btn btn-success btn-sm" id="btnApertura" onclick="mostrarModalApertura()">
+                                <i class="fas fa-unlock"></i> Abrir Caja
+                            </button>
+                            <button class="btn btn-danger btn-sm d-none" id="btnCierre" onclick="mostrarModalCierre()">
+                                <i class="fas fa-lock"></i> Cerrar Caja
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body text-center">
+                        <h5 id="estadoCaja">CARGANDO...</h5>
+                        <p id="detalleCaja" class="mb-0">Verificando estado de caja...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resumen mejorado -->
+        <div class="row mb-4">
+            <div class="col-md-2">
+                <div class="card bg-secondary text-white">
+                    <div class="card-body text-center">
+                        <h6><i class="fas fa-play"></i> Apertura</h6>
+                        <h4 id="montoApertura">$0.00</h4>
+                        <small id="horaApertura">--:--</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-success text-white">
+                    <div class="card-body text-center">
+                        <h6><i class="fas fa-shopping-cart"></i> Ventas</h6>
+                        <h4 id="totalVentasCaja">$0.00</h4>
+                        <small id="detalleVentas">0 ventas</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-danger text-white">
+                    <div class="card-body text-center">
+                        <h6><i class="fas fa-receipt"></i> Gastos</h6>
+                        <h4 id="totalGastosCaja">$0.00</h4>
+                        <small id="detalleGastos">0 gastos</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-primary text-white">
+                    <div class="card-body text-center">
+                        <h6><i class="fas fa-exchange-alt"></i> Movimientos</h6>
+                        <h4 id="movimientosCaja">$0.00</h4>
+                        <small id="detalleMovimientos">0 movimientos</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-warning text-dark">
+                    <div class="card-body text-center">
+                        <h6><i class="fas fa-calculator"></i> Teórico</h6>
+                        <h4 id="efectivoCaja">$0.00</h4>
+                        <small id="detalleEfectivo">Calculado</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-dark text-white">
+                    <div class="card-body text-center">
+                        <h6><i class="fas fa-lock"></i> Cierre</h6>
+                        <h4 id="montoCierre">$0.00</h4>
+                        <small id="horaCierre">--:--</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Movimientos de caja -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6><i class="fas fa-list"></i> Movimientos Adicionales de Caja</h6>
+                        <div>
+                            <button class="btn btn-sm btn-outline-success" onclick="mostrarModalMovimiento('ingreso')" id="btnIngreso" disabled>
+                                <i class="fas fa-plus"></i> Ingreso
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="mostrarModalMovimiento('egreso')" id="btnEgreso" disabled>
+                                <i class="fas fa-minus"></i> Egreso
+                            </button>
+                            <button class="btn btn-sm btn-outline-info" onclick="mostrarDesgloseCaja()" id="btnDesglose" disabled>
+                                <i class="fas fa-calculator"></i> Desglose
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="imprimirEstadoCaja()" id="btnImprimir" disabled>
+                                <i class="fas fa-print"></i> Imprimir
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="listaMovimientosCaja" style="max-height: 250px; overflow-y: auto;">
+                            <p class="text-muted text-center">Verificando movimientos...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtros históricos -->
+        <div class="card mt-3">
+            <div class="card-header bg-info text-white">
+                <h5><i class="fas fa-history"></i> Consulta Histórica</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label" for="fecha_caja_desde">Desde:</label>
+                        <input class="form-control" id="fecha_caja_desde" type="date"/>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="fecha_caja_hasta">Hasta:</label>
+                        <input class="form-control" id="fecha_caja_hasta" type="date"/>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label"> </label>
+                        <button class="btn btn-info w-100" onclick="cargarHistorialCajas()" type="button">
+                            <i class="fas fa-search"></i> Buscar
                         </button>
-</div>
-<div class="col-md-3">
-<label class="form-label"> </label>
-<button class="btn btn-outline-secondary w-100" onclick="establecerFechasCajaHoy()" type="button">
-<i class="fas fa-calendar-day"></i> Hoy
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label"> </label>
+                        <button class="btn btn-outline-secondary w-100" onclick="establecerFechasCajaHoy()" type="button">
+                            <i class="fas fa-calendar-day"></i> Hoy
                         </button>
+                    </div>
+                </div>
+                <div id="historialCajas">
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-history fa-3x mb-3"></i>
+                        <h6>Selecciona un período para ver el historial</h6>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
-</div>
-<!-- Resumen de Caja -->
-<div class="row mb-4">
-<div class="col-md-3">
-<div class="card bg-success text-white">
-<div class="card-body text-center">
-<h6><i class="fas fa-arrow-up"></i> Total Ingresos</h6>
-<h4 id="totalIngresosCaja">$0.00</h4>
-<small id="detalleIngresos">0 transacciones</small>
-</div>
-</div>
-</div>
-<div class="col-md-3">
-<div class="card bg-danger text-white">
-<div class="card-body text-center">
-<h6><i class="fas fa-arrow-down"></i> Total Gastos</h6>
-<h4 id="totalGastosCaja">$0.00</h4>
-<small id="detalleGastos">0 gastos</small>
-</div>
-</div>
-</div>
-<div class="col-md-3">
-<div class="card bg-primary text-white" id="cardBalance">
-<div class="card-body text-center">
-<h6><i class="fas fa-calculator"></i> Balance Neto</h6>
-<h4 id="balanceCaja">$0.00</h4>
-<small id="porcentajeBalance">0%</small>
-</div>
-</div>
-</div>
-<div class="col-md-3">
-<div class="card bg-warning text-white" id="cardEfectivo">
-<div class="card-body text-center">
-<h6><i class="fas fa-wallet"></i> Efectivo en Caja</h6>
-<h4 id="efectivoCaja">$0.00</h4>
-<small id="detalleEfectivo">Disponible</small>
-</div>
-</div>
-</div>
-</div>
-<!-- Detalle de caja -->
-<div id="detalleCajaDiaria">
-<div class="text-center text-muted py-4">
-<i class="fas fa-cash-register fa-3x mb-3"></i>
-<h6>Selecciona un período para calcular la caja</h6>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
+
 <!-- Modal para Nuevo Gasto -->
 <div class="modal fade" id="modalNuevoGasto" tabindex="-1">
-<div class="modal-dialog modal-lg">
-<div class="modal-content">
-<div class="modal-header bg-danger text-white">
-<h5 class="modal-title"><i class="fas fa-plus"></i> Registrar Nuevo Gasto</h5>
-<button class="btn-close btn-close-white" data-bs-dismiss="modal" type="button"></button>
-</div>
-<div class="modal-body">
-<form id="formNuevoGasto">
-<div class="row">
-<div class="col-md-8">
-<label class="form-label" for="descripcionGasto">Descripción del Gasto *</label>
-<input class="form-control" id="descripcionGasto" placeholder="Ej: Compra de insumos, Pago de servicios, etc." required="" type="text"/>
-</div>
-<div class="col-md-4">
-<label class="form-label" for="montoGasto">Monto *</label>
-<div class="input-group">
-<span class="input-group-text">$</span>
-<input class="form-control" id="montoGasto" min="0.01" placeholder="0.00" required="" step="0.01" type="number"/>
-</div>
-</div>
-</div>
-<div class="row mt-3">
-<div class="col-md-4">
-<label class="form-label" for="categoriaGasto">Categoría</label>
-<select class="form-control" id="categoriaGasto">
-<option value="general">General</option>
-<option value="insumos">Insumos y Materiales</option>
-<option value="servicios">Servicios (Luz, Gas, Internet)</option>
-<option value="transporte">Transporte y Combustible</option>
-<option value="personal">Gastos de Personal</option>
-<option value="mantenimiento">Mantenimiento</option>
-<option value="impuestos">Impuestos y Tasas</option>
-<option value="otros">Otros</option>
-</select>
-</div>
-<div class="col-md-4">
-<label class="form-label" for="fechaGasto">Fecha</label>
-<input class="form-control" id="fechaGasto" type="date"/>
-</div>
-<div class="col-md-4">
-<label class="form-label" for="metodoPagoGasto">Método de Pago</label>
-<select class="form-control" id="metodoPagoGasto">
-<option value="efectivo">Efectivo</option>
-<option value="credito">Tarjeta de Crédito</option>
-<option value="debito">Tarjeta de Débito</option>
-<option value="transferencia">Transferencia</option>
-<option value="cheque">Cheque</option>
-</select>
-</div>
-</div>
-<div class="mt-3">
-<label class="form-label" for="notasGasto">Notas Adicionales</label>
-<textarea class="form-control" id="notasGasto" placeholder="Información adicional sobre el gasto (opcional)" rows="2"></textarea>
-</div>
-</form>
-</div>
-<div class="modal-footer">
-<button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancelar</button>
-<button class="btn btn-danger" onclick="guardarNuevoGasto()" type="button">
-<i class="fas fa-save"></i> Guardar Gasto
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-plus"></i> Registrar Nuevo Gasto</h5>
+                <button class="btn-close btn-close-white" data-bs-dismiss="modal" type="button"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNuevoGasto">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <label class="form-label" for="descripcionGasto">Descripción del Gasto *</label>
+                            <input class="form-control" id="descripcionGasto" placeholder="Ej: Compra de insumos, Pago de servicios, etc." required="" type="text"/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="montoGasto">Monto *</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input class="form-control" id="montoGasto" min="0.01" placeholder="0.00" required="" step="0.01" type="number"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-4">
+                            <label class="form-label" for="categoriaGasto">Categoría</label>
+                            <select class="form-control" id="categoriaGasto">
+                                <option value="general">General</option>
+                                <option value="insumos">Insumos y Materiales</option>
+                                <option value="servicios">Servicios (Luz, Gas, Internet)</option>
+                                <option value="transporte">Transporte y Combustible</option>
+                                <option value="personal">Gastos de Personal</option>
+                                <option value="mantenimiento">Mantenimiento</option>
+                                <option value="impuestos">Impuestos y Tasas</option>
+                                <option value="otros">Otros</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="fechaGasto">Fecha</label>
+                            <input class="form-control" id="fechaGasto" type="date"/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="metodoPagoGasto">Método de Pago</label>
+                            <select class="form-control" id="metodoPagoGasto">
+                                <option value="efectivo">Efectivo</option>
+                                <option value="credito">Tarjeta de Crédito</option>
+                                <option value="debito">Tarjeta de Débito</option>
+                                <option value="transferencia">Transferencia</option>
+                                <option value="cheque">Cheque</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label" for="notasGasto">Notas Adicionales</label>
+                        <textarea class="form-control" id="notasGasto" placeholder="Información adicional sobre el gasto (opcional)" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancelar</button>
+                <button class="btn btn-danger" onclick="guardarNuevoGasto()" type="button">
+                    <i class="fas fa-save"></i> Guardar Gasto
                 </button>
+            </div>
+        </div>
+    </div>
 </div>
-</div>
-</div>
-</div>
-<script>
 
+<!-- Modal Apertura de Caja -->
+<div class="modal fade" id="modalAperturaCaja" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fas fa-unlock"></i> Apertura de Caja</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formAperturaCaja">
+                    <div class="mb-3">
+                        <label for="montoInicialCaja" class="form-label">Monto Inicial en Efectivo *</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="montoInicialCaja" 
+                                   min="0" step="0.01" required placeholder="0.00">
+                        </div>
+                        <div class="form-text">Dinero en efectivo con el que inicia la caja</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="observacionesAperturaCaja" class="form-label">Observaciones</label>
+                        <textarea class="form-control" id="observacionesAperturaCaja" rows="2" 
+                                  placeholder="Notas sobre la apertura (opcional)"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="procesarAperturaCaja()">
+                    <i class="fas fa-unlock"></i> Abrir Caja
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Cierre de Caja -->
+<div class="modal fade" id="modalCierreCaja" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-lock"></i> Cierre de Caja</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="alert alert-info">
+                            <h6>Efectivo Teórico</h6>
+                            <h4 id="efectivoTeoricoModal">$0.00</h4>
+                            <small>Según sistema</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert alert-warning">
+                            <h6>Conteo Real *</h6>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" id="conteoRealCaja" 
+                                       min="0" step="0.01" required placeholder="0.00">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="alert" id="alertaDiferenciaCaja" style="display: none;">
+                            <h6 id="textoDiferenciaCaja"></h6>
+                        </div>
+                    </div>
+                </div>
+                <form id="formCierreCaja">
+                    <div class="mb-3">
+                        <label for="observacionesCierreCaja" class="form-label">Observaciones del Cierre</label>
+                        <textarea class="form-control" id="observacionesCierreCaja" rows="3" 
+                                  placeholder="Notas sobre el cierre, diferencias encontradas, etc."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="procesarCierreCaja()">
+                    <i class="fas fa-lock"></i> Cerrar Caja
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Movimiento de Caja -->
+<div class="modal fade" id="modalMovimientoCaja" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" id="headerMovimientoCaja">
+                <h5 class="modal-title" id="tituloMovimientoCaja"></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formMovimientoCaja">
+                    <input type="hidden" id="tipoMovimientoCaja">
+                    <div class="mb-3">
+                        <label for="descripcionMovimientoCaja" class="form-label">Descripción *</label>
+                        <input type="text" class="form-control" id="descripcionMovimientoCaja" required
+                               placeholder="Ej: Cambio de billetes, Fondo adicional, etc.">
+                    </div>
+                    <div class="mb-3">
+                        <label for="montoMovimientoCaja" class="form-label">Monto *</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="montoMovimientoCaja" 
+                                   min="0.01" step="0.01" required placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="notasMovimientoCaja" class="form-label">Notas Adicionales</label>
+                        <textarea class="form-control" id="notasMovimientoCaja" rows="2"
+                                  placeholder="Información adicional (opcional)"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn" id="btnGuardarMovimientoCaja" onclick="procesarMovimientoCaja()">
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variables globales para el sistema de caja
+let cajaActual = null;
+let movimientosCajaActuales = [];
 
 // Función para establecer fechas de hoy para cada sección
 function establecerFechasHoy(prefijo) {
-    const ahora = new Date();
-     // Método 1: Usar offset manual de Argentina (UTC-3)
-    const offsetArgentina = -3; // Argentina está UTC-3
-    const offsetLocal = ahora.getTimezoneOffset() / 60; // Offset local en horas
-    const offsetDiferencia = offsetArgentina - offsetLocal;
-    
-    const fechaArgentina = new Date(ahora.getTime() + (offsetDiferencia * 60 * 60 * 1000));
-    const hoy = fechaArgentina.toISOString().split('T')[0];
-    
-    // Establecer fechas con verificación
+    const hoy = new Date().toISOString().split('T')[0];
     const campoDesde = document.getElementById(`fecha_${prefijo}_desde`);
     const campoHasta = document.getElementById(`fecha_${prefijo}_hasta`);
     
     if (campoDesde) campoDesde.value = hoy;
     if (campoHasta) campoHasta.value = hoy;
-    
-    console.log(`✅ Fechas establecidas para ${prefijo}: ${hoy}`);
-    console.log(`🕐 Hora local: ${ahora.toLocaleString()}`);
-    console.log(`🇦🇷 Hora Argentina: ${fechaArgentina.toLocaleString()}`);
 }
 
 function establecerFechasVentasHoy() { establecerFechasHoy('ventas'); }
 function establecerFechasMediosHoy() { establecerFechasHoy('medios'); }
 function establecerFechasGastosHoy() { 
     establecerFechasHoy('gastos'); 
-    document.getElementById('fechaGasto').value = new Date().toISOString().split('T')[0];
+    const fechaGasto = document.getElementById('fechaGasto');
+    if (fechaGasto) fechaGasto.value = new Date().toISOString().split('T')[0];
 }
 function establecerFechasCajaHoy() { establecerFechasHoy('caja'); }
 
+// Función para formatear pesos
+function formatearPesos(cantidad) {
+    if (cantidad === null || cantidad === undefined || isNaN(cantidad)) {
+        return '$0,00';
+    }
+    return '$' + parseFloat(cantidad).toLocaleString('es-AR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
 
-// REPORTE DE VENTAS POR PRODUCTO
-function cargarReporteVentasProducto() {
-    const fechaDesde = document.getElementById('fecha_ventas_desde').value;
-    const fechaHasta = document.getElementById('fecha_ventas_hasta').value;
+// ======= FUNCIONES DE CAJA CORREGIDAS =======
+
+function verificarEstadoCaja() {
+    console.log('🔍 Verificando estado de caja...');
+    
+    fetch('/api/caja/estado')
+        .then(response => {
+            console.log('📡 Response status:', response.status);
+            if (!response.ok) {
+                throw new Error('No hay caja abierta');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 Datos de caja recibidos:', data);
+            if (data.success && data.caja_abierta) {
+                mostrarCajaAbierta(data.caja);
+                cargarMovimientosCaja();
+                setTimeout(() => actualizarEfectivoTeoricoEnTiempoReal(), 500);
+            } else {
+                cargarUltimaCajaCerrada();
+            }
+        })
+        .catch(error => {
+            console.log('❌ Error o no hay caja abierta:', error.message);
+            cargarUltimaCajaCerrada();
+        });
+}
+
+function cargarUltimaCajaCerrada() {
+    console.log('🔍 Buscando última caja cerrada...');
+    
+    fetch('/api/caja/ultima')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('No hay cajas registradas');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 Última caja encontrada:', data);
+            if (data.success && data.caja && data.caja.estado === 'cerrada') {
+                mostrarCajaCerradaConDatos(data.caja);
+                cargarMovimientosCajaHistoricos(data.caja.id);
+            } else {
+                mostrarCajaCerrada();
+            }
+        })
+        .catch(error => {
+            console.log('❌ Error cargando última caja:', error.message);
+            mostrarCajaCerrada();
+        });
+}
+
+function mostrarCajaAbierta(caja) {
+    console.log('✅ Mostrando caja abierta:', caja);
+    
+    const card = document.getElementById('estadoCajaCard');
+    card.className = 'card border-success';
+    
+    const fechaApertura = new Date(caja.fecha_apertura);
+    
+    document.getElementById('btnImprimir').disabled = false;
+    document.getElementById('estadoCaja').textContent = 'CAJA ABIERTA';
+    document.getElementById('estadoCaja').className = 'h5 text-success mb-1';
+    document.getElementById('detalleCaja').innerHTML = 
+        `Abierta: ${fechaApertura.toLocaleString('es-AR')}<br>
+         Monto inicial: ${formatearPesos(caja.monto_inicial)}`;
+    
+    // Habilitar botones
+    document.getElementById('btnApertura').classList.add('d-none');
+    document.getElementById('btnCierre').classList.remove('d-none');
+    document.getElementById('btnIngreso').disabled = false;
+    document.getElementById('btnEgreso').disabled = false;
+    document.getElementById('btnDesglose').disabled = false;
+    
+    // Actualizar tarjetas
+    document.getElementById('montoApertura').textContent = formatearPesos(caja.monto_inicial);
+    document.getElementById('horaApertura').textContent = fechaApertura.toLocaleTimeString('es-AR');
+    document.getElementById('efectivoCaja').textContent = formatearPesos(caja.efectivo_teorico || caja.monto_inicial);
+    
+    cajaActual = caja;
+}
+
+// Función corregida para mostrar caja cerrada CON gastos
+function mostrarCajaCerradaConDatos(cajaCerrada) {
+    console.log('📋 Mostrando caja cerrada con datos:', cajaCerrada);
+    
+    const card = document.getElementById('estadoCajaCard');
+    card.className = 'card border-secondary';
+    
+    const fechaApertura = new Date(cajaCerrada.fecha_apertura);
+    const fechaCierre = cajaCerrada.fecha_cierre ? new Date(cajaCerrada.fecha_cierre) : null;
+   
+    // Habilitar/deshabilitar botones según el estado
+    document.getElementById('btnImprimir').disabled = false;
+    document.getElementById('estadoCaja').textContent = 'CAJA CERRADA';
+    document.getElementById('estadoCaja').className = 'h5 text-secondary mb-1';
+    document.getElementById('detalleCaja').innerHTML = 
+        `Cerrada: ${fechaCierre ? fechaCierre.toLocaleString('es-AR') : 'Fecha no disponible'}<br>
+         Diferencia: ${formatearPesos(cajaCerrada.diferencia || 0)}`;
+    
+    // Configurar botones
+    document.getElementById('btnApertura').classList.remove('d-none');
+    document.getElementById('btnCierre').classList.add('d-none');
+    document.getElementById('btnIngreso').disabled = true;
+    document.getElementById('btnEgreso').disabled = true;
+    document.getElementById('btnDesglose').disabled = true;
+    
+    // Mostrar datos históricos
+    document.getElementById('montoApertura').textContent = formatearPesos(cajaCerrada.monto_inicial);
+    document.getElementById('horaApertura').textContent = fechaApertura.toLocaleTimeString('es-AR');
+    document.getElementById('efectivoCaja').textContent = formatearPesos(cajaCerrada.efectivo_teorico);
+    document.getElementById('montoCierre').textContent = formatearPesos(cajaCerrada.efectivo_real);
+    document.getElementById('horaCierre').textContent = fechaCierre ? fechaCierre.toLocaleTimeString('es-AR') : '--:--';
+    
+    cajaActual = cajaCerrada;
+    
+    // ✅ AGREGAR ESTAS LÍNEAS PARA CARGAR GASTOS Y VENTAS
+    cargarMovimientosCajaHistoricos(cajaCerrada.id);
+    cargarDatosHistoricosCaja(cajaCerrada.id); // Nueva función para cargar gastos/ventas
+}
+
+function cargarDatosHistoricosCaja(cajaId) {
+    console.log('📊 Cargando datos históricos para caja:', cajaId);
+    
+    fetch(`/api/caja/${cajaId}/resumen`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const ventas = data.resumen.totales.ventas_sistema;
+                const gastos = data.resumen.totales.gastos_sistema;
+                const movimientos = data.resumen.totales.movimientos_manuales;
+                
+                // Actualizar tarjetas con datos históricos
+                document.getElementById('totalVentasCaja').textContent = formatearPesos(ventas.total_efectivo);
+                document.getElementById('detalleVentas').textContent = `${ventas.cantidad_ventas} ventas`;
+                
+                document.getElementById('totalGastosCaja').textContent = formatearPesos(gastos.total_efectivo);
+                document.getElementById('detalleGastos').textContent = `${gastos.cantidad_gastos} gastos`;
+                
+                const balanceMovimientos = movimientos.total_ingresos - movimientos.total_egresos;
+                document.getElementById('movimientosCaja').textContent = formatearPesos(balanceMovimientos);
+                document.getElementById('detalleMovimientos').textContent = `${movimientos.total_movimientos} movimientos`;
+                
+                console.log('✅ Datos históricos cargados exitosamente');
+            } else {
+                console.warn('⚠️ No se pudieron cargar datos históricos:', data.error);
+                // Mantener valores en 0 si no hay datos
+                document.getElementById('totalVentasCaja').textContent = '$0.00';
+                document.getElementById('detalleVentas').textContent = '0 ventas';
+                document.getElementById('totalGastosCaja').textContent = '$0.00';
+                document.getElementById('detalleGastos').textContent = '0 gastos';
+                document.getElementById('movimientosCaja').textContent = '$0.00';
+                document.getElementById('detalleMovimientos').textContent = '0 movimientos';
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error cargando datos históricos:', error);
+            // En caso de error, mostrar valores en 0
+            document.getElementById('totalVentasCaja').textContent = '$0.00';
+            document.getElementById('detalleVentas').textContent = '0 ventas';
+            document.getElementById('totalGastosCaja').textContent = '$0.00';
+            document.getElementById('detalleGastos').textContent = '0 gastos';
+            document.getElementById('movimientosCaja').textContent = '$0.00';
+            document.getElementById('detalleMovimientos').textContent = '0 movimientos';
+        });
+}
+
+
+function mostrarCajaCerrada() {
+    console.log('🚫 Mostrando caja cerrada sin datos');
+    
+    const card = document.getElementById('estadoCajaCard');
+    card.className = 'card border-warning';
+    
+    document.getElementById('estadoCaja').textContent = 'CAJA CERRADA';
+    document.getElementById('estadoCaja').className = 'h5 text-warning mb-1';
+    document.getElementById('detalleCaja').textContent = 'No hay una caja activa';
+    
+    // Configurar botones
+    document.getElementById('btnApertura').classList.remove('d-none');
+    document.getElementById('btnCierre').classList.add('d-none');
+    document.getElementById('btnIngreso').disabled = true;
+    document.getElementById('btnEgreso').disabled = true;
+    document.getElementById('btnDesglose').disabled = true;
+    document.getElementById('btnImprimir').disabled = true; // También deshabilitar imprimir si no hay datos
+    
+    // Limpiar TODOS los datos (incluir gastos y ventas)
+    document.getElementById('montoApertura').textContent = '$0.00';
+    document.getElementById('horaApertura').textContent = '--:--';
+    document.getElementById('efectivoCaja').textContent = '$0.00';
+    document.getElementById('montoCierre').textContent = '$0.00';
+    document.getElementById('horaCierre').textContent = '--:--';
+    
+    // ✅ LIMPIAR TAMBIÉN GASTOS Y VENTAS
+    document.getElementById('totalVentasCaja').textContent = '$0.00';
+    document.getElementById('detalleVentas').textContent = '0 ventas';
+    document.getElementById('totalGastosCaja').textContent = '$0.00';
+    document.getElementById('detalleGastos').textContent = '0 gastos';
+    document.getElementById('movimientosCaja').textContent = '$0.00';
+    document.getElementById('detalleMovimientos').textContent = '0 movimientos';
+    
+    document.getElementById('listaMovimientosCaja').innerHTML = 
+        '<p class="text-muted text-center">Abra una caja para registrar movimientos</p>';
+    
+    cajaActual = null;
+    movimientosCajaActuales = [];
+}
+
+
+function cargarMovimientosCaja() {
+    if (!cajaActual) return;
+
+    console.log('📋 Cargando movimientos de caja...');
+
+    fetch(`/api/caja/${cajaActual.id}/movimientos`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                movimientosCajaActuales = data.movimientos;
+                mostrarMovimientosCaja();
+                actualizarTarjetasMovimientos();
+            }
+        })
+        .catch(error => {
+            console.log('❌ Error al cargar movimientos, usando array vacío');
+            movimientosCajaActuales = [];
+            mostrarMovimientosCaja();
+        });
+}
+
+function cargarMovimientosCajaHistoricos(cajaId) {
+    console.log('📋 Cargando movimientos históricos para caja:', cajaId);
+    
+    fetch(`/api/caja/${cajaId}/movimientos`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                movimientosCajaActuales = data.movimientos;
+                mostrarMovimientosCajaHistoricos();
+            } else {
+                document.getElementById('listaMovimientosCaja').innerHTML = 
+                    '<p class="text-muted text-center">No hay movimientos para mostrar</p>';
+            }
+        })
+        .catch(error => {
+            console.log('❌ Error cargando movimientos históricos:', error);
+            document.getElementById('listaMovimientosCaja').innerHTML = 
+                '<p class="text-muted text-center">Error cargando movimientos</p>';
+        });
+}
+
+function mostrarMovimientosCaja() {
+    const container = document.getElementById('listaMovimientosCaja');
+    
+    if (movimientosCajaActuales.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center">No hay movimientos registrados</p>';
+        return;
+    }
+
+    let html = '';
+    movimientosCajaActuales.forEach(mov => {
+        const clase = mov.tipo === 'ingreso' ? 'text-success' : 'text-danger';
+        const icono = mov.tipo === 'ingreso' ? 'fa-plus' : 'fa-minus';
+        const signo = mov.tipo === 'ingreso' ? '+' : '-';
+        const fecha = new Date(mov.fecha).toLocaleString('es-AR');
+        
+        html += `
+            <div class="border-bottom pb-2 mb-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span><i class="fas ${icono} ${clase}"></i> ${mov.descripcion}</span>
+                    <strong class="${clase}">${signo}${formatearPesos(mov.monto)}</strong>
+                </div>
+                <small class="text-muted">${fecha}</small>
+                ${mov.notas ? `<br><small class="text-muted">${mov.notas}</small>` : ''}
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+function mostrarMovimientosCajaHistoricos() {
+    const container = document.getElementById('listaMovimientosCaja');
+    
+    if (movimientosCajaActuales.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> <strong>Caja Cerrada</strong> - Sin movimientos registrados
+            </div>
+        `;
+        return;
+    }
+
+    let html = `
+        <div class="alert alert-info mb-3">
+            <i class="fas fa-info-circle"></i> <strong>Caja Cerrada</strong> - Consulta histórica
+        </div>
+    `;
+    
+    movimientosCajaActuales.forEach(mov => {
+        const clase = mov.tipo === 'ingreso' ? 'text-success' : 'text-danger';
+        const icono = mov.tipo === 'ingreso' ? 'fa-plus' : 'fa-minus';
+        const signo = mov.tipo === 'ingreso' ? '+' : '-';
+        const fecha = new Date(mov.fecha).toLocaleString('es-AR');
+        
+        html += `
+            <div class="border-bottom pb-2 mb-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span><i class="fas ${icono} ${clase}"></i> ${mov.descripcion}</span>
+                    <strong class="${clase}">${signo}${formatearPesos(mov.monto)}</strong>
+                </div>
+                <small class="text-muted">${fecha}</small>
+                ${mov.notas ? `<br><small class="text-muted">${mov.notas}</small>` : ''}
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+function actualizarTarjetasMovimientos() {
+    const totalIngresos = movimientosCajaActuales
+        .filter(m => m.tipo === 'ingreso')
+        .reduce((sum, m) => sum + parseFloat(m.monto), 0);
+    
+    const totalEgresos = movimientosCajaActuales
+        .filter(m => m.tipo === 'egreso')
+        .reduce((sum, m) => sum + parseFloat(m.monto), 0);
+    
+    const balanceMovimientos = totalIngresos - totalEgresos;
+    
+    document.getElementById('movimientosCaja').textContent = formatearPesos(balanceMovimientos);
+    document.getElementById('detalleMovimientos').textContent = `${movimientosCajaActuales.length} movimientos`;
+}
+
+function actualizarEfectivoTeoricoEnTiempoReal() {
+    if (!cajaActual) return;
+    
+    console.log('🧮 Actualizando efectivo teórico desde backend...');
+    
+    fetch(`/api/caja/${cajaActual.id}/resumen`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const efectivoTeorico = data.resumen.totales.efectivo_teorico;
+                const ventasEfectivo = data.resumen.totales.ventas_sistema.total_efectivo;
+                const gastosEfectivo = data.resumen.totales.gastos_sistema.total_efectivo;
+                
+                document.getElementById('efectivoCaja').textContent = formatearPesos(efectivoTeorico);
+                document.getElementById('totalVentasCaja').textContent = formatearPesos(ventasEfectivo);
+                document.getElementById('totalGastosCaja').textContent = formatearPesos(gastosEfectivo);
+                
+                document.getElementById('detalleVentas').textContent = `${data.resumen.totales.ventas_sistema.cantidad_ventas} ventas`;
+                document.getElementById('detalleGastos').textContent = `${data.resumen.totales.gastos_sistema.cantidad_gastos} gastos`;
+                
+                cajaActual.efectivo_teorico = efectivoTeorico;
+                
+                console.log('✅ Efectivo teórico actualizado:', efectivoTeorico);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error actualizando efectivo teórico:', error);
+        });
+}
+
+// ======= FUNCIONES DE MODALES =======
+
+function mostrarModalApertura() {
+    console.log('🔓 Abriendo modal de apertura');
+    
+    document.getElementById('montoInicialCaja').value = '';
+    document.getElementById('observacionesAperturaCaja').value = '';
+    
+    new bootstrap.Modal(document.getElementById('modalAperturaCaja')).show();
+}
+
+function procesarAperturaCaja() {
+    const monto = parseFloat(document.getElementById('montoInicialCaja').value);
+    const observaciones = document.getElementById('observacionesAperturaCaja').value.trim();
+
+    if (!monto || monto < 0) {
+        alert('Ingrese un monto inicial válido');
+        return;
+    }
+
+    console.log('💰 Procesando apertura de caja:', { monto, observaciones });
+
+    const btnAbrir = document.querySelector('#modalAperturaCaja .btn-success');
+    const textoOriginal = btnAbrir.innerHTML;
+    btnAbrir.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Abriendo...';
+    btnAbrir.disabled = true;
+
+    const apertura = {
+        monto_inicial: monto,
+        observaciones: observaciones,
+        fecha_apertura: new Date().toISOString()
+    };
+
+    fetch('/api/caja/abrir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(apertura)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('✅ Caja abierta exitosamente');
+            
+            bootstrap.Modal.getInstance(document.getElementById('modalAperturaCaja')).hide();
+            mostrarCajaAbierta(data.caja);
+            alert('Caja abierta exitosamente');
+        } else {
+            alert(`Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error al abrir caja:', error);
+        alert(`Error de conexión: ${error.message}`);
+    })
+    .finally(() => {
+        btnAbrir.innerHTML = textoOriginal;
+        btnAbrir.disabled = false;
+    });
+}
+
+function mostrarModalCierre() {
+    if (!cajaActual) {
+        alert('No hay una caja abierta');
+        return;
+    }
+
+    console.log('🔒 Abriendo modal de cierre');
+
+    const efectivoTeorico = cajaActual.efectivo_teorico || cajaActual.monto_inicial || 0;
+    document.getElementById('efectivoTeoricoModal').textContent = formatearPesos(efectivoTeorico);
+    
+    document.getElementById('conteoRealCaja').value = '';
+    document.getElementById('observacionesCierreCaja').value = '';
+    document.getElementById('alertaDiferenciaCaja').style.display = 'none';
+
+    const inputConteo = document.getElementById('conteoRealCaja');
+    inputConteo.oninput = function() {
+        const conteo = parseFloat(this.value) || 0;
+        const diferencia = conteo - efectivoTeorico;
+        const alertaDiv = document.getElementById('alertaDiferenciaCaja');
+        const textoDiv = document.getElementById('textoDiferenciaCaja');
+
+        if (Math.abs(diferencia) > 0.01) {
+            alertaDiv.style.display = 'block';
+            if (diferencia > 0) {
+                alertaDiv.className = 'alert alert-warning';
+                textoDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Sobrante: ${formatearPesos(diferencia)}`;
+            } else {
+                alertaDiv.className = 'alert alert-danger';
+                textoDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Faltante: ${formatearPesos(Math.abs(diferencia))}`;
+            }
+        } else {
+            alertaDiv.style.display = 'none';
+        }
+    };
+
+    new bootstrap.Modal(document.getElementById('modalCierreCaja')).show();
+}
+
+function procesarCierreCaja() {
+    const conteoReal = parseFloat(document.getElementById('conteoRealCaja').value);
+    const observaciones = document.getElementById('observacionesCierreCaja').value.trim();
+    const efectivoTeorico = cajaActual.efectivo_teorico || cajaActual.monto_inicial || 0;
+
+    if (isNaN(conteoReal)) {
+        alert('Ingrese el conteo real de efectivo');
+        return;
+    }
+
+    console.log('💰 Procesando cierre de caja:', { conteoReal, efectivoTeorico, observaciones });
+
+    const btnCerrar = document.querySelector('#modalCierreCaja .btn-danger');
+    const textoOriginal = btnCerrar.innerHTML;
+    btnCerrar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cerrando...';
+    btnCerrar.disabled = true;
+
+    const cierre = {
+        caja_id: cajaActual.id,
+        efectivo_teorico: efectivoTeorico,
+        efectivo_real: conteoReal,
+        diferencia: conteoReal - efectivoTeorico,
+        observaciones: observaciones,
+        fecha_cierre: new Date().toISOString()
+    };
+
+    fetch('/api/caja/cerrar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cierre)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('✅ Caja cerrada exitosamente');
+            
+            bootstrap.Modal.getInstance(document.getElementById('modalCierreCaja')).hide();
+            mostrarCajaCerrada();
+            alert('Caja cerrada exitosamente');
+        } else {
+            alert(`Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error al cerrar caja:', error);
+        alert(`Error de conexión: ${error.message}`);
+    })
+    .finally(() => {
+        btnCerrar.innerHTML = textoOriginal;
+        btnCerrar.disabled = false;
+    });
+}
+
+function mostrarModalMovimiento(tipo) {
+    if (!cajaActual) {
+        alert('Debe abrir una caja primero');
+        return;
+    }
+
+    console.log('💸 Abriendo modal de movimiento:', tipo);
+
+    document.getElementById('tipoMovimientoCaja').value = tipo;
+    document.getElementById('descripcionMovimientoCaja').value = '';
+    document.getElementById('montoMovimientoCaja').value = '';
+    document.getElementById('notasMovimientoCaja').value = '';
+
+    const header = document.getElementById('headerMovimientoCaja');
+    const titulo = document.getElementById('tituloMovimientoCaja');
+    const btn = document.getElementById('btnGuardarMovimientoCaja');
+
+    if (tipo === 'ingreso') {
+        header.className = 'modal-header bg-success text-white';
+        titulo.innerHTML = '<i class="fas fa-plus"></i> Ingreso a Caja';
+        btn.className = 'btn btn-success';
+        btn.innerHTML = '<i class="fas fa-plus"></i> Registrar Ingreso';
+    } else {
+        header.className = 'modal-header bg-danger text-white';
+        titulo.innerHTML = '<i class="fas fa-minus"></i> Egreso de Caja';
+        btn.className = 'btn btn-danger';
+        btn.innerHTML = '<i class="fas fa-minus"></i> Registrar Egreso';
+    }
+
+    new bootstrap.Modal(document.getElementById('modalMovimientoCaja')).show();
+}
+
+function procesarMovimientoCaja() {
+    const tipo = document.getElementById('tipoMovimientoCaja').value;
+    const descripcion = document.getElementById('descripcionMovimientoCaja').value.trim();
+    const monto = parseFloat(document.getElementById('montoMovimientoCaja').value);
+    const notas = document.getElementById('notasMovimientoCaja').value.trim();
+
+    if (!descripcion || !monto || monto <= 0) {
+        alert('Complete todos los campos requeridos');
+        return;
+    }
+
+    console.log('💸 Procesando movimiento:', { tipo, descripcion, monto, notas });
+
+    const btnGuardar = document.getElementById('btnGuardarMovimientoCaja');
+    const textoOriginal = btnGuardar.innerHTML;
+    btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+    btnGuardar.disabled = true;
+
+    const movimiento = {
+        caja_id: cajaActual.id,
+        tipo: tipo,
+        descripcion: descripcion,
+        monto: monto,
+        notas: notas,
+        fecha: new Date().toISOString()
+    };
+
+    fetch('/api/caja/movimiento', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(movimiento)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('✅ Movimiento registrado exitosamente');
+            
+            bootstrap.Modal.getInstance(document.getElementById('modalMovimientoCaja')).hide();
+            cargarMovimientosCaja();
+            
+            setTimeout(() => {
+                actualizarEfectivoTeoricoEnTiempoReal();
+            }, 200);
+            
+            alert(`${tipo === 'ingreso' ? 'Ingreso' : 'Egreso'} registrado: ${formatearPesos(monto)}`);
+        } else {
+            alert(`Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error al registrar movimiento:', error);
+        alert(`Error de conexión: ${error.message}`);
+    })
+    .finally(() => {
+        btnGuardar.innerHTML = textoOriginal;
+        btnGuardar.disabled = false;
+    });
+}
+
+function mostrarDesgloseCaja() {
+    if (!cajaActual) {
+        alert('No hay una caja abierta');
+        return;
+    }
+    
+    fetch(`/api/caja/${cajaActual.id}/resumen`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const desglose = data.resumen.totales.calculo_detallado;
+                const movimientos = data.resumen.totales.movimientos_manuales;
+                const ventas = data.resumen.totales.ventas_sistema;
+                const gastos = data.resumen.totales.gastos_sistema;
+                
+                const mensaje = `
+🧮 DESGLOSE DETALLADO DE CAJA
+
+💰 Apertura: ${formatearPesos(desglose.apertura)}
+📈 Movimientos manuales:
+   • Ingresos: +${formatearPesos(movimientos.total_ingresos)}
+   • Egresos: -${formatearPesos(movimientos.total_egresos)}
+🛒 Ventas en efectivo: +${formatearPesos(ventas.total_efectivo)} (${ventas.cantidad_ventas} ventas)
+💸 Gastos en efectivo: -${formatearPesos(gastos.total_efectivo)} (${gastos.cantidad_gastos} gastos)
+
+💎 EFECTIVO TEÓRICO: ${formatearPesos(desglose.total)}
+                `;
+                
+                alert(mensaje);
+                console.log('📊 Desglose completo:', data.resumen);
+            } else {
+                alert('Error obteniendo desglose: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error:', error);
+            alert('Error de conexión');
+        });
+}
+
+function cargarHistorialCajas() {
+    const fechaDesde = document.getElementById('fecha_caja_desde').value;
+    const fechaHasta = document.getElementById('fecha_caja_hasta').value;
     
     if (!fechaDesde || !fechaHasta) {
-        mostrarError('reporte_ventas_producto', 'Debe seleccionar ambas fechas');
+        alert('Debe seleccionar ambas fechas');
+        return;
+    }
+    
+    console.log('🔍 Buscando historial de cajas:', { fechaDesde, fechaHasta });
+    
+    // Simulación de historial para demostración
+    const historial = `
+        <div class="alert alert-info">
+            <h6><i class="fas fa-info-circle"></i> Período: ${fechaDesde} a ${fechaHasta}</h6>
+            <p>Funcionalidad de historial en desarrollo. Conectar con endpoint /api/cajas/historial</p>
+        </div>
+    `;
+    
+    document.getElementById('historialCajas').innerHTML = historial;
+}
+
+// ======= OTRAS FUNCIONES ORIGINALES =======
+
+function cargarReporteMediosPago() {
+    console.log('Funcionalidad de medios de pago en desarrollo');
+}
+
+function cargarReporteGastos() {
+    const fechaDesde = document.getElementById('fecha_gastos_desde').value;
+    const fechaHasta = document.getElementById('fecha_gastos_hasta').value;
+    
+    if (!fechaDesde || !fechaHasta) {
+        alert('Debe seleccionar ambas fechas para generar el reporte');
         return;
     }
     
     if (fechaDesde > fechaHasta) {
-        mostrarError('reporte_ventas_producto', 'La fecha "desde" no puede ser mayor que la fecha "hasta"');
+        alert('La fecha "desde" no puede ser mayor que la fecha "hasta"');
         return;
     }
     
-    mostrarLoading('reporte_ventas_producto', 'Generando reporte de ventas por producto...');
+    console.log('📊 Cargando reporte de gastos:', { fechaDesde, fechaHasta });
     
-    fetch(`/api/reporte_ventas?desde=${fechaDesde}&hasta=${fechaHasta}`)
-        .then(response => response.json())
+    // Mostrar indicador de carga
+    const listaGastos = document.getElementById('listaGastos');
+    const categoriasGastos = document.getElementById('categoriasGastos');
+    
+    listaGastos.innerHTML = `
+        <div class="text-center py-4">
+            <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+            <h6>Cargando gastos...</h6>
+        </div>
+    `;
+    
+    categoriasGastos.innerHTML = `
+        <div class="text-center py-4">
+            <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+            <p>Procesando categorías...</p>
+        </div>
+    `;
+    
+    // Hacer petición al backend
+    fetch(`/api/gastos?fecha_desde=${fechaDesde}&fecha_hasta=${fechaHasta}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
-                mostrarReporteVentasProducto(data, fechaDesde, fechaHasta);
+                console.log('✅ Gastos cargados:', data);
+                mostrarListaGastos(data.gastos);
+                mostrarCategoriasGastos(data.categorias || agruparGastosPorCategoria(data.gastos));
+                
+                // Actualizar totales si existen
+                if (data.totales) {
+                    actualizarTotalesGastos(data.totales);
+                }
             } else {
-                mostrarError('reporte_ventas_producto', data.error || 'Error al generar el reporte de ventas');
+                throw new Error(data.error || 'Error desconocido al cargar gastos');
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            mostrarError('reporte_ventas_producto', 'Error de conexión al cargar el reporte de ventas');
+            console.error('❌ Error al cargar gastos:', error);
+            
+            listaGastos.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    <strong>Error al cargar gastos:</strong> ${error.message}
+                </div>
+            `;
+            
+            categoriasGastos.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                    <p>Error cargando categorías</p>
+                </div>
+            `;
         });
 }
 
-function mostrarReporteVentasProducto(data, fechaDesde, fechaHasta) {
-    const contenedor = document.getElementById('reporte_ventas_producto');
+
+function mostrarCategoriasGastos(categorias) {
+    const categoriasGastos = document.getElementById('categoriasGastos');
     
-    if (!data.productos || data.productos.length === 0) {
-        contenedor.innerHTML = `
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle"></i>
-                <strong>Sin datos:</strong> No se encontraron ventas de productos en el período seleccionado.
+    if (!categorias || Object.keys(categorias).length === 0) {
+        categoriasGastos.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-tags fa-2x mb-3"></i>
+                <p>Sin datos de categorías</p>
             </div>
         `;
         return;
     }
     
-    const totalGeneral = data.productos.reduce((sum, p) => sum + parseFloat(p.total_vendido || 0), 0);
-    const cantidadTotal = data.productos.reduce((sum, p) => sum + parseInt(p.cantidad_vendida || 0), 0);
+    // Crear lista de categorías ordenada por monto
+    const categoriasArray = Object.entries(categorias)
+        .map(([categoria, datos]) => ({
+            categoria: categoria,
+            total: datos.total || datos,
+            cantidad: datos.cantidad || 1
+        }))
+        .sort((a, b) => b.total - a.total);
+    
+    const totalGeneral = categoriasArray.reduce((sum, cat) => sum + cat.total, 0);
     
     let html = `
-        <div class="alert alert-primary">
-            <div class="row">
-                <div class="col-md-4">
-                    <strong><i class="fas fa-calendar-alt"></i> Período:</strong> ${formatearFecha(fechaDesde)} - ${formatearFecha(fechaHasta)}
-                </div>
-                <div class="col-md-4">
-                    <strong><i class="fas fa-dollar-sign"></i> Total Vendido:</strong> 
-                    <span class="h5 text-success">${formatearPesos(totalGeneral)}</span>
-                </div>
-                <div class="col-md-4">
-                    <strong><i class="fas fa-box"></i> Unidades:</strong> ${cantidadTotal.toLocaleString()} productos
-                </div>
-            </div>
+        <div class="mb-3">
+            <h6 class="text-center">Total: ${formatearPesos(totalGeneral)}</h6>
         </div>
+    `;
+    
+    categoriasArray.forEach(cat => {
+        const porcentaje = totalGeneral > 0 ? ((cat.total / totalGeneral) * 100).toFixed(1) : 0;
+        const nombreCategoria = obtenerNombreCategoria(cat.categoria);
         
+        html += `
+            <div class="mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <small><strong>${nombreCategoria}</strong></small>
+                    <small><strong>${formatearPesos(cat.total)}</strong></small>
+                </div>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar bg-danger" 
+                         style="width: ${porcentaje}%" 
+                         title="${porcentaje}% del total">
+                        <small>${porcentaje}%</small>
+                    </div>
+                </div>
+                <small class="text-muted">${cat.cantidad} gasto${cat.cantidad !== 1 ? 's' : ''}</small>
+            </div>
+        `;
+    });
+    
+    categoriasGastos.innerHTML = html;
+}
+
+
+function obtenerNombreCategoria(categoria) {
+    const categorias = {
+        'general': 'General',
+        'insumos': 'Insumos y Materiales',
+        'servicios': 'Servicios',
+        'transporte': 'Transporte',
+        'personal': 'Personal',
+        'mantenimiento': 'Mantenimiento',
+        'impuestos': 'Impuestos',
+        'otros': 'Otros'
+    };
+    return categorias[categoria] || categoria;
+}
+
+function agruparGastosPorCategoria(gastos) {
+    return gastos.reduce((acc, gasto) => {
+        const categoria = gasto.categoria || 'general';
+        if (!acc[categoria]) {
+            acc[categoria] = { total: 0, cantidad: 0 };
+        }
+        acc[categoria].total += parseFloat(gasto.monto || 0);
+        acc[categoria].cantidad += 1;
+        return acc;
+    }, {});
+}
+
+function mostrarListaGastos(gastos) {
+    const listaGastos = document.getElementById('listaGastos');
+    
+    if (!gastos || gastos.length === 0) {
+        listaGastos.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> 
+                No se encontraron gastos en el período seleccionado
+            </div>
+        `;
+        return;
+    }
+    
+    // Calcular total
+    const totalGastos = gastos.reduce((sum, gasto) => sum + parseFloat(gasto.monto || 0), 0);
+    
+    let html = `
+        <div class="alert alert-success mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-calculator"></i> <strong>Total del Período:</strong></span>
+                <strong class="h5 mb-0">${formatearPesos(totalGastos)}</strong>
+            </div>
+            <small>Total de ${gastos.length} gasto${gastos.length !== 1 ? 's' : ''}</small>
+        </div>
         <div class="table-responsive">
-            <table class="table table-striped">
+            <table class="table table-sm table-striped">
                 <thead class="table-dark">
                     <tr>
-                        <th>Código</th>
-                        <th>Producto</th>
-                        <th class="text-center">Cantidad Vendida</th>
-                        <th class="text-end">Precio Unitario</th>
-                        <th class="text-end">Total Vendido</th>
-                        <th class="text-end">% del Total</th>
+                        <th>Fecha</th>
+                        <th>Descripción</th>
+                        <th>Categoría</th>
+                        <th>Método</th>
+                        <th class="text-end">Monto</th>
+                        <th>Estado Caja</th>
+                        <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
     
-    data.productos.forEach(producto => {
-        const totalVendido = parseFloat(producto.total_vendido || 0);
-        const cantidadVendida = parseInt(producto.cantidad_vendida || 0);
-        const precioUnitario = cantidadVendida > 0 ? (totalVendido / cantidadVendida) : 0;
-        const porcentaje = totalGeneral > 0 ? (totalVendido / totalGeneral * 100) : 0;
+    // Ordenar gastos por fecha descendente
+    gastos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    
+    gastos.forEach(gasto => {
+        const fecha = gasto.fecha.split('T')[0].split('-').reverse().join('/');
+        const categoria = obtenerNombreCategoria(gasto.categoria || 'general');
+        const metodo = obtenerNombreMetodoPago(gasto.metodo_pago || 'efectivo');
+        
+        // Determinar si la caja está cerrada
+        const cajaEsCerrada = gasto.caja_cerrada || false;
+        const estadoCaja = cajaEsCerrada ? 'Cerrada' : 'Abierta';
+        const claseBadge = cajaEsCerrada ? 'bg-secondary' : 'bg-success';
+        
+        // Determinar si se puede eliminar
+        const puedeEliminar = !cajaEsCerrada && puedeEditarGasto(gasto);
         
         html += `
-            <tr>
-                <td><code>${producto.codigo || 'N/A'}</code></td>
-                <td><strong>${producto.nombre || 'Producto sin nombre'}</strong></td>
-                <td class="text-center">
-                    <span class="badge bg-primary">${cantidadVendida}</span>
+            <tr ${cajaEsCerrada ? 'class="table-secondary"' : ''}>
+                <td><small>${fecha}</small></td>
+                <td>
+                    <strong>${gasto.descripcion || 'Sin descripción'}</strong>
+                    ${gasto.notas ? `<br><small class="text-muted">${gasto.notas}</small>` : ''}
+                </td>
+                <td>
+                    <span class="badge bg-secondary">${categoria}</span>
+                </td>
+                <td>
+                    <small>${metodo}</small>
                 </td>
                 <td class="text-end">
-                    <small>${formatearPesos(precioUnitario)}</small>
+                    <strong class="text-danger">${formatearPesos(gasto.monto)}</strong>
                 </td>
-                <td class="text-end">
-                    <strong>${formatearPesos(totalVendido)}</strong>
+                <td>
+                    <span class="badge ${claseBadge}">${estadoCaja}</span>
+                    ${gasto.caja_id ? `<br><small class="text-muted">Caja #${gasto.caja_id}</small>` : ''}
                 </td>
-                <td class="text-end">
-                    <span class="badge bg-secondary">${porcentaje.toFixed(1)}%</span>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" 
+                            onclick="verDetalleGasto(${gasto.id})" 
+                            title="Ver detalles">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    ${puedeEliminar ? `
+                        <button class="btn btn-sm btn-outline-danger" 
+                                onclick="confirmarEliminarGasto(${gasto.id}, '${gasto.descripcion}')" 
+                                title="Eliminar gasto">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    ` : `
+                        <button class="btn btn-sm btn-outline-secondary" 
+                                disabled
+                                title="No se puede eliminar - Caja cerrada">
+                            <i class="fas fa-lock"></i>
+                        </button>
+                    `}
                 </td>
             </tr>
         `;
@@ -434,1188 +1475,588 @@ function mostrarReporteVentasProducto(data, fechaDesde, fechaHasta) {
             </table>
         </div>
         
-        <div class="row mt-3">
-            <div class="col-md-6">
-                <div class="card bg-light">
-                    <div class="card-body">
-                        <h6><i class="fas fa-info-circle"></i> Estadísticas del Período</h6>
-                        <ul class="list-unstyled mb-0">
-                            <li><strong>Productos diferentes vendidos:</strong> ${data.productos.length}</li>
-                            <li><strong>Total de unidades:</strong> ${cantidadTotal.toLocaleString()}</li>
-                            <li><strong>Promedio por producto:</strong> ${formatearPesos(totalGeneral / data.productos.length)}</li>
-                            <li><strong>Producto más vendido:</strong> ${data.productos[0]?.nombre || 'N/A'}</li>
-                        </ul>
-                    </div>
-                </div>
+        ${gastos.some(g => g.caja_cerrada) ? `
+            <div class="alert alert-info mt-3">
+                <i class="fas fa-info-circle"></i> 
+                <strong>Nota:</strong> Los gastos marcados en gris pertenecen a cajas cerradas y no pueden eliminarse para mantener la integridad contable.
             </div>
-            <div class="col-md-6">
-                <div class="card bg-light">
-                    <div class="card-body">
-                        <h6><i class="fas fa-clock"></i> Información del Reporte</h6>
-                        <p class="mb-0">
-                            <small class="text-muted">
-                                Reporte generado: ${new Date().toLocaleString('es-AR', {timeZone: 'America/Argentina/Buenos_Aires'})}<br>
-                                Fuente: Base de datos en tiempo real<br>
-                                <a href="/reporte_ventas" target="_blank" class="text-primary">
-                                    <i class="fas fa-external-link-alt"></i> Ver reporte completo
-                                </a>
-                            </small>
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
+        ` : ''}
     `;
     
-    contenedor.innerHTML = html;
+    listaGastos.innerHTML = html;
 }
 
-// REPORTE DE MEDIOS DE PAGO
-function cargarReporteMediosPago() {
-    const fechaDesde = document.getElementById('fecha_medios_desde').value;
-    const fechaHasta = document.getElementById('fecha_medios_hasta').value;
+// Función para verificar si se puede editar un gasto
+function puedeEditarGasto(gasto) {
+    // Verificar si el gasto es muy antiguo (ejemplo: más de 30 días)
+    const fechaGasto = new Date(gasto.fecha);
+    const hoy = new Date();
+    const diasDiferencia = (hoy - fechaGasto) / (1000 * 60 * 60 * 24);
     
-    if (!fechaDesde || !fechaHasta) {
-        mostrarError('reporte_medios_pago', 'Debe seleccionar ambas fechas');
-        return;
+    // Otras reglas de negocio que puedas tener
+    if (diasDiferencia > 30) {
+        return false; // No permitir eliminar gastos muy antiguos
     }
     
-    if (fechaDesde > fechaHasta) {
-        mostrarError('reporte_medios_pago', 'La fecha "desde" no puede ser mayor que la fecha "hasta"');
-        return;
-    }
+    return true;
+}
+
+function verificarEstadoGastoAntesDeEliminar(gastoId, descripcion) {
+    console.log('🔍 Verificando estado del gasto antes de eliminar:', gastoId);
     
-    mostrarLoading('reporte_medios_pago', 'Generando reporte de medios de pago...');
-    
-    fetch(`/api/reporte_medios_pago?desde=${fechaDesde}&hasta=${fechaHasta}`)
-        .then(response => response.json())
+    fetch(`/api/gastos/${gastoId}/estado`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error al verificar estado: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
-                mostrarReporteMediosPago(data.reporte, fechaDesde, fechaHasta);
+                if (data.caja_cerrada) {
+                    alert(`❌ No se puede eliminar este gasto.\n\nEl gasto "${descripcion}" pertenece a una caja cerrada (Caja #${data.caja_id}).\n\nLos gastos de cajas cerradas no pueden modificarse para mantener la integridad contable.`);
+                    return;
+                }
+                
+                if (data.puede_eliminar) {
+                    // Proceder con la confirmación normal
+                    mostrarConfirmacionEliminacion(gastoId, descripcion, data);
+                } else {
+                    alert(`❌ No se puede eliminar este gasto.\n\nMotivo: ${data.razon || 'Restricción del sistema'}`);
+                }
             } else {
-                mostrarError('reporte_medios_pago', data.error || 'Error al generar el reporte de medios de pago');
+                throw new Error(data.error || 'Error verificando estado del gasto');
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            mostrarError('reporte_medios_pago', 'Error de conexión al cargar el reporte de medios de pago');
+            console.error('❌ Error verificando estado del gasto:', error);
+            alert(`Error al verificar el estado del gasto: ${error.message}`);
         });
 }
 
-function mostrarReporteMediosPago(reporte, fechaDesde, fechaHasta) {
-    const contenedor = document.getElementById('reporte_medios_pago');
-    
-    if (!reporte.medios_pago || reporte.medios_pago.length === 0) {
-        contenedor.innerHTML = `
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle"></i>
-                <strong>Sin datos:</strong> No se encontraron transacciones en el período seleccionado.
-            </div>
-        `;
-        return;
+function mostrarConfirmacionEliminacion(gastoId, descripcion, estadoGasto) {
+    const mensaje = `¿Está seguro de eliminar este gasto?
+
+📄 Descripción: ${descripcion}
+💰 Monto: ${formatearPesos(estadoGasto.monto || 0)}
+📅 Fecha: ${estadoGasto.fecha || 'No disponible'}
+🏦 Caja: ${estadoGasto.caja_id ? `#${estadoGasto.caja_id} (${estadoGasto.estado_caja})` : 'Sin caja asociada'}
+
+⚠️ Esta acción no se puede deshacer.
+
+${estadoGasto.advertencias ? `\n⚠️ Advertencias:\n${estadoGasto.advertencias.join('\n')}` : ''}`;
+
+    if (confirm(mensaje)) {
+        eliminarGasto(gastoId);
     }
-    
-    const totalGeneral = reporte.medios_pago.reduce((sum, medio) => sum + parseFloat(medio.total), 0);
-    
-    let html = `
-        <div class="alert alert-success">
-            <div class="row">
-                <div class="col-md-6">
-                    <strong><i class="fas fa-calendar-alt"></i> Período:</strong> ${formatearFecha(fechaDesde)} - ${formatearFecha(fechaHasta)}
-                </div>
-                <div class="col-md-6">
-                    <strong><i class="fas fa-dollar-sign"></i> Total General:</strong> 
-                    <span class="h5 text-success">${formatearPesos(totalGeneral)}</span>
-                </div>
-            </div>
-        </div>
-        
-        <div class="row">
-            <div class="col-md-8">
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead class="table-dark">
-                            <tr>
-                                <th><i class="fas fa-credit-card"></i> Medio de Pago</th>
-                                <th class="text-center"><i class="fas fa-hash"></i> Transacciones</th>
-                                <th class="text-end"><i class="fas fa-dollar-sign"></i> Total</th>
-                                <th class="text-<th class="text-end"><i class="fas fa-percentage"></i> % del Total</th>
-                           </tr>
-                       </thead>
-                       <tbody>
-   `;
-   
-   reporte.medios_pago.forEach(medio => {
-       const total = parseFloat(medio.total);
-       const porcentaje = (total / totalGeneral * 100);
-       const icono = obtenerIconoMedioPago(medio.medio_pago);
-       
-       html += `
-           <tr>
-               <td>
-                   <i class="${icono}"></i> ${obtenerNombreMedioPago(medio.medio_pago)}
-               </td>
-               <td class="text-center">
-                   <span class="badge bg-primary">${medio.cantidad}</span>
-               </td>
-               <td class="text-end">
-                   <strong>${formatearPesos(total)}</strong>
-               </td>
-               <td class="text-end">
-                   <span class="badge bg-secondary">${porcentaje.toFixed(1)}%</span>
-               </td>
-           </tr>
-       `;
-   });
-   
-   html += `
-                       </tbody>
-                   </table>
-               </div>
-           </div>
-           <div class="col-md-4">
-               <div class="card">
-                   <div class="card-header">
-                       <h6><i class="fas fa-chart-bar"></i> Distribución Visual</h6>
-                   </div>
-                   <div class="card-body">
-   `;
-   
-   reporte.medios_pago.forEach(medio => {
-       const total = parseFloat(medio.total);
-       const porcentaje = (total / totalGeneral * 100);
-       const anchoBar = Math.max(porcentaje, 5);
-       
-       html += `
-           <div class="mb-3">
-               <div class="d-flex justify-content-between align-items-center mb-1">
-                   <small><strong>${obtenerNombreMedioPago(medio.medio_pago)}</strong></small>
-                   <small class="text-muted">${porcentaje.toFixed(1)}%</small>
-               </div>
-               <div class="progress" style="height: 20px;">
-                   <div class="progress-bar ${obtenerColorMedioPago(medio.medio_pago)}" 
-                        style="width: ${anchoBar}%"
-                        title="${formatearPesos(total)}">
-                   </div>
-               </div>
-           </div>
-       `;
-   });
-   
-   html += `
-                   </div>
-               </div>
-           </div>
-       </div>
-   `;
-   
-   contenedor.innerHTML = html;
 }
 
-// REPORTE DE GASTOS
-function cargarReporteGastos() {
-    const fechaDesde = document.getElementById('fecha_gastos_desde').value;
-    const fechaHasta = document.getElementById('fecha_gastos_hasta').value;
+function eliminarGasto(gastoId) {
+    console.log('🗑️ Eliminando gasto:', gastoId);
     
-    // SI NO HAY FECHAS, ESTABLECER HOY AUTOMÁTICAMENTE
-    if (!fechaDesde || !fechaHasta) {
-        console.log('🔄 No hay fechas seleccionadas, estableciendo fecha de hoy...');
-        establecerFechasGastosHoy();
-        
-        // Esperar un momento y reintentar
-        setTimeout(() => {
-            cargarReporteGastos();
-        }, 100);
+    const confirmacionFinal = confirm('⚠️ CONFIRMACIÓN FINAL\n\n¿Está completamente seguro de eliminar este gasto?\n\nEsta acción es IRREVERSIBLE.');
+    
+    if (!confirmacionFinal) {
         return;
     }
     
-    if (fechaDesde > fechaHasta) {
-        alert('La fecha "desde" no puede ser mayor que la fecha "hasta"');
-        return;
-    }
-    
-    console.log('💰 Cargando gastos desde BD...', { fechaDesde, fechaHasta });
-    
-    // ✅ LLAMAR A LA API REAL
-    fetch(`/api/gastos?desde=${fechaDesde}&hasta=${fechaHasta}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                mostrarGastosPeriodoBD(data.gastos, data.resumen);
-                mostrarCategoriasBD(data.categorias, data.resumen.total_gastos);
-                console.log('✅ Gastos cargados desde BD:', data.gastos.length);
-            } else {
-                mostrarError('listaGastos', data.error || 'Error al cargar gastos');
-            }
-        })
-        .catch(error => {
-            console.error('⛔ Error:', error);
-            mostrarError('listaGastos', 'Error de conexión');
-        });
-}
-
-
-function mostrarGastosPeriodo(fechaDesde, fechaHasta) {
-   const gastosFiltrados = gastosData.filter(gasto => {
-       return gasto.fecha >= fechaDesde && gasto.fecha <= fechaHasta;
-   });
-   
-   const container = document.getElementById('listaGastos');
-   
-   if (gastosFiltrados.length === 0) {
-       container.innerHTML = `
-           <div class="alert alert-info">
-               <i class="fas fa-info-circle"></i>
-               No se registraron gastos en el período seleccionado.
-           </div>
-       `;
-       return;
-   }
-   
-   let html = '<div class="table-responsive">';
-   html += '<table class="table table-sm table-striped">';
-   html += `
-       <thead class="table-dark">
-           <tr>
-               <th>Fecha</th>
-               <th>Descripción</th>
-               <th>Categoría</th>
-               <th>Método</th>
-               <th class="text-end">Monto</th>
-               <th width="50"></th>
-           </tr>
-       </thead>
-       <tbody>
-   `;
-   
-   gastosFiltrados.forEach(gasto => {
-       const categoria = obtenerNombreCategoria(gasto.categoria);
-       const metodoPago = obtenerNombreMedioPago(gasto.metodo_pago);
-       const fecha = new Date(gasto.fecha + 'T12:00:00').toLocaleDateString('es-AR');
-       
-       html += `
-           <tr>
-               <td><small>${fecha}</small></td>
-               <td>
-                   <strong>${gasto.descripcion}</strong>
-                   ${gasto.notas ? `<br><small class="text-muted">${gasto.notas}</small>` : ''}
-               </td>
-               <td>
-                   <span class="badge bg-secondary">${categoria}</span>
-               </td>
-               <td>
-                   <i class="${obtenerIconoMedioPago(gasto.metodo_pago)}"></i>
-                   <small>${metodoPago}</small>
-               </td>
-               <td class="text-end">
-                   <strong class="text-danger">-${formatearPesos(gasto.monto)}</strong>
-               </td>
-               <td>
-                   <button class="btn btn-sm btn-outline-danger" onclick="eliminarGasto(${gasto.id})" 
-                           title="Eliminar gasto">
-                       <i class="fas fa-trash"></i>
-                   </button>
-               </td>
-           </tr>
-       `;
-   });
-   
-   html += '</tbody></table></div>';
-   
-   const totalGastos = gastosFiltrados.reduce((sum, g) => sum + g.monto, 0);
-   html += `
-       <div class="alert alert-danger">
-           <strong>Total de Gastos del Período: ${formatearPesos(totalGastos)}</strong>
-       </div>
-   `;
-   
-   container.innerHTML = html;
-}
-
-
-function eliminarGastoBD(gastoId) {
-    if (!confirm('¿Eliminar este gasto de la base de datos?')) {
-        return;
-    }
-    
-    console.log('🗑️ Eliminando gasto ID:', gastoId);
-    
-    // ✅ LLAMAR A LA API REAL
     fetch(`/api/gastos/${gastoId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+        }
     })
-    .then(response => response.json())
+    .then(response => {
+        if (response.status === 403) {
+            throw new Error('CAJA_CERRADA');
+        } else if (!response.ok) {
+            throw new Error(`Error HTTP: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
-            console.log('✅ Eliminado de BD');
-            cargarReporteGastos(); // Recargar
-            alert('Gasto eliminado correctamente');
+            alert('✅ Gasto eliminado exitosamente');
+            
+            // Recargar lista
+            cargarReporteGastos();
+            
+            // Si hay una caja abierta, actualizar efectivo teórico
+            if (cajaActual && cajaActual.estado === 'abierta') {
+                setTimeout(() => {
+                    actualizarEfectivoTeoricoEnTiempoReal();
+                }, 500);
+            }
         } else {
-            alert(`Error: ${data.error}`);
+            throw new Error(data.error || 'Error al eliminar gasto');
         }
     })
     .catch(error => {
-        alert(`Error: ${error.message}`);
-    });
-}
-
-// 4. AGREGAR estas funciones nuevas para mostrar datos de BD
-function mostrarGastosPeriodoBD(gastos, resumen) {
-    const container = document.getElementById('listaGastos');
-    
-    if (gastos.length === 0) {
-        container.innerHTML = `
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle"></i>
-                No se registraron gastos en el período seleccionado.
-            </div>
-        `;
-        return;
-    }
-    
-    let html = '<div class="table-responsive">';
-    html += '<table class="table table-sm table-striped">';
-    html += `
-        <thead class="table-dark">
-            <tr>
-                <th>Fecha</th>
-                <th>Descripción</th>
-                <th>Categoría</th>
-                <th>Método</th>
-                <th class="text-end">Monto</th>
-                <th width="50"></th>
-            </tr>
-        </thead>
-        <tbody>
-    `;
-    
-    gastos.forEach(gasto => {
-        const categoria = obtenerNombreCategoria(gasto.categoria);
-        const metodoPago = obtenerNombreMedioPago(gasto.metodo_pago);
-        const fecha = new Date(gasto.fecha + 'T12:00:00').toLocaleDateString('es-AR');
+        console.error('❌ Error al eliminar gasto:', error);
         
-        html += `
-            <tr>
-                <td><small>${fecha}</small></td>
-                <td>
-                    <strong>${gasto.descripcion}</strong>
-                    ${gasto.notas ? `<br><small class="text-muted">${gasto.notas}</small>` : ''}
-                </td>
-                <td>
-                    <span class="badge bg-secondary">${categoria}</span>
-                </td>
-                <td>
-                    <i class="${obtenerIconoMedioPago(gasto.metodo_pago)}"></i>
-                    <small>${metodoPago}</small>
-                </td>
-                <td class="text-end">
-                    <strong class="text-danger">-${formatearPesos(gasto.monto)}</strong>
-                </td>
-                <td>
-                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarGastoBD(${gasto.id})" 
-                            title="Eliminar gasto">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </td>
-            </tr>
-        `;
-    });
-    
-    html += '</tbody></table></div>';
-    html += `
-        <div class="alert alert-danger">
-            <strong>Total: ${formatearPesos(resumen.total_gastos)} (${resumen.cantidad_gastos} gastos)</strong>
-            <br><small><i class="fas fa-database"></i> Datos desde base de datos</small>
-        </div>
-    `;
-    
-    container.innerHTML = html;
-}
-
-function mostrarCategoriasBD(categorias, totalGastos) {
-    const container = document.getElementById('categoriasGastos');
-    
-    if (Object.keys(categorias).length === 0) {
-        container.innerHTML = `
-            <div class="text-center text-muted py-4">
-                <i class="fas fa-tags fa-2x mb-3"></i>
-                <p>Sin gastos en el período</p>
-            </div>
-        `;
-        return;
-    }
-    
-    let html = '';
-    Object.entries(categorias).forEach(([categoria, datos]) => {
-        const porcentaje = (datos.total / totalGastos * 100);
-        const nombreCategoria = obtenerNombreCategoria(categoria);
+        let mensajeError;
+        switch(error.message) {
+            case 'CAJA_CERRADA':
+                mensajeError = 'No se puede eliminar: El gasto pertenece a una caja cerrada';
+                break;
+            default:
+                mensajeError = `Error al eliminar: ${error.message}`;
+        }
         
-        html += `
-            <div class="mb-3">
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                    <small><strong>${nombreCategoria}</strong></small>
-                    <small class="text-muted">${porcentaje.toFixed(1)}%</small>
-                </div>
-                <div class="progress mb-1" style="height: 15px;">
-                    <div class="progress-bar bg-danger" 
-                         style="width: ${Math.max(porcentaje, 5)}%"
-                         title="${formatearPesos(datos.total)}">
-                    </div>
-                </div>
-                <small class="text-muted">
-                    ${formatearPesos(datos.total)} (${datos.cantidad_gastos} gastos)
-                </small>
-            </div>
-        `;
+        alert(`❌ ${mensajeError}`);
     });
-    
-    container.innerHTML = html;
 }
 
+function verDetalleGasto(gastoId) {
+    console.log('👁️ Ver detalle de gasto:', gastoId);
+    // Implementar modal de detalles o redirección
+    alert(`Ver detalle de gasto ID: ${gastoId}\n(Funcionalidad por implementar)`);
+}
 
-function mostrarCategorias(fechaDesde, fechaHasta) {
-   const gastosFiltrados = gastosData.filter(gasto => {
-       return gasto.fecha >= fechaDesde && gasto.fecha <= fechaHasta;
-   });
-   
-   if (gastosFiltrados.length === 0) {
-       document.getElementById('categoriasGastos').innerHTML = `
-           <div class="text-center text-muted py-4">
-               <i class="fas fa-tags fa-2x mb-3"></i>
-               <p>Sin gastos en el período</p>
-           </div>
-       `;
-       return;
-   }
-   
-   const categorias = {};
-   gastosFiltrados.forEach(gasto => {
-       if (!categorias[gasto.categoria]) {
-           categorias[gasto.categoria] = 0;
-       }
-       categorias[gasto.categoria] += gasto.monto;
-   });
-   
-   const totalCategorias = Object.values(categorias).reduce((sum, val) => sum + val, 0);
-   
-   let html = '';
-   Object.entries(categorias).forEach(([categoria, monto]) => {
-       const porcentaje = (monto / totalCategorias * 100);
-       const nombreCategoria = obtenerNombreCategoria(categoria);
-       
-       html += `
-           <div class="mb-3">
-               <div class="d-flex justify-content-between align-items-center mb-1">
-                   <small><strong>${nombreCategoria}</strong></small>
-                   <small class="text-muted">${porcentaje.toFixed(1)}%</small>
-               </div>
-               <div class="progress mb-1" style="height: 15px;">
-                   <div class="progress-bar bg-danger" 
-                        style="width: ${Math.max(porcentaje, 5)}%"
-                        title="${formatearPesos(monto)}">
-                   </div>
-               </div>
-               <small class="text-muted">${formatearPesos(monto)}</small>
-           </div>
-       `;
-   });
-   
-   document.getElementById('categoriasGastos').innerHTML = html;
+function obtenerNombreMetodoPago(metodo) {
+    const metodos = {
+        'efectivo': 'Efectivo',
+        'credito': 'T. Crédito',
+        'debito': 'T. Débito',
+        'transferencia': 'Transferencia',
+        'cheque': 'Cheque'
+    };
+    return metodos[metodo] || metodo;
 }
 
 function guardarNuevoGasto() {
+    // Obtener valores del formulario
     const descripcion = document.getElementById('descripcionGasto').value.trim();
     const monto = parseFloat(document.getElementById('montoGasto').value);
     const categoria = document.getElementById('categoriaGasto').value;
     const fecha = document.getElementById('fechaGasto').value;
     const metodoPago = document.getElementById('metodoPagoGasto').value;
     const notas = document.getElementById('notasGasto').value.trim();
-    
-    if (!descripcion || !monto || monto <= 0 || !fecha) {
-        alert('Complete todos los campos requeridos');
+
+    // Validaciones
+    if (!descripcion) {
+        alert('La descripción del gasto es obligatoria');
+        document.getElementById('descripcionGasto').focus();
         return;
     }
-    
-    console.log('💾 Guardando en BD...');
-    
+
+    if (!monto || monto <= 0) {
+        alert('Ingrese un monto válido mayor a 0');
+        document.getElementById('montoGasto').focus();
+        return;
+    }
+
+    if (!fecha) {
+        alert('Seleccione una fecha para el gasto');
+        document.getElementById('fechaGasto').focus();
+        return;
+    }
+
+    console.log('💸 Guardando nuevo gasto:', { descripcion, monto, categoria, fecha, metodoPago, notas });
+
+    // Cambiar estado del botón mientras procesa
     const btnGuardar = document.querySelector('#modalNuevoGasto .btn-danger');
     const textoOriginal = btnGuardar.innerHTML;
     btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
     btnGuardar.disabled = true;
-    
-    // ✅ LLAMAR A LA API REAL
+
+    // Preparar datos para enviar
+    const gastoData = {
+        descripcion: descripcion,
+        monto: monto,
+        categoria: categoria,
+        fecha: fecha,
+        metodo_pago: metodoPago,
+        notas: notas,
+        fecha_registro: new Date().toISOString()
+    };
+
+    // Enviar al backend
     fetch('/api/gastos', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-            descripcion: descripcion,
-            monto: monto,
-            categoria: categoria,
-            fecha: fecha,
-            metodo_pago: metodoPago,
-            notas: notas
-        })
+        body: JSON.stringify(gastoData)
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Error HTTP: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
-            console.log('✅ Guardado en BD exitoso');
+            console.log('✅ Gasto guardado exitosamente:', data);
             
             // Cerrar modal
-            const modalElement = document.getElementById('modalNuevoGasto');
-            const modal = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
-            modal.hide();
-            
-            // Limpiar formulario
-            document.getElementById('formNuevoGasto').reset();
-            establecerFechasGastosHoy();
-            
-            // Recargar datos
-            const activeTab = document.querySelector('.nav-link.active');
-            if (activeTab && activeTab.id === 'gastos-tab') {
-                setTimeout(() => {
-                    cargarReporteGastos();
-                }, 100);
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalNuevoGasto'));
+            if (modal) {
+                modal.hide();
             }
             
-            alert(`✅ Gasto guardado: ${data.gasto.descripcion} - ${formatearPesos(data.gasto.monto)}`);
+            // Limpiar formulario
+            limpiarFormularioGasto();
+            
+            // Mostrar mensaje de éxito
+            alert(`Gasto registrado exitosamente:\n${descripcion}\nMonto: ${formatearPesos(monto)}`);
+            
+            // Recargar reporte de gastos si está activo
+            const tabActiva = document.querySelector('.nav-link.active');
+            if (tabActiva && tabActiva.getAttribute('data-bs-target') === '#gastos') {
+                // Si hay fechas seleccionadas, recargar automáticamente
+                const fechaDesde = document.getElementById('fecha_gastos_desde').value;
+                const fechaHasta = document.getElementById('fecha_gastos_hasta').value;
+                if (fechaDesde && fechaHasta) {
+                    setTimeout(() => cargarReporteGastos(), 500);
+                }
+            }
+            
+            // Si hay una caja abierta, actualizar el efectivo teórico
+            if (cajaActual && cajaActual.estado === 'abierta') {
+                setTimeout(() => {
+                    actualizarEfectivoTeoricoEnTiempoReal();
+                }, 1000);
+            }
+            
         } else {
-            alert(`Error: ${data.error}`);
+            throw new Error(data.error || 'Error desconocido al guardar el gasto');
         }
     })
     .catch(error => {
-        alert(`Error de conexión: ${error.message}`);
+        console.error('❌ Error al guardar gasto:', error);
+        alert(`Error al guardar el gasto: ${error.message}`);
     })
     .finally(() => {
+        // Restaurar botón
         btnGuardar.innerHTML = textoOriginal;
         btnGuardar.disabled = false;
     });
 }
 
-// CAJA DIARIA
-// =================== REPORTE DE CAJA DIARIA ===================
-function cargarCajaDiaria() {
-    const fechaDesde = document.getElementById('fecha_caja_desde').value;
-    const fechaHasta = document.getElementById('fecha_caja_hasta').value;
+function limpiarFormularioGasto() {
+    document.getElementById('descripcionGasto').value = '';
+    document.getElementById('montoGasto').value = '';
+    document.getElementById('categoriaGasto').value = 'general';
+    document.getElementById('fechaGasto').value = new Date().toISOString().split('T')[0];
+    document.getElementById('metodoPagoGasto').value = 'efectivo';
+    document.getElementById('notasGasto').value = '';
+}
 
-    if (!fechaDesde || !fechaHasta) {
-        Swal.fire("Error", "Debe seleccionar ambas fechas", "error");
+
+// ======= FUNCIONES DE IMPRESIÓN Y EXPORTACIÓN =======
+
+function imprimirEstadoCaja() {
+    if (!cajaActual) {
+        alert('No hay datos de caja para imprimir');
         return;
     }
-
-    if (fechaDesde > fechaHasta) {
-        Swal.fire("Error", "La fecha 'desde' no puede ser mayor que la fecha 'hasta'", "error");
-        return;
-    }
-
-    fetch(`/api/reporte_caja_diaria?desde=${fechaDesde}&hasta=${fechaHasta}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // actualizar cards
-                document.getElementById("totalIngresosCaja").innerText = formatearPesos(data.totalIngresos);
-                document.getElementById("detalleIngresos").innerText = data.detalleIngresos.length + " transacciones";
-
-                document.getElementById("totalGastosCaja").innerText = formatearPesos(data.totalGastos);
-                document.getElementById("detalleGastos").innerText = data.detalleGastos.length + " gastos";
-
-                document.getElementById("balanceCaja").innerText = formatearPesos(data.balance);
-                const porcentaje = data.totalIngresos > 0 ? 
-                    ((data.balance / data.totalIngresos) * 100).toFixed(1) : 0;
-                document.getElementById("porcentajeBalance").innerText = porcentaje + "%";
-
-                // efectivo en caja = solo medio de pago efectivo
-                const efectivo = data.detalleIngresos.find(m => m.medio_pago === "efectivo");
-                document.getElementById("efectivoCaja").innerText = formatearPesos(efectivo ? efectivo.total : 0);
-
-                // ==== MAPAS DE ICONOS ====
-                const iconosMedios = {
-                    efectivo: "fas fa-money-bill-wave text-success",
-                    credito: "fas fa-credit-card text-primary",
-                    debito: "fas fa-credit-card text-info",
-                    mercado_pago: "fas fa-mobile-alt text-info",
-                    transferencia: "fas fa-university text-warning",
-                    cheque: "fas fa-file-invoice-dollar text-secondary"
-                };
-
-                const iconosGastos = {
-                    insumos: "fas fa-box-open text-primary",
-                    servicios: "fas fa-lightbulb text-warning",
-                    transporte: "fas fa-truck text-info",
-                    personal: "fas fa-users text-success",
-                    mantenimiento: "fas fa-tools text-secondary",
-                    impuestos: "fas fa-file-invoice-dollar text-danger",
-                    otros: "fas fa-ellipsis-h text-muted",
-                    general: "fas fa-receipt text-dark"
-                };
-
-                // detalle de ingresos con iconos
-                let html = `
-                    <h6><i class="fas fa-list"></i> Detalle de Ingresos</h6>
-                    <ul class="list-group mb-3">`;
-                data.detalleIngresos.forEach(m => {
-                    const icono = iconosMedios[m.medio_pago] || "fas fa-dollar-sign";
-                    html += `
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <span><i class="${icono}"></i> ${m.medio_pago}</span>
-                            <span><strong>${formatearPesos(m.total)}</strong></span>
-                        </li>`;
-                });
-                html += `</ul>`;
-
-                // resumen de gastos con iconos
-                html += `
-                    <h6><i class="fas fa-list"></i> Resumen de Gastos</h6>
-                    <ul class="list-group">`;
-                data.detalleGastos.forEach(g => {
-                    const icono = iconosGastos[g.categoria] || "fas fa-minus-circle";
-                    html += `
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <span><i class="${icono}"></i> ${g.categoria}</span>
-                            <span><strong>${formatearPesos(g.total)}</strong></span>
-                        </li>`;
-                });
-                html += `</ul>`;
-
-                document.getElementById("detalleCajaDiaria").innerHTML = html;
-            } else {
-                Swal.fire("Error", data.error || "No se pudo calcular la caja", "error");
-            }
-        })
-        .catch(error => {
-            console.error(error);
-            Swal.fire("Error", "Error de conexión al cargar caja diaria", "error");
-        });
-}
-
-function calcularResumenCajaReal(reporteMediosPago, fechaDesde, fechaHasta) {
-   let totalIngresos = 0;
-   let efectivoIngresos = 0;
-   let numTransacciones = 0;
-   
-   if (reporteMediosPago.medios_pago && reporteMediosPago.medios_pago.length > 0) {
-       reporteMediosPago.medios_pago.forEach(medio => {
-           const total = parseFloat(medio.total);
-           totalIngresos += total;
-           numTransacciones += parseInt(medio.cantidad);
-           
-           if (medio.medio_pago === 'efectivo') {
-               efectivoIngresos += total;
-           }
-       });
-   } else {
-       calcularResumenCaja(fechaDesde, fechaHasta);
-       return;
-   }
-   
-   const gastosDelPeriodo = gastosData.filter(gasto => {
-       return gasto.fecha >= fechaDesde && gasto.fecha <= fechaHasta;
-   });
-   
-   const totalGastos = gastosDelPeriodo.reduce((sum, gasto) => sum + gasto.monto, 0);
-   const gastosEnEfectivo = gastosDelPeriodo
-       .filter(g => g.metodo_pago === 'efectivo')
-       .reduce((sum, gasto) => sum + gasto.monto, 0);
-   
-   const balance = totalIngresos - totalGastos;
-   const efectivoEnCaja = efectivoIngresos - gastosEnEfectivo;
-   const porcentajeBalance = totalIngresos > 0 ? (balance / totalIngresos * 100) : 0;
-   
-   // Actualizar UI con datos reales
-   document.getElementById('totalIngresosCaja').textContent = formatearPesos(totalIngresos);
-   document.getElementById('detalleIngresos').textContent = `${numTransacciones} transacciones`;
-   
-   document.getElementById('totalGastosCaja').textContent = formatearPesos(totalGastos);
-   document.getElementById('detalleGastos').textContent = `${gastosDelPeriodo.length} gastos`;
-   
-   document.getElementById('balanceCaja').textContent = formatearPesos(balance);
-   document.getElementById('porcentajeBalance').textContent = `${porcentajeBalance.toFixed(1)}% del total`;
-   
-   document.getElementById('efectivoCaja').textContent = formatearPesos(efectivoEnCaja);
-   document.getElementById('detalleEfectivo').textContent = efectivoEnCaja >= 0 ? 'Disponible' : 'Déficit';
-   
-   const cardBalance = document.getElementById('cardBalance');
-   const cardEfectivo = document.getElementById('cardEfectivo');
-   
-   if (balance >= 0) {
-       cardBalance.className = 'card bg-success text-white';
-   } else {
-       cardBalance.className = 'card bg-danger text-white';
-   }
-   
-   if (efectivoEnCaja >= 0) {
-       cardEfectivo.className = 'card bg-info text-white';
-   } else {
-       cardEfectivo.className = 'card bg-danger text-white';
-   }
-   
-   mostrarDetalleCajaReal(reporteMediosPago, gastosDelPeriodo, balance);
-}
-
-function mostrarDetalleCajaReal(reporteMediosPago, gastosDelPeriodo, balance) {
-   let htmlIngresos = '';
-   
-   if (reporteMediosPago.medios_pago && reporteMediosPago.medios_pago.length > 0) {
-       reporteMediosPago.medios_pago.forEach(medio => {
-           const total = parseFloat(medio.total);
-           const icono = obtenerIconoMedioPago(medio.medio_pago);
-           const nombre = obtenerNombreMedioPago(medio.medio_pago);
-           
-           htmlIngresos += `<div class="mb-2"><i class="${icono}"></i> ${nombre}: <strong>${formatearPesos(total)}</strong></div>`;
-       });
-   } else {
-       htmlIngresos = '<div class="text-muted">Sin datos de ingresos</div>';
-   }
-   
-   const categorias = {};
-   gastosDelPeriodo.forEach(gasto => {
-       if (!categorias[gasto.categoria]) {
-           categorias[gasto.categoria] = 0;
-       }
-       categorias[gasto.categoria] += gasto.monto;
-   });
-   
-   let htmlGastos = '';
-   if (Object.keys(categorias).length > 0) {
-       Object.entries(categorias).forEach(([categoria, monto]) => {
-           const nombreCategoria = obtenerNombreCategoria(categoria);
-           const icono = obtenerIconoCategoria(categoria);
-           htmlGastos += `<div class="mb-2"><i class="${icono}"></i> ${nombreCategoria}: <strong>${formatearPesos(monto)}</strong></div>`;
-       });
-   } else {
-       htmlGastos = '<div class="text-muted">Sin gastos registrados</div>';
-   }
-   
-   let html = `
-       <div class="row">
-           <div class="col-md-6">
-               <div class="card">
-                   <div class="card-header bg-success text-white">
-                       <h6><i class="fas fa-arrow-up"></i> Detalle de Ingresos</h6>
-                   </div>
-                   <div class="card-body">
-                       ${htmlIngresos}
-                   </div>
-               </div>
-           </div>
-           <div class="col-md-6">
-               <div class="card">
-                   <div class="card-header bg-danger text-white">
-                       <h6><i class="fas fa-arrow-down"></i> Resumen de Gastos</h6>
-                   </div>
-                   <div class="card-body">
-                       ${htmlGastos}
-                       <hr>
-                       <div class="text-center">
-                           <strong>Balance del Período</strong><br>
-                           <span class="h4 ${balance >= 0 ? 'text-success' : 'text-danger'}">${balance >= 0 ? '+' : ''}${formatearPesos(balance)}</span>
-                       </div>
-                   </div>
-               </div>
-           </div>
-       </div>
-   `;
-   
-   document.getElementById('detalleCajaDiaria').innerHTML = html;
-}
-
-function obtenerIconoCategoria(categoria) {
-   const iconos = {
-       'general': 'fas fa-circle',
-       'insumos': 'fas fa-tools',
-       'servicios': 'fas fa-lightbulb',
-       'transporte': 'fas fa-gas-pump',
-       'personal': 'fas fa-users',
-       'mantenimiento': 'fas fa-wrench',
-       'impuestos': 'fas fa-file-invoice-dollar',
-       'otros': 'fas fa-ellipsis-h'
-   };
-   return iconos[categoria] || 'fas fa-circle';
-}
-
-function calcularResumenCaja(fechaDesde, fechaHasta) {
-   const ingresosPorMedio = {
-       efectivo: 45000,
-       credito: 32400,
-       debito: 21600,
-       mercado_pago: 14400,
-       transferencia: 8600
-   };
-   
-   const totalIngresos = Object.values(ingresosPorMedio).reduce((sum, val) => sum + val, 0);
-   const efectivoIngresos = ingresosPorMedio.efectivo;
-   const numTransacciones = 63;
-   
-   const gastosDelPeriodo = gastosData.filter(gasto => {
-       return gasto.fecha >= fechaDesde && gasto.fecha <= fechaHasta;
-   });
-   
-   const totalGastos = gastosDelPeriodo.reduce((sum, gasto) => sum + gasto.monto, 0);
-   const gastosEnEfectivo = gastosDelPeriodo
-       .filter(g => g.metodo_pago === 'efectivo')
-       .reduce((sum, gasto) => sum + gasto.monto, 0);
-   
-   const balance = totalIngresos - totalGastos;
-   const efectivoEnCaja = efectivoIngresos - gastosEnEfectivo;
-   const porcentajeBalance = totalIngresos > 0 ? (balance / totalIngresos * 100) : 0;
-   
-   document.getElementById('totalIngresosCaja').textContent = formatearPesos(totalIngresos);
-   document.getElementById('detalleIngresos').textContent = `${numTransacciones} transacciones`;
-   
-   document.getElementById('totalGastosCaja').textContent = formatearPesos(totalGastos);
-   document.getElementById('detalleGastos').textContent = `${gastosDelPeriodo.length} gastos`;
-   
-   document.getElementById('balanceCaja').textContent = formatearPesos(balance);
-   document.getElementById('porcentajeBalance').textContent = `${porcentajeBalance.toFixed(1)}% del total`;
-   
-   document.getElementById('efectivoCaja').textContent = formatearPesos(efectivoEnCaja);
-   document.getElementById('detalleEfectivo').textContent = efectivoEnCaja >= 0 ? 'Disponible' : 'Déficit';
-   
-   const cardBalance = document.getElementById('cardBalance');
-   const cardEfectivo = document.getElementById('cardEfectivo');
-   
-   if (balance >= 0) {
-       cardBalance.className = 'card bg-success text-white';
-   } else {
-       cardBalance.className = 'card bg-danger text-white';
-   }
-   
-   if (efectivoEnCaja >= 0) {
-       cardEfectivo.className = 'card bg-info text-white';
-   } else {
-       cardEfectivo.className = 'card bg-danger text-white';
-   }
-}
-
-function mostrarDetalleCaja(fechaDesde, fechaHasta) {
-   let html = `
-       <div class="row">
-           <div class="col-md-6">
-               <div class="card">
-                   <div class="card-header bg-success text-white">
-                       <h6><i class="fas fa-arrow-up"></i> Detalle de Ingresos</h6>
-                   </div>
-                   <div class="card-body">
-                       <div class="mb-2"><i class="fas fa-money-bill-wave"></i> Efectivo: <strong>$45,000.00</strong></div>
-                       <div class="mb-2"><i class="fas fa-credit-card"></i> Crédito: <strong>$32,400.00</strong></div>
-                       <div class="mb-2"><i class="fas fa-credit-card"></i> Débito: <strong>$21,600.00</strong></div>
-                       <div class="mb-2"><i class="fas fa-mobile-alt"></i> Mercado Pago: <strong>$14,400.00</strong></div>
-                       <div class="mb-2"><i class="fas fa-exchange-alt"></i> Transferencia: <strong>$8,600.00</strong></div>
-                   </div>
-               </div>
-           </div>
-           <div class="col-md-6">
-               <div class="card">
-                   <div class="card-header bg-danger text-white">
-                       <h6><i class="fas fa-arrow-down"></i> Resumen de Gastos</h6>
-                   </div>
-                   <div class="card-body">
-                       <div class="mb-2"><i class="fas fa-tools"></i> Insumos: <strong>$2,500.00</strong></div>
-                       <div class="mb-2"><i class="fas fa-lightbulb"></i> Servicios: <strong>$8,750.50</strong></div>
-                       <div class="mb-2"><i class="fas fa-gas-pump"></i> Transporte: <strong>$5,200.00</strong></div>
-                       <hr>
-                       <div class="text-center">
-                           <strong>Balance del Período</strong><br>
-                           <span class="h4 text-success">+$105,549.50</span>
-                       </div>
-                   </div>
-               </div>
-           </div>
-       </div>
-   `;
-   
-   document.getElementById('detalleCajaDiaria').innerHTML = html;
-}
-
-// Funciones auxiliares
-function mostrarLoading(contenedorId, mensaje) {
-   document.getElementById(contenedorId).innerHTML = `
-       <div class="text-center py-4">
-           <i class="fas fa-spinner fa-spin fa-2x text-primary mb-3"></i>
-           <h6>${mensaje}</h6>
-       </div>
-   `;
-}
-
-function mostrarError(contenedorId, mensaje) {
-   document.getElementById(contenedorId).innerHTML = `
-       <div class="alert alert-danger">
-           <i class="fas fa-exclamation-triangle"></i>
-           <strong>Error:</strong> ${mensaje}
-       </div>
-   `;
-}
-
-function formatearFecha(fecha) {
-   const fechaObj = new Date(fecha + 'T12:00:00');
-   return fechaObj.toLocaleDateString('es-AR', {
-       timeZone: 'America/Argentina/Buenos_Aires',
-       weekday: 'short',
-       day: '2-digit',
-       month: '2-digit'
-   });
-}
-
-function formatearPesos(cantidad) {
-   if (cantidad === null || cantidad === undefined || isNaN(cantidad)) {
-       return '$0,00';
-   }
-   return '$' + parseFloat(cantidad).toLocaleString('es-AR', {
-       minimumFractionDigits: 2,
-       maximumFractionDigits: 2
-   });
-}
-
-function obtenerNombreMedioPago(codigo) {
-   const nombres = {
-       'efectivo': 'Efectivo',
-       'credito': 'Tarjeta de Crédito',
-       'debito': 'Tarjeta de Débito',
-       'mercado_pago': 'Mercado Pago',
-       'transferencia': 'Transferencia',
-       'cheque': 'Cheque'
-   };
-   return nombres[codigo] || codigo.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-}
-
-function obtenerIconoMedioPago(codigo) {
-   const iconos = {
-       'efectivo': 'fas fa-money-bill-wave text-success',
-       'credito': 'fas fa-credit-card text-primary',
-       'debito': 'fas fa-credit-card text-info',
-       'mercado_pago': 'fas fa-mobile-alt text-warning',
-       'transferencia': 'fas fa-exchange-alt text-secondary',
-       'cheque': 'fas fa-money-check text-dark'
-   };
-   return iconos[codigo] || 'fas fa-credit-card';
-}
-
-function obtenerColorMedioPago(codigo) {
-   const colores = {
-       'efectivo': 'bg-success',
-       'credito': 'bg-primary',
-       'debito': 'bg-info',
-       'mercado_pago': 'bg-warning',
-       'transferencia': 'bg-secondary',
-       'cheque': 'bg-dark'
-   };
-   return colores[codigo] || 'bg-primary';
-}
-
-function obtenerNombreCategoria(codigo) {
-   const nombres = {
-       'general': 'General',
-       'insumos': 'Insumos y Materiales',
-       'servicios': 'Servicios',
-       'transporte': 'Transporte',
-       'personal': 'Personal',
-       'mantenimiento': 'Mantenimiento',
-       'impuestos': 'Impuestos y Tasas',
-       'otros': 'Otros'
-   };
-   return nombres[codigo] || codigo;
+    
+    console.log('🖨️ Preparando impresión de estado de caja...');
+    
+    // Generar contenido para impresión
+    const fechaImpresion = new Date().toLocaleString('es-AR');
+    const fechaApertura = new Date(cajaActual.fecha_apertura).toLocaleString('es-AR');
+    const fechaCierre = cajaActual.fecha_cierre ? 
+        new Date(cajaActual.fecha_cierre).toLocaleString('es-AR') : 'Abierta';
+    
+    const contenidoImpresion = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Reporte de Caja - ${cajaActual.id}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px; }
+                .section { margin-bottom: 20px; }
+                .datos-caja { background: #f5f5f5; padding: 15px; border-radius: 5px; }
+                .movimientos { margin-top: 20px; }
+                .movimiento { padding: 5px 0; border-bottom: 1px solid #eee; }
+                .totales { background: #e8f5e8; padding: 15px; border-radius: 5px; margin-top: 20px; }
+                .footer { text-align: center; margin-top: 30px; font-size: 12px; color: #666; }
+                @media print { body { margin: 10px; } }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>REPORTE DE CAJA</h1>
+                <h2>Caja #${cajaActual.id}</h2>
+                <p><strong>Estado:</strong> ${cajaActual.estado.toUpperCase()}</p>
+            </div>
+            
+            <div class="section datos-caja">
+                <h3>Datos de la Caja</h3>
+                <p><strong>Fecha Apertura:</strong> ${fechaApertura}</p>
+                <p><strong>Fecha Cierre:</strong> ${fechaCierre}</p>
+                <p><strong>Monto Inicial:</strong> ${formatearPesos(cajaActual.monto_inicial)}</p>
+                ${cajaActual.estado === 'cerrada' ? `
+                    <p><strong>Efectivo Teórico:</strong> ${formatearPesos(cajaActual.efectivo_teorico)}</p>
+                    <p><strong>Efectivo Real:</strong> ${formatearPesos(cajaActual.efectivo_real)}</p>
+                    <p><strong>Diferencia:</strong> ${formatearPesos(cajaActual.diferencia)}</p>
+                ` : `
+                    <p><strong>Efectivo Teórico Actual:</strong> ${formatearPesos(cajaActual.efectivo_teorico)}</p>
+                `}
+            </div>
+            
+            <div class="section">
+                <h3>Movimientos Adicionales</h3>
+                ${movimientosCajaActuales.length === 0 ? 
+                    '<p>No hay movimientos adicionales registrados.</p>' :
+                    movimientosCajaActuales.map(mov => `
+                        <div class="movimiento">
+                            <strong>${mov.descripcion}</strong> - 
+                            <span style="color: ${mov.tipo === 'ingreso' ? 'green' : 'red'}">
+                                ${mov.tipo === 'ingreso' ? '+' : '-'}${formatearPesos(mov.monto)}
+                            </span>
+                            <br><small>${new Date(mov.fecha).toLocaleString('es-AR')}</small>
+                            ${mov.notas ? `<br><small>Notas: ${mov.notas}</small>` : ''}
+                        </div>
+                    `).join('')
+                }
+            </div>
+            
+            <div class="totales">
+                <h3>Resumen de Totales</h3>
+                <p><strong>Ingresos Manuales:</strong> ${formatearPesos(
+                    movimientosCajaActuales
+                        .filter(m => m.tipo === 'ingreso')
+                        .reduce((sum, m) => sum + parseFloat(m.monto), 0)
+                )}</p>
+                <p><strong>Egresos Manuales:</strong> ${formatearPesos(
+                    movimientosCajaActuales
+                        .filter(m => m.tipo === 'egreso')
+                        .reduce((sum, m) => sum + parseFloat(m.monto), 0)
+                )}</p>
+                <p><strong>Balance Movimientos:</strong> ${formatearPesos(
+                    movimientosCajaActuales
+                        .filter(m => m.tipo === 'ingreso')
+                        .reduce((sum, m) => sum + parseFloat(m.monto), 0) -
+                    movimientosCajaActuales
+                        .filter(m => m.tipo === 'egreso')
+                        .reduce((sum, m) => sum + parseFloat(m.monto), 0)
+                )}</p>
+            </div>
+            
+            ${cajaActual.observaciones_apertura ? `
+                <div class="section">
+                    <h3>Observaciones de Apertura</h3>
+                    <p>${cajaActual.observaciones_apertura}</p>
+                </div>
+            ` : ''}
+            
+            ${cajaActual.observaciones_cierre ? `
+                <div class="section">
+                    <h3>Observaciones de Cierre</h3>
+                    <p>${cajaActual.observaciones_cierre}</p>
+                </div>
+            ` : ''}
+            
+            <div class="footer">
+                <p>Reporte generado el ${fechaImpresion}</p>
+                <p>Sistema FactuFacil - Gestión de Caja</p>
+            </div>
+        </body>
+        </html>
+    `;
+    
+    // Crear nueva ventana para impresión
+    const ventanaImpresion = window.open('', '_blank');
+    ventanaImpresion.document.write(contenidoImpresion);
+    ventanaImpresion.document.close();
+    
+    // Esperar que cargue y luego imprimir
+    ventanaImpresion.onload = function() {
+        ventanaImpresion.print();
+        // Opcional: cerrar la ventana después de imprimir
+        // ventanaImpresion.close();
+    };
 }
 
 function exportarReportes() {
-   const activeTab = document.querySelector('.nav-link.active');
-   const tabId = activeTab ? activeTab.getAttribute('data-bs-target') : '#ventas-producto';
-   
-   alert(`Funcionalidad de exportación para la pestaña: ${tabId.replace('#', '')}`);
+    const activeTab = document.querySelector('.nav-link.active');
+    const tabId = activeTab ? activeTab.getAttribute('data-bs-target') : '#caja-diaria';
+    
+    console.log('📊 Exportando reportes para:', tabId);
+    
+    switch(tabId) {
+        case '#caja-diaria':
+            exportarDatosCaja();
+            break;
+        case '#ventas-producto':
+            exportarVentasProducto();
+            break;
+        case '#medios-pago':
+            exportarMediosPago();
+            break;
+        case '#gastos':
+            exportarGastos();
+            break;
+        default:
+            alert('Selecciona una pestaña específica para exportar');
+    }
 }
 
-// Inicialización
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Inicializando reportes...');
+function exportarDatosCaja() {
+    if (!cajaActual) {
+        alert('No hay datos de caja para exportar');
+        return;
+    }
     
-    // Establecer fechas de hoy para todos los reportes
+    console.log('📊 Exportando datos de caja...');
+    
+    // Preparar datos para CSV
+    const datosCaja = {
+        'ID Caja': cajaActual.id,
+        'Estado': cajaActual.estado,
+        'Fecha Apertura': new Date(cajaActual.fecha_apertura).toLocaleString('es-AR'),
+        'Fecha Cierre': cajaActual.fecha_cierre ? new Date(cajaActual.fecha_cierre).toLocaleString('es-AR') : 'Abierta',
+        'Monto Inicial': cajaActual.monto_inicial,
+        'Efectivo Teórico': cajaActual.efectivo_teorico,
+        'Efectivo Real': cajaActual.efectivo_real || 0,
+        'Diferencia': cajaActual.diferencia || 0,
+        'Observaciones Apertura': cajaActual.observaciones_apertura || '',
+        'Observaciones Cierre': cajaActual.observaciones_cierre || ''
+    };
+    
+    // Crear CSV
+    let csvContent = 'Campo,Valor\n';
+    Object.entries(datosCaja).forEach(([key, value]) => {
+        csvContent += `"${key}","${value}"\n`;
+    });
+    
+    // Agregar movimientos si existen
+    if (movimientosCajaActuales.length > 0) {
+        csvContent += '\n\nMovimientos\n';
+        csvContent += 'Fecha,Tipo,Descripción,Monto,Notas\n';
+        
+        movimientosCajaActuales.forEach(mov => {
+            const fecha = new Date(mov.fecha).toLocaleString('es-AR');
+            csvContent += `"${fecha}","${mov.tipo}","${mov.descripcion}","${mov.monto}","${mov.notas || ''}"\n`;
+        });
+    }
+    
+    // Descargar archivo
+    descargarCSV(csvContent, `caja_${cajaActual.id}_${new Date().toISOString().split('T')[0]}.csv`);
+}
+
+function exportarVentasProducto() {
+    alert('Exportación de ventas por producto en desarrollo.\nConectar con el endpoint /api/reporte_ventas');
+}
+
+function exportarMediosPago() {
+    alert('Exportación de medios de pago en desarrollo.\nConectar con el endpoint /api/reporte_medios_pago');
+}
+
+function exportarGastos() {
+    alert('Exportación de gastos en desarrollo.\nConectar con el endpoint /api/gastos');
+}
+
+// Función auxiliar para descargar CSV
+function descargarCSV(contenido, nombreArchivo) {
+    const blob = new Blob([contenido], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    
+    if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', nombreArchivo);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        console.log(`✅ Archivo descargado: ${nombreArchivo}`);
+    } else {
+        alert('Tu navegador no soporta descarga de archivos');
+    }
+}
+
+
+
+// ======= INICIALIZACIÓN =======
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Inicializando sistema de reportes...');
+    
+    // Establecer fechas iniciales
     establecerFechasVentasHoy();
     establecerFechasMediosHoy();
     establecerFechasGastosHoy();
     establecerFechasCajaHoy();
     
-    // Cargar reporte de ventas automáticamente después de un breve delay
+    // Verificar estado de caja después de un breve delay
     setTimeout(() => {
-        console.log('📊 Cargando reporte de ventas inicial...');
-        cargarReporteVentasProducto();
-    }, 500);
-});
-
-
-
-
-// Event listeners para cambio de pestañas
-document.getElementById('reportesTabs').addEventListener('shown.bs.tab', function (event) {
-   const target = event.target.getAttribute('data-bs-target');
-   
-   setTimeout(() => {
-       switch(target) {
-           case '#medios-pago':
-               cargarReporteMediosPago();
-               break;
-           case '#gastos':
-               cargarReporteGastos();
-               break;
-           case '#caja-diaria':
-               cargarCajaDiaria();
-               break;
-       }
-   }, 100);
+        verificarEstadoCaja();
+    }, 1000);
 });
 </script>
+
 <style>
 .nav-tabs .nav-link {
-   color: #6c757d;
-   border: 1px solid transparent;
-   border-top-left-radius: 0.375rem;
-   border-top-right-radius: 0.375rem;
+    color: #6c757d;
+    border: 1px solid transparent;
+    border-top-left-radius: 0.375rem;
+    border-top-right-radius: 0.375rem;
 }
 
 .nav-tabs .nav-link:hover {
-   border-color: #e9ecef #e9ecef #dee2e6;
-   isolation: isolate;
+    border-color: #e9ecef #e9ecef #dee2e6;
+    isolation: isolate;
 }
 
 .nav-tabs .nav-link.active {
-   color: #495057;
-   background-color: #fff;
-   border-color: #dee2e6 #dee2e6 #fff;
+    color: #495057;
+    background-color: #fff;
+    border-color: #dee2e6 #dee2e6 #fff;
 }
 
-.card.bg-success, .card.bg-danger, .card.bg-primary, .card.bg-info, .card.bg-warning {
-   border: none;
-   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-   transition: transform 0.2s ease;
+.card.bg-success, .card.bg-danger, .card.bg-primary, .card.bg-info, .card.bg-warning, .card.bg-secondary, .card.bg-dark {
+    border: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
 }
 
-.card.bg-success:hover, .card.bg-danger:hover, .card.bg-primary:hover, .card.bg-info:hover, .card.bg-warning:hover {
-   transform: translateY(-2px);
+.card.bg-success:hover, .card.bg-danger:hover, .card.bg-primary:hover, .card.bg-info:hover, .card.bg-warning:hover, .card.bg-secondary:hover, .card.bg-dark:hover {
+    transform: translateY(-2px);
 }
 
-.table th {
-   font-size: 0.9em;
-   font-weight: 600;
-   border-top: none;
+.border-success {
+    border-color: #28a745 !important;
+    border-width: 2px !important;
 }
 
-.table td {
-   font-size: 0.9em;
-   vertical-align: middle;
+.border-secondary {
+    border-color: #6c757d !important;
+    border-width: 2px !important;
 }
 
-.badge {
-   font-size: 0.75em;
-}
-
-.progress {
-   border-radius: 10px;
-   background-color: #f8f9fa;
-}
-
-.progress-bar {
-   border-radius: 10px;
-   transition: width 0.6s ease;
-}
-
-.alert {
-   border-left: 4px solid;
-}
-
-.alert-primary {
-   border-left-color: #007bff;
-}
-
-.alert-success {
-   border-left-color: #28a745;
-}
-
-.alert-danger {
-   border-left-color: #dc3545;
-}
-
-.alert-info {
-   border-left-color: #17a2b8;
+.border-warning {
+    border-color: #ffc107 !important;
+    border-width: 2px !important;
 }
 
 .fa-spin {
-   animation: fa-spin 2s infinite linear;
+    animation: fa-spin 2s infinite linear;
 }
 
 @keyframes fa-spin {
-   0% { transform: rotate(0deg); }
-   100% { transform: rotate(360deg); }
-}
-
-.modal-lg {
-   max-width: 800px;
-}
-
-.modal-header.bg-danger {
-   border-bottom: 1px solid rgba(255,255,255,0.2);
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 @media (max-width: 768px) {
-   .nav-tabs {
-       flex-wrap: wrap;
-   }
-   
-   .nav-tabs .nav-link {
-       font-size: 0.9em;
-       padding: 0.5rem 0.75rem;
-   }
-   
-   .card.bg-success h4, .card.bg-danger h4, .card.bg-primary h4, .card.bg-info h4 {
-       font-size: 1.5rem;
-   }
-   
-   .table-responsive {
-       font-size: 0.8em;
-   }
-   
-   .modal-lg {
-       max-width: 95%;
-       margin: 1rem auto;
-   }
-}
-
-.card-header h5, .card-header h6 {
-   margin: 0;
-   font-weight: 600;
-}
-
-.btn-toolbar .btn {
-   margin-left: 0.5rem;
-}
-
-.form-label {
-   font-weight: 500;
-}
-
-.text-muted {
-   opacity: 0.7;
-}
-
-.tab-content .tab-pane {
-   opacity: 0;
-   transition: opacity 0.3s ease-in-out;
-}
-
-.tab-content .tab-pane.active {
-   opacity: 1;
-}
-
-.btn-outline-danger:hover {
-   background-color: #dc3545;
-   border-color: #dc3545;
-}
-
-code {
-   background-color: #f8f9fa;
-   padding: 0.2rem 0.4rem;
-   border-radius: 0.25rem;
-   font-size: 0.875em;
+    .nav-tabs {
+        flex-wrap: wrap;
+    }
+    
+    .nav-tabs .nav-link {
+        font-size: 0.9em;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .card h4 {
+        font-size: 1.5rem;
+    }
 }
 </style>
-
 {% endblock %}

@@ -1,0 +1,41 @@
+@app.route('/test_afip_debug')
+def test_afip_debug():
+    """Test para ver exactamente qué devuelve AFIP"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Crear sesión igual que el diagnóstico
+        session_afip = crear_session_afip()
+        
+        wsaa_url = ARCA_CONFIG.WSAA_URL + '?wsdl'
+        print(f"Probando URL: {wsaa_url}")
+        
+        # Hacer petición HTTP directa
+        response = session_afip.get(wsaa_url, timeout=15)
+        
+        print(f"Status Code: {response.status_code}")
+        print(f"Content-Type: {response.headers.get('content-type')}")
+        print(f"Primeros 500 caracteres del contenido:")
+        print(response.text[:500])
+        
+        # Verificar si es HTML en lugar de XML
+        content_lower = response.text.lower()
+        is_html = '<html' in content_lower or '<!doctype html' in content_lower
+        is_xml = '<?xml' in response.text[:100]
+        
+        return jsonify({
+            'success': not is_html and is_xml,
+            'status_code': response.status_code,
+            'content_type': response.headers.get('content-type'),
+            'is_html': is_html,
+            'is_xml': is_xml,
+            'content_preview': response.text[:1000],
+            'mensaje': 'HTML detectado' if is_html else ('XML válido' if is_xml else 'Contenido desconocido')
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })

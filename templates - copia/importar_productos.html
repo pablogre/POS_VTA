@@ -1,0 +1,642 @@
+{% extends "base.html" %}
+
+{% block title %}Importar Productos - POS Argentina{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-file-excel"></i> Importar Productos desde Excel</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('productos') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Volver a Productos
+        </a>
+    </div>
+</div>
+
+<!-- Instrucciones -->
+<div class="alert alert-info">
+    <h5><i class="fas fa-info-circle"></i> Instrucciones</h5>
+    <ul class="mb-0">
+        <li>Selecciona un archivo Excel (.xlsx o .xls) con productos</li>
+        <li>El sistema importará automáticamente las filas que tengan: <strong>código</strong>, <strong>descripción</strong> y <strong>precio</strong></li>
+        <li>Los productos duplicados (mismo código) se pueden actualizar o omitir según tus preferencias</li>
+        <li>Se calculará automáticamente el costo con un margen del 30%</li>
+    </ul>
+</div>
+
+<!-- Paso 1: Seleccionar archivo -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5><i class="fas fa-upload"></i> Paso 1: Seleccionar Archivo</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <label for="archivoExcel" class="form-label">Archivo Excel</label>
+                <input type="file" class="form-control" id="archivoExcel" accept=".xlsx,.xls" onchange="analizarArchivo()">
+                <small class="form-text text-muted">Formatos soportados: .xlsx, .xls</small>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Opciones de Importación</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="soloActualizar" checked>
+                    <label class="form-check-label" for="soloActualizar">
+                        Actualizar productos existentes
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="crearNuevos" checked>
+                    <label class="form-check-label" for="crearNuevos">
+                        Crear productos nuevos
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Paso 2: Vista previa -->
+<div class="card mb-4" id="vistaPrevia" style="display: none;">
+    <div class="card-header bg-success text-white">
+        <h5><i class="fas fa-eye"></i> Paso 2: Vista Previa</h5>
+    </div>
+    <div class="card-body">
+        <!-- Estadísticas -->
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h4 class="text-primary" id="totalFilas">0</h4>
+                        <small>Total Filas</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h4 class="text-success" id="productosValidos">0</h4>
+                        <small>Productos Válidos</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h4 class="text-warning" id="productosDuplicados">0</h4>
+                        <small>Duplicados</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body text-center">
+                        <button class="btn btn-light btn-sm w-100" onclick="importarProductos()" id="btnImportar">
+                            <i class="fas fa-download"></i> Importar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla de preview -->
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-striped table-hover" id="tablaPreview">
+                <thead class="table-dark sticky-top">
+                    <thead class="table-dark sticky-top">
+                        <tr>
+                            <th width="12%">Código</th>
+                            <th width="35%">Descripción</th>
+                            <th width="12%">Costo</th>
+                            <th width="10%">Margen</th>
+                            <th width="12%">Precio</th>
+                            <th width="12%">Estado</th>
+                            <th width="7%">Acciones</th>
+                        </tr>
+                    </thead>
+                </thead>
+                <tbody id="cuerpoTablaPreview">
+                    <!-- Se llena dinámicamente -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Paso 3: Resultados -->
+<div class="card" id="resultadosImportacion" style="display: none;">
+    <div class="card-header bg-info text-white">
+        <h5><i class="fas fa-check-circle"></i> Paso 3: Resultados de la Importación</h5>
+    </div>
+    <div class="card-body" id="contenidoResultados">
+        <!-- Se llena dinámicamente -->
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+let productosParaImportar = [];
+let datosExcel = [];
+
+async function analizarArchivo() {
+    const archivo = document.getElementById('archivoExcel').files[0];
+    if (!archivo) return;
+
+    try {
+        console.log('Analizando archivo:', archivo.name);
+        
+        const arrayBuffer = await archivo.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        
+        const nombreHoja = workbook.SheetNames[0];
+        const hoja = workbook.Sheets[nombreHoja];
+        
+        datosExcel = XLSX.utils.sheet_to_json(hoja, { header: 1 });
+        
+        console.log('Total de filas en Excel:', datosExcel.length);
+        
+        procesarDatosExcel();
+        
+    } catch (error) {
+        console.error('Error al leer archivo:', error);
+        alert('Error al leer el archivo Excel: ' + error.message);
+    }
+}
+
+function procesarDatosExcel() {
+    productosParaImportar = [];
+    const codigosVistos = new Set();
+    let duplicados = 0;
+    let filasConErrores = 0;
+
+    console.log('Procesando datos del Excel...');
+    console.log('Primera fila:', datosExcel[0]);
+    console.log('Segunda fila (encabezados):', datosExcel[1]);
+    console.log('Tercera fila (ejemplo datos):', datosExcel[2]);
+
+    // CORRECCIÓN: Los encabezados están en la fila 1, no en la 0
+    const encabezados = datosExcel[1] || [];
+    let indiceCosto = -1;
+    let indiceMargen = -1;
+    let indicePrecio = -1;
+
+    // Buscar las columnas por nombre (case insensitive)
+    encabezados.forEach((encabezado, indice) => {
+        const enc = (encabezado || '').toString().toLowerCase().trim();
+        
+        if (enc.includes('costo') && enc.includes('bonif')) {
+            indiceCosto = indice;
+            console.log(`Columna COSTO C/BONIF encontrada en índice: ${indice}`);
+        } else if (enc.includes('margen') && enc.includes('%')) {
+            indiceMargen = indice;
+            console.log(`Columna MARGEN % encontrada en índice: ${indice}`);
+        } else if (enc.includes('precio') && enc.includes('iva')) {
+            indicePrecio = indice;
+            console.log(`Columna $ PRECIO C/IVA encontrada en índice: ${indice}`);
+        }
+    });
+
+    // Si no se encontraron automáticamente, usar índices fijos basados en la estructura real
+    if (indiceCosto === -1 || indiceMargen === -1 || indicePrecio === -1) {
+        console.log('Usando mapeo fijo de columnas...');
+        indiceCosto = 6;   // "COSTO C/BONIF."
+        indiceMargen = 7;  // "MARGEN %"
+        indicePrecio = 8;  // "$ PRECIO C/IVA"
+        
+        console.log(`Usando índices fijos - Costo: ${indiceCosto}, Margen: ${indiceMargen}, Precio: ${indicePrecio}`);
+    }
+
+    // CORRECCIÓN: Procesar filas de datos (saltear fila 0 y 1 que son encabezados, empezar desde fila 2)
+    datosExcel.forEach((fila, indice) => {
+        // Saltar encabezados (filas 0 y 1) y filas vacías
+        if (!fila || fila.length < 3 || indice <= 1) {
+            return;
+        }
+
+        // Saltar filas que son categorías (empiezan con #)
+        if (fila[0] && fila[0].toString().startsWith('#')) {
+            return;
+        }
+
+        try {
+            // Mapeo según la estructura real del Excel:
+            // Columna 0: COD (código principal)
+            // Columna 1: ARTICULO (descripción)
+            // Columna 2: COD (código secundario)
+            // Columna 3: PRESENTACIÓN
+            // Columna 6: COSTO C/BONIF.
+            // Columna 7: MARGEN %
+            // Columna 8: $ PRECIO C/IVA
+            
+            const codigo1 = fila[0];      // COD (primera columna)
+            const descripcion1 = fila[1]; // ARTICULO
+            const codigo2 = fila[2];      // COD (segunda columna)
+            const presentacion = fila[3]; // PRESENTACIÓN
+            
+            // Usar los índices encontrados o fijos
+            const costo = fila[indiceCosto];        // COSTO C/BONIF.
+            const margen_porcentaje = fila[indiceMargen];  // MARGEN %
+            const precio = fila[indicePrecio];      // $ PRECIO C/IVA
+
+            // Validar datos críticos
+            if (!codigo1 || !codigo2 || costo === undefined || costo === null || 
+                precio === undefined || precio === null) {
+                filasConErrores++;
+                if (indice <= 10) {
+                    console.warn(`Fila ${indice}: datos incompletos`, {
+                        codigo1, codigo2, costo, precio, margen_porcentaje
+                    });
+                }
+                return;
+            }
+
+            // Construir código: codigo1.codigo2
+            const codigoFinal = `${codigo1.toString().trim()}.${codigo2.toString().trim()}`;
+
+            // Construir descripción: descripcion1 + codigo2 + presentacion
+            const partesDesc = [descripcion1, codigo2, presentacion]
+                .filter(p => p && p.toString().trim())
+                .map(p => p.toString().trim());
+            
+            const descripcionFinal = partesDesc.join(' ');
+
+            // Procesar valores numéricos
+            const costoLimpio = parseFloat(costo);
+            const precioLimpio = parseFloat(precio);
+            
+            // Procesar margen - puede venir como decimal (0.25) o porcentaje (25)
+            let margenLimpio = parseFloat(margen_porcentaje);
+            if (isNaN(margenLimpio)) {
+                margenLimpio = 0;
+            } else if (margenLimpio <= 1) {
+                // Si es decimal (0.25), convertir a porcentaje (25)
+                margenLimpio = margenLimpio * 100;
+            }
+            // Si ya es porcentaje (25), mantenerlo como está
+
+            // Validaciones
+            if (isNaN(costoLimpio) || costoLimpio <= 0 || 
+                isNaN(precioLimpio) || precioLimpio <= 0) {
+                filasConErrores++;
+                if (indice <= 10) {
+                    console.warn(`Fila ${indice}: valores numéricos inválidos`, {
+                        codigo1, codigo2, costo, precio, margen_porcentaje,
+                        costoLimpio, precioLimpio, margenLimpio
+                    });
+                }
+                return;
+            }
+
+            // Verificar duplicados
+            if (codigosVistos.has(codigoFinal)) {
+                duplicados++;
+                if (indice <= 10) {
+                    console.warn(`Fila ${indice}: código duplicado ${codigoFinal}`);
+                }
+                return;
+            }
+            codigosVistos.add(codigoFinal);
+
+            // Agregar producto válido
+            productosParaImportar.push({
+                codigo: codigoFinal,
+                descripcion: descripcionFinal,
+                precio: Math.round(precioLimpio * 100) / 100,
+                costo: Math.round(costoLimpio * 100) / 100,
+                margen: Math.round(margenLimpio * 100) / 100,
+                filaOriginal: indice + 1,
+                estado: 'pendiente'
+            });
+
+        } catch (error) {
+            filasConErrores++;
+            if (indice <= 10) {
+                console.error(`Error fila ${indice}:`, error);
+            }
+        }
+    });
+
+    console.log(`=== RESUMEN PROCESAMIENTO ===`);
+    console.log(`Productos válidos: ${productosParaImportar.length}`);
+    console.log(`Errores: ${filasConErrores}, Duplicados: ${duplicados}`);
+
+    // Mostrar primeros 3 productos para verificar
+    productosParaImportar.slice(0, 3).forEach(p => {
+        console.log(`${p.codigo} | ${p.descripcion} | Precio: $${p.precio} | Costo: $${p.costo} | Margen: ${p.margen}%`);
+    });
+
+    document.getElementById('totalFilas').textContent = datosExcel.length;
+    document.getElementById('productosValidos').textContent = productosParaImportar.length;
+    document.getElementById('productosDuplicados').textContent = duplicados + filasConErrores;
+
+    mostrarVistaPrevia();
+}
+
+
+
+function mostrarVistaPrevia() {
+    const cuerpoTabla = document.getElementById('cuerpoTablaPreview');
+    cuerpoTabla.innerHTML = '';
+
+    productosParaImportar.slice(0, 100).forEach((producto, indice) => {
+        const fila = document.createElement('tr');
+        
+        const estadoBadge = getEstadoBadge(producto.estado);
+        
+        // Mostrar información más completa en la vista previa
+        const tooltipInfo = `Costo: $${producto.costo} | Margen: ${producto.margen}% | Fila original: ${producto.filaOriginal}`;
+        
+        fila.innerHTML = `
+            <td>
+                <code>${producto.codigo}</code>
+                <br><small class="text-muted">Fila ${producto.filaOriginal}</small>
+            </td>
+            <td>
+                ${producto.descripcion}
+                <br><small class="text-muted">${producto.descripcion.length > 50 ? 'Descripción completa' : ''}</small>
+            </td>
+            <td class="text-end">
+                <strong>$${producto.costo.toLocaleString('es-AR', {minimumFractionDigits: 2})}</strong>
+                <br><small class="text-muted">Costo base</small>
+            </td>
+            <td class="text-center">
+                <strong>${producto.margen.toFixed(1)}%</strong>
+                <br><small class="text-muted">Margen</small>
+            </td>
+            <td class="text-end">
+                <strong class="text-success">$${producto.precio.toLocaleString('es-AR', {minimumFractionDigits: 2})}</strong>
+                <br><small class="text-success">Precio final</small>
+            </td>
+            <td class="text-center">${estadoBadge}</td>
+            <td class="text-center">
+                <button class="btn btn-sm btn-outline-danger" onclick="excluirProducto(${indice})" title="Excluir">
+                    <i class="fas fa-times"></i>
+                </button>
+            </td>
+        `;
+        
+        cuerpoTabla.appendChild(fila);
+    });
+
+    if (productosParaImportar.length > 100) {
+        const filaInfo = document.createElement('tr');
+        filaInfo.innerHTML = `
+            <td colspan="7" class="text-center text-muted py-3">
+                <i class="fas fa-info-circle"></i>
+                Mostrando los primeros 100 productos de ${productosParaImportar.length} total
+                <br><small>El resto se procesará al importar</small>
+            </td>
+        `;
+        cuerpoTabla.appendChild(filaInfo);
+    }
+
+    // Mostrar información adicional si no hay productos
+    if (productosParaImportar.length === 0) {
+        const filaVacia = document.createElement('tr');
+        filaVacia.innerHTML = `
+            <td colspan="7" class="text-center text-warning py-4">
+                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                <h5>No se encontraron productos válidos</h5>
+                <p>Verifique que el archivo Excel tenga el formato correcto:</p>
+                <small>Col1=Código1, Col4=Código2, Col8=Costo, Col9=Margen%, Col10=Precio</small>
+            </td>
+        `;
+        cuerpoTabla.appendChild(filaVacia);
+    }
+
+    document.getElementById('vistaPrevia').style.display = 'block';
+    document.getElementById('vistaPrevia').scrollIntoView({ behavior: 'smooth' });
+}
+
+
+
+function getEstadoBadge(estado) {
+    const badges = {
+        'pendiente': '<span class="badge bg-secondary">Pendiente</span>',
+        'nuevo': '<span class="badge bg-success">Nuevo</span>',
+        'actualizado': '<span class="badge bg-info">Actualizado</span>',
+        'error': '<span class="badge bg-danger">Error</span>',
+        'excluido': '<span class="badge bg-warning">Excluido</span>'
+    };
+    return badges[estado] || badges['pendiente'];
+}
+
+function excluirProducto(indice) {
+    if (confirm('¿Excluir este producto de la importación?')) {
+        productosParaImportar[indice].estado = 'excluido';
+        mostrarVistaPrevia();
+    }
+}
+
+async function importarProductos() {
+    const btnImportar = document.getElementById('btnImportar');
+    const textoOriginal = btnImportar.innerHTML;
+    
+    btnImportar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando...';
+    btnImportar.disabled = true;
+
+    try {
+        const productosAImportar = productosParaImportar.filter(p => p.estado !== 'excluido');
+        
+        console.log(`Iniciando importación de ${productosAImportar.length} productos con costo y margen...`);
+
+        const tamañoLote = 5; // Reducir más para debugging
+        const resultados = {
+            nuevos: 0,
+            actualizados: 0,
+            errores: 0,
+            detallesErrores: []
+        };
+
+        for (let i = 0; i < productosAImportar.length; i += tamañoLote) {
+            const lote = productosAImportar.slice(i, i + tamañoLote);
+            
+            console.log(`Procesando lote ${Math.floor(i/tamañoLote) + 1}/${Math.ceil(productosAImportar.length/tamañoLote)}`);
+            console.log('Productos en este lote:', lote.map(p => p.codigo));
+            
+            const loteParaEnviar = lote.map(producto => ({
+                codigo: producto.codigo,
+                descripcion: producto.descripcion,
+                precio: producto.precio,
+                costo: producto.costo,
+                margen: producto.margen
+            }));
+            
+            const requestBody = {
+                productos: loteParaEnviar,
+                opciones: {
+                    solo_actualizar: document.getElementById('soloActualizar').checked,
+                    crear_nuevos: document.getElementById('crearNuevos').checked,
+                    incluir_costo_margen: true
+                }
+            };
+            
+            console.log('Enviando request:', requestBody);
+            
+            try {
+                const response = await fetch('/api/importar_productos_lote', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Response error text:', errorText);
+                    throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const responseText = await response.text();
+                    console.error('Response no es JSON:', responseText);
+                    throw new Error(`Respuesta no es JSON. Content-Type: ${contentType}. Contenido: ${responseText.substring(0, 200)}`);
+                }
+                
+                const resultado = await response.json();
+                console.log('Resultado del lote:', resultado);
+                
+                if (resultado.success && resultado.productos_procesados) {
+                    resultado.productos_procesados.forEach(productoResult => {
+                        const productoIndex = productosParaImportar.findIndex(p => 
+                            p.codigo === productoResult.codigo && p.estado !== 'excluido'
+                        );
+                        if (productoIndex !== -1) {
+                            productosParaImportar[productoIndex].estado = productoResult.estado;
+                        }
+                    });
+                    
+                    mostrarVistaPrevia();
+                }
+
+                if (resultado.success) {
+                    resultados.nuevos += resultado.nuevos || 0;
+                    resultados.actualizados += resultado.actualizados || 0;
+                    resultados.errores += resultado.errores || 0;
+                    
+                    if (resultado.detalles_errores) {
+                        resultados.detallesErrores.push(...resultado.detalles_errores);
+                    }
+                } else {
+                    resultados.errores += lote.length;
+                    resultados.detallesErrores.push({
+                        error: resultado.error || 'Error desconocido en el lote',
+                        productos: lote.map(p => p.codigo)
+                    });
+                }
+
+            } catch (fetchError) {
+                console.error('Error en fetch del lote:', fetchError);
+                resultados.errores += lote.length;
+                resultados.detallesErrores.push({
+                    error: `Error de conexión: ${fetchError.message}`,
+                    productos: lote.map(p => p.codigo)
+                });
+            }
+
+            const progreso = Math.round(((i + tamañoLote) / productosAImportar.length) * 100);
+            btnImportar.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${progreso}%`;
+            
+            // Pausa para no saturar el servidor
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        console.log('Importación completada:', resultados);
+        mostrarResultados(resultados);
+
+    } catch (error) {
+        console.error('Error general en importación:', error);
+        alert('Error durante la importación: ' + error.message);
+    } finally {
+        btnImportar.innerHTML = textoOriginal;
+        btnImportar.disabled = false;
+    }
+}
+
+
+function mostrarResultados(resultados) {
+    const contenedor = document.getElementById('contenidoResultados');
+    
+    let html = `
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card bg-success text-white">
+                    <div class="card-body text-center">
+                        <h2>${resultados.nuevos}</h2>
+                        <h6>Productos Nuevos</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-info text-white">
+                    <div class="card-body text-center">
+                        <h2>${resultados.actualizados}</h2>
+                        <h6>Productos Actualizados</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-danger text-white">
+                    <div class="card-body text-center">
+                        <h2>${resultados.errores}</h2>
+                        <h6>Errores</h6>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    if (resultados.detallesErrores.length > 0) {
+        html += `
+            <div class="alert alert-warning">
+                <h6><i class="fas fa-exclamation-triangle"></i> Detalles de errores:</h6>
+                <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Error</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+        
+        resultados.detallesErrores.forEach(error => {
+            html += `
+                <tr>
+                    <td><code>${error.codigo || 'N/A'}</code></td>
+                    <td>${error.error}</td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    html += `
+        <div class="text-center">
+            <button class="btn btn-primary btn-lg me-2" onclick="window.location.reload()">
+                <i class="fas fa-redo"></i> Importar Otro Archivo
+            </button>
+            <a href="/productos" class="btn btn-success btn-lg">
+                <i class="fas fa-eye"></i> Ver Productos Importados
+            </a>
+        </div>
+    `;
+
+    contenedor.innerHTML = html;
+    document.getElementById('resultadosImportacion').style.display = 'block';
+    document.getElementById('resultadosImportacion').scrollIntoView({ behavior: 'smooth' });
+}
+</script>
+{% endblock %}

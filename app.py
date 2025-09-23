@@ -1,12 +1,14 @@
 # app.py - Sistema de Punto de Venta Argentina con Flask, MySQL, ARCA e Impresión Térmica
+# pip install flask flask-sqlalchemy mysqlclient qrcode[pil] pillow zeep cryptography requests urllib3 pywin32
+
+#http://localhost:5080/api/comparar_stocks muestra stock dnamico en combos y el stock de prord. base
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Numeric, or_, and_, func, desc, asc, case  
-#from sqlalchemy import Numeric, or_, and_  # ← IMPORTAR AQUÍ
+from sqlalchemy import Numeric, or_, and_, func, desc, asc, case, text  
+from sqlalchemy.orm import joinedload
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
-#import mysql.connector
 from decimal import Decimal
 from qr_afip import crear_generador_qr
 import os
@@ -26,13 +28,15 @@ import json
 import subprocess
 import MySQLdb.cursors
 from estadisticas import init_estadisticas
-
+from caja import init_caja_system
 # ================ FIX SSL COMPATIBLE PARA AFIP ================
 import ssl
 import urllib3
 from urllib3.util import ssl_
 from requests.adapters import HTTPAdapter
 from requests import Session
+
+
 
 
 def configurar_ssl_afip():
@@ -120,6 +124,7 @@ def crear_session_afip():
     return session
 
 app = Flask(__name__)
+
 app.config['SECRET_KEY'] = 'tu_clave_secreta_aqui'
 
 app.jinja_env.globals['hasattr'] = hasattr
@@ -131,7 +136,7 @@ try:
     ARCA_CONFIG = ARCAConfig()
 except ImportError:
     # Configuración por defecto si no existe config_local.py
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://pos_user:pos_password@localhost/pos_argentina'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://pos_user:pos_password@localhost/carnave'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     class DefaultARCAConfig:
@@ -200,25 +205,39 @@ class Producto(db.Model):
     activo = db.Column(db.Boolean, default=True)
     fecha_creacion = db.Column(db.DateTime, default=datetime.now)
     fecha_modificacion = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
-    costo = db.Column(Numeric(10, 2), default=0.00)  # ← AGREGAR ESTA LÍNEA
-    margen = db.Column(Numeric(5, 2), default=30.00)  # ← AGREGAR ESTA LÍNEA
+    costo = db.Column(Numeric(10, 2), default=0.00)
+    margen = db.Column(Numeric(5, 2), default=30.00)
     
-     # ✅ SOLO AGREGAR ESTOS 5 CAMPOS NUEVOS:
+    # Campos de combo
     es_combo = db.Column(db.Boolean, default=False)
     producto_base_id = db.Column(db.Integer, db.ForeignKey('producto.id'), nullable=True)
     cantidad_combo = db.Column(Numeric(8, 3), default=1.000)
     precio_unitario_base = db.Column(Numeric(10, 2), nullable=True)
     descuento_porcentaje = db.Column(Numeric(5, 2), default=0.00)
-    acceso_rapido = db.Column(db.Boolean, default=False)  # ← AGREGAR ESTA LÍNEA
-    orden_acceso_rapido = db.Column(db.Integer, default=0)  # ← Y ESTA LÍNEA TAMBIÉN
+    acceso_rapido = db.Column(db.Boolean, default=False)
+    orden_acceso_rapido = db.Column(db.Integer, default=0)
+    producto_base_2_id = db.Column(db.Integer, db.ForeignKey('producto.id'), nullable=True)
+    cantidad_combo_2 = db.Column(Numeric(8, 3), default=0.000)
+    producto_base_3_id = db.Column(db.Integer, db.ForeignKey('producto.id'), nullable=True)
+    cantidad_combo_3 = db.Column(Numeric(8, 3), default=0.000)
 
-    # ✅ AGREGAR ESTA RELACIÓN:
-    producto_base = db.relationship('Producto', remote_side=[id], backref='combos_derivados')
-    
+    # Relaciones
+    producto_base = db.relationship('Producto', 
+                                    foreign_keys=[producto_base_id], 
+                                    remote_side=[id], 
+                                    backref='combos_derivados')
+
+    producto_base_2 = db.relationship('Producto', 
+                                    foreign_keys=[producto_base_2_id], 
+                                    remote_side=[id])
+
+    producto_base_3 = db.relationship('Producto', 
+                                    foreign_keys=[producto_base_3_id], 
+                                    remote_side=[id])
+        
     def __repr__(self):
         return f'<Producto {self.codigo}: {self.nombre}>'
     
-    # ✅ ACTUALIZAR tu método to_dict() existente:
     def to_dict(self):
         """Convertir producto a diccionario"""
         return {
@@ -229,14 +248,12 @@ class Producto(db.Model):
             'precio': float(self.precio),
             'costo': float(self.costo) if self.costo else 0.0,
             'margen': float(self.margen) if self.margen else 0.0,
-            'stock': self.stock,
+            'stock': self.stock_dinamico,
             'categoria': self.categoria,
             'iva': float(self.iva),
             'activo': self.activo,
             'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
             'fecha_modificacion': self.fecha_modificacion.isoformat() if self.fecha_modificacion else None,
-            
-            # ✅ AGREGAR ESTAS LÍNEAS AL FINAL:
             'es_combo': self.es_combo,
             'producto_base_id': self.producto_base_id,
             'cantidad_combo': float(self.cantidad_combo) if self.cantidad_combo else 1.0,
@@ -266,7 +283,7 @@ class Producto(db.Model):
         if not costo or margen is None:
             return 0.0
         return float(costo) * (1 + (float(margen) / 100))
-    # ✅ AGREGAR ESTOS MÉTODOS NUEVOS PARA COMBOS:
+    
     def calcular_precio_normal(self):
         """Calcular precio normal sin descuento"""
         if self.es_combo and self.precio_unitario_base and self.cantidad_combo:
@@ -285,45 +302,15 @@ class Producto(db.Model):
         """Obtener descripción que incluye información del combo"""
         if self.es_combo:
             ahorro = self.calcular_ahorro_combo()
-            cantidad_str = f"{self.cantidad_combo:g}"  # Elimina .0 si es entero
+            cantidad_str = f"{self.cantidad_combo:g}"
             return f"{self.nombre} - {cantidad_str} unidades (Ahorro: ${ahorro:.0f})"
         return self.nombre
     
-    @staticmethod
-    def obtener_productos_con_ofertas():
-        """Obtener productos base con sus ofertas"""
-        # Productos base (no combos)
-        productos_base = Producto.query.filter_by(es_combo=False, activo=True).all()
-        
-        resultado = []
-        for producto_base in productos_base:
-            # Agregar producto base
-            item_base = producto_base.to_dict()
-            item_base['tipo'] = 'BASE'
-            resultado.append(item_base)
-            
-            # Agregar sus combos/ofertas
-            combos = Producto.query.filter_by(
-                producto_base_id=producto_base.id, 
-                es_combo=True, 
-                activo=True
-            ).order_by(Producto.precio).all()
-            
-            for combo in combos:
-                item_combo = combo.to_dict()
-                item_combo['tipo'] = 'COMBO'
-                resultado.append(item_combo)
-        
-        return resultado
-
-    # Agregar estos métodos a la clase Producto existente
-
     def obtener_precio_con_oferta(self, cantidad):
         """Obtener precio considerando ofertas por volumen"""
         try:
             cantidad_decimal = float(cantidad)
             
-            # Buscar la mejor oferta aplicable
             oferta = OfertaVolumen.query.filter(
                 and_(
                     OfertaVolumen.producto_id == self.id,
@@ -348,7 +335,6 @@ class Producto(db.Model):
             precio_normal = float(self.precio)
             precio_con_oferta = self.obtener_precio_con_oferta(cantidad_decimal)
             
-            # Buscar la oferta aplicada
             oferta = OfertaVolumen.query.filter(
                 and_(
                     OfertaVolumen.producto_id == self.id,
@@ -392,6 +378,101 @@ class Producto(db.Model):
             activo=True
         ).count() > 0
 
+    def calcular_stock_disponible_combo(self):
+        """Calcular stock disponible para combos basado en productos base"""
+        if not self.es_combo:
+            return self.stock
+        
+        try:
+            stocks_disponibles = []
+            
+            # Producto base 1 (obligatorio)
+            if self.producto_base_id and self.cantidad_combo and float(self.cantidad_combo) > 0:
+                producto_base = Producto.query.get(self.producto_base_id)
+                if producto_base and producto_base.activo:
+                    cantidad_necesaria = float(self.cantidad_combo)
+                    stock_posible = int(float(producto_base.stock) / cantidad_necesaria) if cantidad_necesaria > 0 else 0
+                    stocks_disponibles.append(stock_posible)
+            
+            # Producto base 2 (opcional)
+            if self.producto_base_2_id and self.cantidad_combo_2 and float(self.cantidad_combo_2) > 0:
+                producto_base_2 = Producto.query.get(self.producto_base_2_id)
+                if producto_base_2 and producto_base_2.activo:
+                    cantidad_necesaria = float(self.cantidad_combo_2)
+                    stock_posible = int(float(producto_base_2.stock) / cantidad_necesaria) if cantidad_necesaria > 0 else 0
+                    stocks_disponibles.append(stock_posible)
+            
+            # Producto base 3 (opcional)
+            if self.producto_base_3_id and self.cantidad_combo_3 and float(self.cantidad_combo_3) > 0:
+                producto_base_3 = Producto.query.get(self.producto_base_3_id)
+                if producto_base_3 and producto_base_3.activo:
+                    cantidad_necesaria = float(self.cantidad_combo_3)
+                    stock_posible = int(float(producto_base_3.stock) / cantidad_necesaria) if cantidad_necesaria > 0 else 0
+                    stocks_disponibles.append(stock_posible)
+            
+            return min(stocks_disponibles) if stocks_disponibles else 0
+            
+        except Exception as e:
+            print(f"Error calculando stock de combo {self.codigo}: {e}")
+            return 0
+
+    @property
+    def stock_dinamico(self):
+        """Propiedad que devuelve stock dinámico para combos, stock normal para productos base"""
+        if self.es_combo:
+            return self.calcular_stock_disponible_combo()
+        else:
+            return self.stock
+
+    def debug_stock_combo(self):
+        """Función de debug para ver cálculo de stock paso a paso"""
+        if not self.es_combo:
+            return f"Producto base {self.codigo}: stock normal = {self.stock}"
+        
+        debug_info = [f"DEBUG COMBO {self.codigo}:"]
+        
+        if self.producto_base_id and self.cantidad_combo:
+            producto_base = Producto.query.get(self.producto_base_id)
+            if producto_base:
+                debug_info.append(f"  Base 1: {producto_base.codigo} stock={producto_base.stock}, necesita={self.cantidad_combo}")
+        
+        if self.producto_base_2_id and self.cantidad_combo_2:
+            producto_base_2 = Producto.query.get(self.producto_base_2_id)
+            if producto_base_2:
+                debug_info.append(f"  Base 2: {producto_base_2.codigo} stock={producto_base_2.stock}, necesita={self.cantidad_combo_2}")
+        
+        if self.producto_base_3_id and self.cantidad_combo_3:
+            producto_base_3 = Producto.query.get(self.producto_base_3_id)
+            if producto_base_3:
+                debug_info.append(f"  Base 3: {producto_base_3.codigo} stock={producto_base_3.stock}, necesita={self.cantidad_combo_3}")
+        
+        debug_info.append(f"  Stock dinámico resultante: {self.stock_dinamico}")
+        return "\n".join(debug_info)
+
+    @staticmethod
+    def obtener_productos_con_ofertas():
+        """Obtener productos base con sus ofertas"""
+        productos_base = Producto.query.filter_by(es_combo=False, activo=True).all()
+        
+        resultado = []
+        for producto_base in productos_base:
+            item_base = producto_base.to_dict()
+            item_base['tipo'] = 'BASE'
+            resultado.append(item_base)
+            
+            combos = Producto.query.filter_by(
+                producto_base_id=producto_base.id, 
+                es_combo=True, 
+                activo=True
+            ).order_by(Producto.precio).all()
+            
+            for combo in combos:
+                item_combo = combo.to_dict()
+                item_combo['tipo'] = 'COMBO'
+                resultado.append(item_combo)
+        
+        return resultado
+
     @staticmethod
     def obtener_con_ofertas():
         """Obtener productos que tienen ofertas por volumen"""
@@ -400,7 +481,9 @@ class Producto(db.Model):
                 Producto.activo == True,
                 OfertaVolumen.activo == True
             )
-        ).distinct().all()    
+        ).distinct().all()
+
+
 
 class OfertaVolumen(db.Model):
     """Modelo para ofertas por volumen de productos"""
@@ -593,7 +676,8 @@ class Gasto(db.Model):
     fecha_modificacion = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
     activo = db.Column(db.Boolean, default=True)
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'))  # Usuario que registró el gasto
-    
+    caja_id = db.Column(db.Integer, db.ForeignKey('cajas.id'), nullable=True) 
+
     # Relación con Usuario
     usuario = db.relationship('Usuario', backref=db.backref('gastos', lazy=True))
     
@@ -862,14 +946,14 @@ class ARCAClient:
         unique_id = int(now.timestamp())
         
         tra_xml = f'''<?xml version="1.0" encoding="UTF-8"?>
-<loginTicketRequest version="1.0">
-    <header>
-        <uniqueId>{unique_id}</uniqueId>
-        <generationTime>{now.strftime('%Y-%m-%dT%H:%M:%S.000-00:00')}</generationTime>
-        <expirationTime>{expire.strftime('%Y-%m-%dT%H:%M:%S.000-00:00')}</expirationTime>
-    </header>
-    <service>wsfe</service>
-</loginTicketRequest>'''
+                    <loginTicketRequest version="1.0">
+                        <header>
+                            <uniqueId>{unique_id}</uniqueId>
+                            <generationTime>{now.strftime('%Y-%m-%dT%H:%M:%S.000-00:00')}</generationTime>
+                            <expirationTime>{expire.strftime('%Y-%m-%dT%H:%M:%S.000-00:00')}</expirationTime>
+                        </header>
+                        <service>wsfe</service>
+                    </loginTicketRequest>'''
         
         return tra_xml
     
@@ -938,27 +1022,144 @@ class ARCAClient:
             print(f"❌ Error firmando TRA: {e}")
             raise Exception(f"Error firmando TRA: {e}")
     
-    def get_ticket_access(self):
-        """Obtener ticket de acceso de WSAA con cache inteligente"""
+    def debug_certificados(self):
+        """Debug detallado de certificados"""
         try:
-            # *** NUEVO: Cache inteligente de tokens ***
-            if hasattr(self, 'token_timestamp') and self.token and self.sign:
-                # Verificar si el token aún es válido (duran 12 horas, usamos 10 horas para estar seguros)
-                tiempo_transcurrido = datetime.now() - self.token_timestamp
+            print("🔍 DEBUG: Analizando certificados...")
+            
+            # Leer certificado
+            with open(self.config.CERT_PATH, 'rb') as f:
+                cert_data = f.read()
+            
+            print(f"📄 Certificado: {len(cert_data)} bytes")
+            print(f"📄 Primeros 50 caracteres: {cert_data[:50]}")
+            
+            # Verificar si es PEM o DER
+            if b'-----BEGIN CERTIFICATE-----' in cert_data:
+                print("✅ Formato: PEM")
+            elif cert_data.startswith(b'\x30\x82'):
+                print("⚠️ Formato: DER (puede causar problemas)")
+            else:
+                print("❌ Formato desconocido")
+            
+            # Leer clave privada
+            with open(self.config.KEY_PATH, 'rb') as f:
+                key_data = f.read()
+            
+            print(f"🔑 Clave privada: {len(key_data)} bytes")
+            
+            if b'-----BEGIN PRIVATE KEY-----' in key_data or b'-----BEGIN RSA PRIVATE KEY-----' in key_data:
+                print("✅ Clave formato: PEM")
+            else:
+                print("⚠️ Clave formato: DER o desconocido")
+            
+            # Test de firma simple
+            print("🧪 Probando firma de prueba...")
+            test_data = "test data for signing"
+            
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+                f.write(test_data)
+                test_file = f.name
+            
+            with tempfile.NamedTemporaryFile(suffix='.sig', delete=False) as f:
+                sig_file = f.name
+            
+            try:
+                cmd = [
+                    self.openssl_path, 'smime', '-sign',
+                    '-in', test_file,
+                    '-out', sig_file,
+                    '-signer', self.config.CERT_PATH,
+                    '-inkey', self.config.KEY_PATH,
+                    '-outform', 'DER',
+                    '-nodetach'
+                ]
                 
-                if tiempo_transcurrido < timedelta(hours=10):
-                    print(f"🎫 Usando token existente (válido por {10 - tiempo_transcurrido.seconds//3600} horas más)")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0:
+                    print("✅ Test de firma: EXITOSO")
                     return True
                 else:
-                    print("⏰ Token expirado, obteniendo uno nuevo...")
-                    # Limpiar tokens viejos
-                    self.token = None
-                    self.sign = None
-                    delattr(self, 'token_timestamp')
+                    print(f"❌ Test de firma FALLÓ: {result.stderr}")
+                    return False
+                    
+            finally:
+                try:
+                    os.unlink(test_file)
+                    os.unlink(sig_file)
+                except:
+                    pass
+            
+        except Exception as e:
+            print(f"❌ Error en debug certificados: {e}")
+            return False
+
+
+    def cargar_token_desde_cache(self):
+        """Cargar token desde archivo cache si es válido"""
+        try:
+            if not os.path.exists(self.config.TOKEN_CACHE_FILE):
+                return False
+            
+            with open(self.config.TOKEN_CACHE_FILE, 'r') as f:
+                cache_data = json.load(f)
+            
+            # Verificar si el token no ha expirado (válido por 12 horas, usar 10 para seguridad)
+            token_time = datetime.fromisoformat(cache_data['timestamp'])
+            tiempo_transcurrido = datetime.now() - token_time
+            
+            if tiempo_transcurrido < timedelta(hours=10):
+                self.token = cache_data['token']
+                self.sign = cache_data['sign']
+                self.token_timestamp = token_time
+                
+                horas_restantes = 10 - (tiempo_transcurrido.total_seconds() / 3600)
+                print(f"📋 Token cache válido por {horas_restantes:.1f} horas más")
+                return True
+            else:
+                print("⏰ Token cache expirado")
+                return False
+                
+        except Exception as e:
+            print(f"⚠️ Error cargando cache: {e}")
+            return False
+
+
+    def guardar_token_en_cache(self):
+        """Guardar token en archivo cache"""
+        try:
+            # Crear directorio si no existe
+            os.makedirs(os.path.dirname(self.config.TOKEN_CACHE_FILE), exist_ok=True)
+            
+            cache_data = {
+                'token': self.token,
+                'sign': self.sign,
+                'timestamp': self.token_timestamp.isoformat(),
+                'cuit': self.config.CUIT
+            }
+            
+            with open(self.config.TOKEN_CACHE_FILE, 'w') as f:
+                json.dump(cache_data, f, indent=2)
+            
+            print(f"💾 Token guardado en cache: {self.config.TOKEN_CACHE_FILE}")
+            
+        except Exception as e:
+            print(f"⚠️ Error guardando cache: {e}")
+
+
+    def get_ticket_access(self):
+        """Obtener ticket de acceso de WSAA con cache persistente"""
+        try:
+            # *** PASO 1: Intentar cargar token desde archivo ***
+            if self.cargar_token_desde_cache():
+                print("🎫 Token cargado desde cache y válido")
+                return True
             
             print("🎫 Obteniendo nuevo ticket de acceso...")
             
-            # Crear y firmar TRA
+            # *** PASO 2: Crear nuevo token solo si no hay uno válido ***
             tra_xml = self.crear_tra()
             tra_firmado = self.firmar_tra_openssl(tra_xml)
             
@@ -990,11 +1191,12 @@ class ARCAClient:
                 
                 self.token = token_elem.text
                 self.sign = sign_elem.text
-                
-                # *** NUEVO: Guardar timestamp del token ***
                 self.token_timestamp = datetime.now()
                 
-                print("✅ Ticket de acceso obtenido y guardado en cache")
+                # *** PASO 3: Guardar token en cache ***
+                self.guardar_token_en_cache()
+                
+                print("✅ Nuevo ticket obtenido y guardado en cache")
                 return True
             else:
                 raise Exception("Respuesta vacía de WSAA")
@@ -1002,30 +1204,23 @@ class ARCAClient:
         except Exception as e:
             error_msg = str(e)
             
-            # *** NUEVO: Manejo específico del error de token duplicado ***
+            # *** MANEJO ESPECÍFICO DEL ERROR DE TOKEN DUPLICADO ***
             if "El CEE ya posee un TA valido" in error_msg:
                 print("⚠️ AFIP indica que ya hay un token válido")
-                print("💡 Esperando 30 segundos y reintentando...")
                 
+                # Si tenemos un token en cache, usarlo
+                if self.cargar_token_desde_cache():
+                    print("✅ Usando token existente desde cache")
+                    return True
+                
+                # Si no hay cache, esperar y usar el token existente de AFIP
+                print("⏰ Esperando 60 segundos para que AFIP libere el token...")
                 import time
-                time.sleep(30)  # Esperar 30 segundos
+                time.sleep(60)
                 
-                # Limpiar tokens y reintentar UNA SOLA VEZ
-                self.token = None
-                self.sign = None
-                if hasattr(self, 'token_timestamp'):
-                    delattr(self, 'token_timestamp')
-                
-                # Reintentar una vez
+                # Reintentar UNA vez más
                 try:
-                    print("🔄 Reintentando obtener token...")
-                    tra_xml = self.crear_tra()
-                    tra_firmado = self.firmar_tra_openssl(tra_xml)
-                    
-                    session = crear_session_afip()
-                    transport = Transport(session=session, timeout=60)
-                    client = Client(wsaa_url, transport=transport)
-                    
+                    print("🔄 Reintentando después de espera...")
                     response = client.service.loginCms(tra_firmado)
                     
                     if response:
@@ -1037,6 +1232,7 @@ class ARCAClient:
                             self.token = token_elem.text
                             self.sign = sign_elem.text
                             self.token_timestamp = datetime.now()
+                            self.guardar_token_en_cache()
                             
                             print("✅ Token obtenido exitosamente en segundo intento")
                             return True
@@ -1061,8 +1257,9 @@ class ARCAClient:
             print("🌐 Conectando con WSFEv1...")
             
             # IMPORTANTE: URL limpia y configuración correcta
-            wsfev1_url = 'https://servicios1.afip.gov.ar/wsfev1/service.asmx?WSDL'
-            
+            #wsfev1_url = 'https://servicios1.afip.gov.ar/wsfev1/service.asmx?WSDL'
+            wsfev1_url = self.config.WSFEv1_URL
+
             # Crear cliente SOAP con configuración específica
             session = crear_session_afip()
             from zeep.transports import Transport
@@ -1212,6 +1409,7 @@ class ARCAClient:
                 'ImpIVA': importe_iva_total,
                 'MonId': 'PES',
                 'MonCotiz': 1.00,
+                'CondicionIVAReceptorId': datos_comprobante.get('condicion_iva', 5), 
             }
             
             # *** CLAVE: AGREGAR DETALLE DE IVA POR ALÍCUOTA ***
@@ -1353,6 +1551,7 @@ class ARCAClient:
                 'estado': 'error_afip'
             }
 
+
     def get_codigo_iva_afip(self, porcentaje):
         """Mapear porcentajes de IVA a códigos AFIP"""
         mapeo_iva = {
@@ -1454,12 +1653,21 @@ afip_monitor = AFIPStatusMonitor(ARCA_CONFIG)
 estadisticas_bp = init_estadisticas(db, Factura, DetalleFactura, Producto)
 app.register_blueprint(estadisticas_bp)
 
+# INICIALIZAR SISTEMA DE CAJA
+caja_bp = init_caja_system(db, Factura, DetalleFactura, Producto, Usuario, MedioPago, Gasto)
+app.register_blueprint(caja_bp)
 
-# Rutas de la aplicación
+# RUTAS DE LA APLICACION ***  RUTAS DE LA APLICACION *** RUTAS DE LA APLICACION *** RUTAS DE LA APLICACION 
 @app.route('/')
 def index():
     if 'user_id' not in session:
         return redirect(url_for('login'))
+
+    # Si hay sesión pero es de diferente host, limpiar
+    if session.get('login_host') and session.get('login_host') != request.host:
+        session.clear()
+        return redirect(url_for('login'))   
+
     return render_template('dashboard.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -1467,6 +1675,7 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+        session['login_host'] = request.host  # Guardar host del login
         
         usuario = Usuario.query.filter_by(username=username, activo=True).first()
         
@@ -1516,6 +1725,15 @@ def productos():
 def combos():
     # Obtener solo productos que son combos
     combos = Producto.query.filter_by(es_combo=True).all()
+    combos = db.session.query(Producto)\
+        .options(
+            joinedload(Producto.producto_base),
+            joinedload(Producto.producto_base_2),    # NUEVO
+            joinedload(Producto.producto_base_3)     # NUEVO
+        )\
+        .filter(Producto.es_combo == True)\
+        .all()
+
     return render_template('combos.html', combos=combos)
 
 @app.route('/clientes')
@@ -1697,9 +1915,10 @@ def buscar_clientes():
 # ==================== RUTAS DE PRODUCTOS ====================
 
 # 1. ACTUALIZAR LA RUTA /api/producto_detalle/<int:producto_id>
+# RUTA CORREGIDA PARA COMBOS MULTI-PRODUCTO
 @app.route('/api/producto_detalle/<int:producto_id>')
 def obtener_producto_detalle(producto_id):
-    """Obtener datos completos de un producto para edición"""
+    """Obtener datos completos de un producto para edición - CORREGIDO PARA MULTI-PRODUCTO"""
     if 'user_id' not in session:
         return jsonify({'error': 'No autorizado'}), 401
     
@@ -1723,43 +1942,123 @@ def obtener_producto_detalle(producto_id):
             'precio': float(producto.precio),
             'costo': round(costo, 2),
             'margen': float(margen),
-            'stock': producto.stock,
+            'stock': producto.stock_dinamico,
             'categoria': producto.categoria or '',
             'iva': float(producto.iva),
             'activo': producto.activo,
             
-            # ✅ CAMPOS DE COMBO AGREGADOS
+            # CAMPOS DE COMBO BÁSICOS
             'es_combo': getattr(producto, 'es_combo', False),
             'cantidad_combo': getattr(producto, 'cantidad_combo', None),
-            'producto_base_id': getattr(producto, 'producto_base_id', None)
+            'producto_base_id': getattr(producto, 'producto_base_id', None),
+            
+            # NUEVOS CAMPOS PARA MULTI-PRODUCTO
+            'producto_base_2_id': getattr(producto, 'producto_base_2_id', None),
+            'cantidad_combo_2': getattr(producto, 'cantidad_combo_2', None),
+            'producto_base_3_id': getattr(producto, 'producto_base_3_id', None),
+            'cantidad_combo_3': getattr(producto, 'cantidad_combo_3', None)
         }
         
-        # ✅ SI ES UN COMBO, AGREGAR INFORMACIÓN DEL PRODUCTO BASE
-        if resultado['es_combo'] and resultado['producto_base_id']:
-            try:
-                producto_base = Producto.query.get(resultado['producto_base_id'])
-                if producto_base:
-                    resultado['producto_base'] = {
-                        'id': producto_base.id,
-                        'codigo': producto_base.codigo,
-                        'nombre': producto_base.nombre,
-                        'precio': float(producto_base.precio)
-                    }
-                    # Precio unitario del producto base para cálculos
-                    resultado['precio_unitario_base'] = float(producto_base.precio)
-                else:
+        # SI ES UN COMBO, CARGAR INFORMACIÓN DE TODOS LOS PRODUCTOS BASE
+        if resultado['es_combo']:
+            print(f"🔍 Cargando detalles de combo multi-producto: {producto.codigo}")
+            
+            # PRODUCTO BASE 1 (obligatorio)
+            if resultado['producto_base_id']:
+                try:
+                    producto_base = Producto.query.get(resultado['producto_base_id'])
+                    if producto_base:
+                        resultado['producto_base'] = {
+                            'id': producto_base.id,
+                            'codigo': producto_base.codigo,
+                            'nombre': producto_base.nombre,
+                            'precio': float(producto_base.precio)
+                        }
+                        resultado['precio_unitario_base'] = float(producto_base.precio)
+                        print(f"   ✅ Producto base 1: {producto_base.codigo}")
+                    else:
+                        resultado['producto_base'] = None
+                        resultado['precio_unitario_base'] = 0.0
+                        print(f"   ❌ Producto base 1 no encontrado: ID {resultado['producto_base_id']}")
+                except Exception as e:
+                    print(f"   ⚠️ Error cargando producto base 1: {str(e)}")
                     resultado['producto_base'] = None
                     resultado['precio_unitario_base'] = 0.0
-            except Exception as e:
-                print(f"Error obteniendo producto base: {str(e)}")
-                resultado['producto_base'] = None
-                resultado['precio_unitario_base'] = 0.0
+            
+            # PRODUCTO BASE 2 (opcional)
+            if resultado['producto_base_2_id']:
+                try:
+                    producto_base_2 = Producto.query.get(resultado['producto_base_2_id'])
+                    if producto_base_2:
+                        resultado['producto_base_2'] = {
+                            'id': producto_base_2.id,
+                            'codigo': producto_base_2.codigo,
+                            'nombre': producto_base_2.nombre,
+                            'precio': float(producto_base_2.precio)
+                        }
+                        print(f"   ✅ Producto base 2: {producto_base_2.codigo}")
+                    else:
+                        resultado['producto_base_2'] = None
+                        print(f"   ❌ Producto base 2 no encontrado: ID {resultado['producto_base_2_id']}")
+                except Exception as e:
+                    print(f"   ⚠️ Error cargando producto base 2: {str(e)}")
+                    resultado['producto_base_2'] = None
+            else:
+                resultado['producto_base_2'] = None
+            
+            # PRODUCTO BASE 3 (opcional)
+            if resultado['producto_base_3_id']:
+                try:
+                    producto_base_3 = Producto.query.get(resultado['producto_base_3_id'])
+                    if producto_base_3:
+                        resultado['producto_base_3'] = {
+                            'id': producto_base_3.id,
+                            'codigo': producto_base_3.codigo,
+                            'nombre': producto_base_3.nombre,
+                            'precio': float(producto_base_3.precio)
+                        }
+                        print(f"   ✅ Producto base 3: {producto_base_3.codigo}")
+                    else:
+                        resultado['producto_base_3'] = None
+                        print(f"   ❌ Producto base 3 no encontrado: ID {resultado['producto_base_3_id']}")
+                except Exception as e:
+                    print(f"   ⚠️ Error cargando producto base 3: {str(e)}")
+                    resultado['producto_base_3'] = None
+            else:
+                resultado['producto_base_3'] = None
+            
+            # CALCULAR PRECIO NORMAL TOTAL (TODOS LOS PRODUCTOS)
+            precio_normal_total = 0
+            
+            # Producto 1
+            if resultado.get('producto_base') and resultado.get('cantidad_combo'):
+                precio_normal_total += resultado['producto_base']['precio'] * float(resultado['cantidad_combo'])
+            
+            # Producto 2
+            if resultado.get('producto_base_2') and resultado.get('cantidad_combo_2'):
+                precio_normal_total += resultado['producto_base_2']['precio'] * float(resultado['cantidad_combo_2'])
+            
+            # Producto 3
+            if resultado.get('producto_base_3') and resultado.get('cantidad_combo_3'):
+                precio_normal_total += resultado['producto_base_3']['precio'] * float(resultado['cantidad_combo_3'])
+            
+            # AGREGAR INFORMACIÓN CALCULADA
+            resultado['precio_normal_total'] = round(precio_normal_total, 2)
+            resultado['ahorro_total'] = round(precio_normal_total - float(producto.precio), 2)
+            resultado['descuento_porcentaje_calculado'] = round(
+                ((precio_normal_total - float(producto.precio)) / precio_normal_total * 100), 1
+            ) if precio_normal_total > 0 else 0
+            
+            print(f"   💰 Precio normal total: ${precio_normal_total:.2f}")
+            print(f"   💰 Precio combo: ${float(producto.precio):.2f}")
+            print(f"   💰 Ahorro: ${resultado['ahorro_total']:.2f} ({resultado['descuento_porcentaje_calculado']:.1f}%)")
         
         return jsonify(resultado)
         
     except Exception as e:
-        print(f"Error en obtener_producto_detalle: {str(e)}")
+        print(f"❌ Error en obtener_producto_detalle: {str(e)}")
         return jsonify({'error': f'Error al obtener producto: {str(e)}'}), 500
+
 
 # 2. ACTUALIZAR LA RUTA /guardar_producto
 @app.route('/guardar_producto', methods=['POST'])
@@ -2051,7 +2350,7 @@ def buscar_productos_admin():
                 'precio': float(producto.precio),
                 'costo': round(costo, 2),
                 'margen': round(margen, 1),
-                'stock': producto.stock,
+                'stock': producto.stock_dinamico,
                 'categoria': producto.categoria,
                 'iva': float(producto.iva),
                 'activo': producto.activo,
@@ -2190,122 +2489,173 @@ def api_productos_con_ofertas():
 
 @app.route('/api/crear_combo', methods=['POST'])
 def crear_combo():
-    """Crear un nuevo combo/oferta basado en un producto existente o editarlo"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'No autorizado'}), 401
-    
     try:
-        data = request.json
+        datos = request.get_json()
         
-        # ✅ DETECTAR SI ES EDICIÓN
-        combo_id = data.get('id')
-        es_edicion = combo_id is not None
-        
-        if es_edicion:
-            print(f"🔧 EDITANDO combo ID: {combo_id}")
-            combo = Producto.query.get_or_404(combo_id)
-            if not combo.es_combo:
-                return jsonify({'error': 'El producto no es un combo'}), 400
+        # Validación básica
+        if not datos.get('producto_base_id'):
+            return jsonify({'success': False, 'error': 'Producto base 1 es requerido'})
+            
+        # Si es edición, buscar combo existente
+        if datos.get('id'):
+            combo = Producto.query.get(datos['id'])
+            if not combo:
+                return jsonify({'success': False, 'error': 'Combo no encontrado'})
         else:
-            print("🆕 CREANDO nuevo combo")
-            combo = None
+            combo = Producto()
+            combo.es_combo = True
+            combo.activo = True
+            combo.stock = 0
         
-        # Validar datos
-        producto_base_id = data.get('producto_base_id')
-        cantidad_combo = float(data.get('cantidad_combo', 1))
-        precio_combo = float(data.get('precio_combo', 0))
-        nombre_combo = data.get('nombre_combo', '').strip()
+        # Datos básicos del combo
+        combo.producto_base_id = datos['producto_base_id']
+        combo.cantidad_combo = Decimal(str(float(datos['cantidad_combo'])))  # Conversión segura
+        combo.precio = Decimal(str(datos['precio_combo']))
         
-        if not producto_base_id:
-            return jsonify({'error': 'Producto base requerido'}), 400
+        # NUEVOS CAMPOS: Productos adicionales
+        combo.producto_base_2_id = datos.get('producto_base_2_id')
+        if datos.get('cantidad_combo_2'):
+            combo.cantidad_combo_2 = Decimal(str(float(datos['cantidad_combo_2'])))
+        else:
+            combo.cantidad_combo_2 = Decimal('0')
         
-        if cantidad_combo <= 0:
-            return jsonify({'error': 'La cantidad debe ser mayor a 0'}), 400
-        
-        if precio_combo <= 0:
-            return jsonify({'error': 'El precio debe ser mayor a 0'}), 400
-        
-        # Obtener producto base
-        producto_base = Producto.query.get_or_404(producto_base_id)
-        
-        # Calcular precio normal y descuento
-        precio_normal = float(producto_base.precio) * cantidad_combo
-        descuento_monto = precio_normal - precio_combo
-        descuento_porcentaje = (descuento_monto / precio_normal) * 100 if precio_normal > 0 else 0
+        combo.producto_base_3_id = datos.get('producto_base_3_id')
+        if datos.get('cantidad_combo_3'):
+            combo.cantidad_combo_3 = Decimal(str(float(datos['cantidad_combo_3'])))
+        else:
+            combo.cantidad_combo_3 = Decimal('0')
         
         # Generar código automático si no se proporciona
-        codigo_combo = data.get('codigo_combo', '').strip()
-        if not codigo_combo:
-            cantidad_str = f"{cantidad_combo:g}".replace('.', '')
-            codigo_combo = f"{producto_base.codigo}-{cantidad_str}UN"
-        
-        # ✅ VERIFICAR CÓDIGO DUPLICADO SOLO SI ES NUEVO O CAMBIÓ
-        if not es_edicion or (es_edicion and combo.codigo != codigo_combo):
-            if Producto.query.filter_by(codigo=codigo_combo).first():
-                return jsonify({'error': f'Ya existe un producto con el código {codigo_combo}'}), 400
-        
-        # Generar nombre automático si no se proporciona
-        if not nombre_combo:
-            cantidad_str = f"{cantidad_combo:g}"
-            nombre_combo = f"{cantidad_str} x {producto_base.nombre} (Oferta)"
-        
-        if es_edicion:
-            # ✅ ACTUALIZAR COMBO EXISTENTE
-            combo.codigo = codigo_combo
-            combo.nombre = nombre_combo
-            combo.descripcion = data.get('descripcion_combo', combo.descripcion)
-            combo.precio = Decimal(str(precio_combo))
-            combo.categoria = 'OFERTAS'
-            combo.iva = producto_base.iva
-            combo.costo = Decimal(str(float(producto_base.costo or 0) * cantidad_combo))
-            combo.stock = int(float(producto_base.stock) / cantidad_combo)
-            combo.producto_base_id = producto_base.id
-            combo.cantidad_combo = Decimal(str(cantidad_combo))
-            combo.precio_unitario_base = producto_base.precio
-            combo.descuento_porcentaje = Decimal(str(descuento_porcentaje))
-            
-            accion = "actualizado"
+        if not datos.get('codigo_combo'):
+            combo.codigo = generar_codigo_combo_multi(combo)
         else:
-            # ✅ CREAR NUEVO COMBO
-            combo = Producto(
-                codigo=codigo_combo,
-                nombre=nombre_combo,
-                descripcion=f"Oferta especial: {cantidad_combo:g} unidades de {producto_base.nombre}",
-                precio=Decimal(str(precio_combo)),
-                categoria='OFERTAS',
-                iva=producto_base.iva,
-                costo=Decimal(str(float(producto_base.costo or 0) * cantidad_combo)),
-                stock=int(float(producto_base.stock) / cantidad_combo),
-                es_combo=True,
-                producto_base_id=producto_base.id,
-                cantidad_combo=Decimal(str(cantidad_combo)),
-                precio_unitario_base=producto_base.precio,
-                descuento_porcentaje=Decimal(str(descuento_porcentaje))
-            )
+            combo.codigo = datos['codigo_combo']
             
-            db.session.add(combo)
-            accion = "creado"
+        # Generar nombre automático si no se proporciona
+        if not datos.get('nombre_combo'):
+            combo.nombre = generar_nombre_combo_multi(combo)
+        else:
+            combo.nombre = datos['nombre_combo']
+            
+        combo.descripcion = datos.get('descripcion_combo', '')
         
+        # Validar que el precio de oferta sea menor al precio normal
+        precio_normal_total = calcular_precio_normal_multi(combo)
+        if float(combo.precio) >= precio_normal_total:
+            return jsonify({
+                'success': False, 
+                'error': 'El precio de oferta debe ser menor al precio normal'
+            })
+        
+        db.session.add(combo)
         db.session.commit()
         
-        print(f"✅ Combo {accion}: {codigo_combo}")
-        print(f"   Producto base: {producto_base.nombre}")
-        print(f"   Cantidad: {cantidad_combo}")
-        print(f"   Precio normal: ${precio_normal:.2f}")
-        print(f"   Precio combo: ${precio_combo:.2f}")
-        print(f"   Descuento: {descuento_porcentaje:.1f}% (${descuento_monto:.2f})")
-        
         return jsonify({
-            'success': True,
-            'message': f'Combo {accion} correctamente',
-            'combo': combo.to_dict()
+            'success': True, 
+            'message': 'Combo creado exitosamente',
+            'codigo': combo.codigo
         })
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error en combo: {str(e)}")
-        return jsonify({'error': f'Error al procesar combo: {str(e)}'}), 500
+        return jsonify({'success': False, 'error': str(e)})
 
+def calcular_precio_normal_multi(combo):
+    """Calcular precio normal total del combo multi-producto"""
+    try:
+        precio_total = 0.0  # Empezar con float
+        
+        print(f"🔍 DEBUG calcular_precio_normal_multi:")
+        print(f"   Combo ID: {getattr(combo, 'id', 'NUEVO')}")
+        
+        # Producto 1 (obligatorio)
+        if combo.producto_base_id and combo.cantidad_combo:
+            producto1 = Producto.query.get(combo.producto_base_id)
+            if producto1:
+                precio_unit = float(producto1.precio)
+                cantidad = float(combo.cantidad_combo)
+                subtotal = precio_unit * cantidad
+                precio_total += subtotal
+                
+                print(f"   Producto 1: {precio_unit} x {cantidad} = {subtotal}")
+        
+        # Producto 2 (opcional)
+        if combo.producto_base_2_id and combo.cantidad_combo_2 and float(combo.cantidad_combo_2) > 0:
+            producto2 = Producto.query.get(combo.producto_base_2_id)
+            if producto2:
+                precio_unit = float(producto2.precio)
+                cantidad = float(combo.cantidad_combo_2)
+                subtotal = precio_unit * cantidad
+                precio_total += subtotal
+                
+                print(f"   Producto 2: {precio_unit} x {cantidad} = {subtotal}")
+        
+        # Producto 3 (opcional)
+        if combo.producto_base_3_id and combo.cantidad_combo_3 and float(combo.cantidad_combo_3) > 0:
+            producto3 = Producto.query.get(combo.producto_base_3_id)
+            if producto3:
+                precio_unit = float(producto3.precio)
+                cantidad = float(combo.cantidad_combo_3)
+                subtotal = precio_unit * cantidad
+                precio_total += subtotal
+                
+                print(f"   Producto 3: {precio_unit} x {cantidad} = {subtotal}")
+        
+        print(f"   Total calculado: {precio_total}")
+        return precio_total
+        
+    except Exception as e:
+        print(f"❌ Error en calcular_precio_normal_multi: {str(e)}")
+        print(f"❌ Tipos de datos:")
+        print(f"   combo.cantidad_combo: {type(getattr(combo, 'cantidad_combo', None))}")
+        print(f"   combo.cantidad_combo_2: {type(getattr(combo, 'cantidad_combo_2', None))}")
+        print(f"   combo.cantidad_combo_3: {type(getattr(combo, 'cantidad_combo_3', None))}")
+        raise e
+
+        
+def generar_codigo_combo_multi(combo):
+    """Generar código automático para combo multi-producto"""
+    codigos = []
+    
+    if combo.producto_base_id:
+        producto1 = Producto.query.get(combo.producto_base_id)
+        if producto1:
+            codigos.append(producto1.codigo)
+    
+    if combo.producto_base_2_id:
+        producto2 = Producto.query.get(combo.producto_base_2_id)
+        if producto2:
+            codigos.append(producto2.codigo)
+    
+    if combo.producto_base_3_id:
+        producto3 = Producto.query.get(combo.producto_base_3_id)
+        if producto3:
+            codigos.append(producto3.codigo)
+    
+    return f"{'_'.join(codigos)}_COMBO"
+
+def generar_nombre_combo_multi(combo):
+    """Generar nombre automático para combo multi-producto"""
+    nombres = []
+    
+    if combo.producto_base_id and combo.cantidad_combo:
+        producto1 = Producto.query.get(combo.producto_base_id)
+        if producto1:
+            nombres.append(f"{combo.cantidad_combo}x {producto1.nombre}")
+    
+    if combo.producto_base_2_id and combo.cantidad_combo_2:
+        producto2 = Producto.query.get(combo.producto_base_2_id)
+        if producto2:
+            nombres.append(f"{combo.cantidad_combo_2}x {producto2.nombre}")
+    
+    if combo.producto_base_3_id and combo.cantidad_combo_3:
+        producto3 = Producto.query.get(combo.producto_base_3_id)
+        if producto3:
+            nombres.append(f"{combo.cantidad_combo_3}x {producto3.nombre}")
+    
+    return f"Pack: {' + '.join(nombres)} (Oferta)"
+
+#**************************************************************
 @app.route('/api/combos_producto/<int:producto_id>')
 def obtener_combos_producto(producto_id):
     """Obtener todos los combos de un producto base"""
@@ -2506,7 +2856,7 @@ def buscar_productos(termino):
             'precio_base': float(producto_exacto.precio),
             'costo': float(producto_exacto.costo) if producto_exacto.costo else 0.0,
             'margen': float(producto_exacto.margen) if producto_exacto.margen else 0.0,
-            'stock': producto_exacto.stock,
+            'stock': producto_exacto.stock_dinamico,
             'iva': float(producto_exacto.iva),
             'match_tipo': 'codigo_exacto',
             'descripcion': producto_exacto.descripcion or '',
@@ -2552,7 +2902,7 @@ def buscar_productos(termino):
             'precio_base': float(producto.precio),
             'costo': float(producto.costo) if producto.costo else 0.0,
             'margen': float(producto.margen) if producto.margen else 0.0,
-            'stock': producto.stock,
+            'stock': producto.stock_dinamico,
             'iva': float(producto.iva),
             'match_tipo': match_tipo,
             'descripcion': producto.descripcion or '',
@@ -2593,7 +2943,7 @@ def get_producto_por_id(producto_id):
             'precio': float(producto.precio),
             'costo': float(producto.costo) if producto.costo else 0.0,  # ← NUEVO
             'margen': float(producto.margen) if producto.margen else 0.0,  # ← NUEVO
-            'stock': producto.stock,
+            'stock': producto.stock_dinamico,
             'iva': float(producto.iva),
             'descripcion': producto.descripcion or '',
             'es_combo': producto.es_combo,
@@ -2618,7 +2968,7 @@ def get_producto(codigo):
             'precio': float(producto.precio),
             'costo': float(producto.costo) if producto.costo else 0.0,  # ← NUEVO
             'margen': float(producto.margen) if producto.margen else 0.0,  # ← NUEVO
-            'stock': producto.stock,
+            'stock': producto.stock_dinamico,
             'iva': float(producto.iva),
             'descripcion': producto.descripcion or '',
             'es_combo': producto.es_combo,
@@ -2692,6 +3042,67 @@ def registrar_descuento_factura(factura_id, porcentaje, monto, total_original, u
         print(f"Error registrando descuento: {e}")
         return False
 
+
+def actualizar_stock_combo(combo, cantidad_vendida):
+    """Actualizar stock de productos base al vender combo"""
+    try:
+        print(f"Actualizando stock para combo {combo.codigo} - cantidad vendida: {cantidad_vendida}")
+        
+        # Producto base 1 (obligatorio)
+        if combo.producto_base_id and combo.cantidad_combo and float(combo.cantidad_combo) > 0:
+            producto_base = Producto.query.get(combo.producto_base_id)
+            if producto_base:
+                descuento = float(combo.cantidad_combo) * cantidad_vendida
+                stock_anterior = float(producto_base.stock)
+                producto_base.stock -= Decimal(str(descuento))
+                print(f"  Base 1 - {producto_base.codigo}: {stock_anterior} - {descuento} = {float(producto_base.stock)}")
+        
+        # Producto base 2 (opcional)
+        if combo.producto_base_2_id and combo.cantidad_combo_2 and float(combo.cantidad_combo_2) > 0:
+            producto_base_2 = Producto.query.get(combo.producto_base_2_id)
+            if producto_base_2:
+                descuento = float(combo.cantidad_combo_2) * cantidad_vendida
+                stock_anterior = float(producto_base_2.stock)
+                producto_base_2.stock -= Decimal(str(descuento))
+                print(f"  Base 2 - {producto_base_2.codigo}: {stock_anterior} - {descuento} = {float(producto_base_2.stock)}")
+        
+        # Producto base 3 (opcional)
+        if combo.producto_base_3_id and combo.cantidad_combo_3 and float(combo.cantidad_combo_3) > 0:
+            producto_base_3 = Producto.query.get(combo.producto_base_3_id)
+            if producto_base_3:
+                descuento = float(combo.cantidad_combo_3) * cantidad_vendida
+                stock_anterior = float(producto_base_3.stock)
+                producto_base_3.stock -= Decimal(str(descuento))
+                print(f"  Base 3 - {producto_base_3.codigo}: {stock_anterior} - {descuento} = {float(producto_base_3.stock)}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error actualizando stock de combo {combo.codigo}: {e}")
+        return False
+
+
+def obtener_codigo_condicion_iva(condicion_cliente):
+        """Mapear condición IVA del cliente a código AFIP"""
+        mapeo_condiciones = {
+            'RESPONSABLE_INSCRIPTO': 1,
+            'RESPONSABLE_NO_INSCRIPTO': 2,
+            'RESPONSABLE_MONOTRIBUTO': 4,
+            'EXENTO': 3,
+            'CONSUMIDOR_FINAL': 5,
+            'MONOTRIBUTISTA': 4,
+            'SUJETO_NO_CATEGORIZADO': 6,
+            'PROVEEDOR_EXTERIOR': 7,
+            'CLIENTE_EXTERIOR': 8,
+            'IVA_LIBERADO': 9,
+            'IVA_NO_ALCANZADO': 10,
+            'EVENTUAL': 11,
+            'EVENTUAL_SOCIAL': 12,
+            'PEQUENO_CONTRIBUYENTE': 13
+        }
+    
+        # Por defecto: Consumidor Final (5)
+        return mapeo_condiciones.get(condicion_cliente, 5)
 
 
 # FUNCIÓN PROCESAR_VENTA
@@ -2841,11 +3252,20 @@ def procesar_venta():
             # Actualizar stock
             producto = Producto.query.get(item['producto_id'])
             if producto:
-                producto.stock -= Decimal(str(item['cantidad']))
-                print(f"📦 Stock actualizado para {producto.nombre}: {producto.stock}")
-                print(f"💰 Detalle guardado: IVA {iva_porcentaje}% = ${importe_iva:.2f}")
-            else:
-                print(f"⚠️ Producto ID {item['producto_id']} no encontrado")
+                if producto.es_combo:
+                    # Para combos: descontar stock de productos base
+                    print(f"Procesando venta de combo: {producto.codigo}")
+                    exito = actualizar_stock_combo(producto, item['cantidad'])
+                    if exito:
+                        print(f"Stock de productos base actualizado para combo {producto.codigo}")
+                    else:
+                        print(f"Error actualizando stock de combo {producto.codigo}")
+                else:
+                    # Para productos base: descontar stock normal
+                    stock_anterior = float(producto.stock)
+                    producto.stock -= Decimal(str(item['cantidad']))
+                    print(f"Stock actualizado - {producto.codigo}: {stock_anterior} - {item['cantidad']} = {float(producto.stock)}")
+             
         
         # PASO 5: Agregar medios de pago
         print(f"💳 Agregando {len(medios_pago)} medios de pago...")
@@ -2862,8 +3282,16 @@ def procesar_venta():
         # PASO 6: Intentar autorizar en AFIP con items detallados
         try:
             print("📄 Autorizando en AFIP con items detallados...")
-            cliente = Cliente.query.get(cliente_id)
+            #cliente = Cliente.query.get(cliente_id)
+            cliente = db.session.get(Cliente, cliente_id)
             
+            # Determinar condición IVA del receptor
+            if cliente and cliente.condicion_iva:
+                condicion_iva_receptor = obtener_codigo_condicion_iva(cliente.condicion_iva)
+            else:
+                condicion_iva_receptor = 5  # Consumidor Final por defecto
+
+
             # *** CLAVE: Preparar datos para AFIP con items_detalle ***
             datos_comprobante = {
                 'tipo_comprobante': tipo_comprobante_int,
@@ -2872,7 +3300,8 @@ def procesar_venta():
                 'importe_iva': float(factura.iva),
                 'items_detalle': items_detalle,  # *** NUEVO: Items con IVA individual ***
                 'doc_tipo': 99,  # Sin identificar por defecto
-                'doc_nro': 0
+                'doc_nro': 0,
+                'condicion_iva': condicion_iva_receptor 
             }
             
             # Debug: Mostrar items que se envían a AFIP
@@ -3247,28 +3676,64 @@ def api_estado_afip_rapido():
             'error': str(e)
         }), 500
 
+
 @app.route('/test_afip')
 def test_afip():
-    """Test manual de conexión AFIP"""
+    """Test manual de conexión AFIP con debug detallado"""
     if 'user_id' not in session:
-        return jsonify({'error': 'No autorizado'}), 401
-    
-    try:
-        resultado_auth = arca_client.get_ticket_access()
-        
-        return jsonify({
-            'success': resultado_auth,
-            'mensaje': "✅ Test AFIP exitoso" if resultado_auth else "❌ Test AFIP falló",
-            'estado': "success" if resultado_auth else "error",
-            'tiene_token': bool(arca_client.token),
-            'timestamp': datetime.now().isoformat()
-        })
-        
-    except Exception as e:
         return jsonify({
             'success': False,
-            'mensaje': f"❌ Error en test: {str(e)}",
-            'estado': 'error'
+            'error': 'No autorizado'
+        }), 401
+    
+    try:
+        print("=" * 50)
+        print("TEST AFIP DETALLADO")
+        print("=" * 50)
+        
+        # Verificar archivos
+        cert_existe = os.path.exists(ARCA_CONFIG.CERT_PATH)
+        key_existe = os.path.exists(ARCA_CONFIG.KEY_PATH)
+        
+        print(f"Certificado existe: {cert_existe}")
+        print(f"Clave privada existe: {key_existe}")
+        print(f"Cert path: {ARCA_CONFIG.CERT_PATH}")
+        print(f"Key path: {ARCA_CONFIG.KEY_PATH}")
+        
+        if not cert_existe or not key_existe:
+            return jsonify({
+                'success': False,
+                'mensaje': "Archivos de certificado no encontrados"
+            })
+        
+        # Intentar autenticación
+        print("Intentando autenticación...")
+        resultado_auth = arca_client.get_ticket_access()
+        
+        print(f"Resultado autenticación: {resultado_auth}")
+        print(f"Tiene token: {bool(arca_client.token)}")
+        
+        if resultado_auth:
+            return jsonify({
+                'success': True,
+                'mensaje': "Test AFIP exitoso",
+                'tiene_token': bool(arca_client.token)
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'mensaje': "Autenticación falló",
+                'tiene_token': False
+            })
+        
+    except Exception as e:
+        print(f"EXCEPCIÓN EN TEST: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            'success': False,
+            'mensaje': f"Error: {str(e)}"
         }), 500
 
 
@@ -3428,6 +3893,43 @@ def medios_pago_factura(factura_id):
     except Exception as e:
         print(f"Error obteniendo medios de pago: {e}")
         return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/test_stock_dinamico')
+def test_stock_dinamico():
+    """Ruta temporal para probar cálculo de stock dinámico"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Obtener todos los combos
+        combos = Producto.query.filter_by(es_combo=True, activo=True).all()
+        
+        resultados = []
+        
+        for combo in combos:
+            resultado = {
+                'codigo': combo.codigo,
+                'nombre': combo.nombre,
+                'stock_actual': combo.stock,
+                'stock_dinamico': combo.stock_dinamico,
+                'diferencia': combo.stock_dinamico - combo.stock,
+                'debug': combo.debug_stock_combo()
+            }
+            resultados.append(resultado)
+        
+        return jsonify({
+            'success': True,
+            'combos_analizados': len(resultados),
+            'resultados': resultados
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 
 if __name__ == '__main__':
@@ -4361,174 +4863,142 @@ def importar_productos_vista():
         return redirect(url_for('login'))
     return render_template('importar_productos.html')
 
+
+
 @app.route('/api/importar_productos_lote', methods=['POST'])
 def importar_productos_lote():
-    """Importar un lote de productos desde Excel"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'No autorizado'}), 401
-    
     try:
-        data = request.json
+        data = request.get_json()
         productos = data.get('productos', [])
         opciones = data.get('opciones', {})
         
         solo_actualizar = opciones.get('solo_actualizar', False)
         crear_nuevos = opciones.get('crear_nuevos', True)
+        incluir_costo_margen = opciones.get('incluir_costo_margen', True)
+        
+        if not productos:
+            return jsonify({
+                'success': False,
+                'error': 'No se recibieron productos para importar'
+            })
         
         resultados = {
             'nuevos': 0,
             'actualizados': 0,
             'errores': 0,
-            'detalles_errores': [],
-            'productos_procesados': []  # NUEVO: Array con el estado de cada producto
+            'productos_procesados': [],
+            'detalles_errores': []
         }
         
-        print(f"📦 Procesando lote de {len(productos)} productos...")
+        print(f"Procesando {len(productos)} productos...")
         
         for producto_data in productos:
-            producto_resultado = {
-                'codigo': producto_data.get('codigo', 'UNKNOWN'),
-                'estado': 'error',  # Por defecto error, se cambia si todo va bien
-                'mensaje': ''
-            }
-            
             try:
-                codigo = str(producto_data['codigo']).strip().upper()
-                descripcion = str(producto_data['descripcion']).strip()
-                precio = float(producto_data['precio'])
-                
-                producto_resultado['codigo'] = codigo  # Actualizar con código limpio
+                codigo = producto_data.get('codigo', '').strip()
+                descripcion = producto_data.get('descripcion', '').strip()
+                precio = producto_data.get('precio', 0)
+                costo = producto_data.get('costo', 0) if incluir_costo_margen else 0
+                margen = producto_data.get('margen', 0) if incluir_costo_margen else 0
                 
                 # Validaciones básicas
                 if not codigo or not descripcion or precio <= 0:
-                    producto_resultado['estado'] = 'error'
-                    producto_resultado['mensaje'] = 'Datos inválidos'
                     resultados['errores'] += 1
                     resultados['detalles_errores'].append({
-                        'error': f'Datos inválidos para código {codigo}',
-                        'codigo': codigo
+                        'codigo': codigo,
+                        'error': 'Datos incompletos o inválidos'
                     })
-                    resultados['productos_procesados'].append(producto_resultado)
                     continue
                 
-                # Buscar si el producto ya existe
+                # Verificar si el producto existe (usando SQLAlchemy)
                 producto_existente = Producto.query.filter_by(codigo=codigo).first()
                 
                 if producto_existente:
-                    # Producto existe - actualizar si está permitido
-                    if solo_actualizar:
-                        # Actualizar precio y descripción
-                        producto_existente.precio = Decimal(str(precio))
+                    # Producto existe - actualizar
+                    if solo_actualizar or crear_nuevos:
                         producto_existente.nombre = descripcion
                         producto_existente.descripcion = descripcion
+                        producto_existente.precio = Decimal(str(precio))
+                        
+                        if incluir_costo_margen:
+                            producto_existente.costo = Decimal(str(costo))
+                            producto_existente.margen = Decimal(str(margen))
+                        
                         producto_existente.fecha_modificacion = datetime.now()
                         
-                        # Si no tiene costo, intentar calcularlo con margen por defecto
-                        if not producto_existente.costo or producto_existente.costo == 0:
-                            margen_defecto = 30.0  # 30% de margen por defecto
-                            costo_calculado = precio / (1 + (margen_defecto / 100))
-                            producto_existente.costo = Decimal(str(costo_calculado))
-                            producto_existente.margen = Decimal(str(margen_defecto))
-                        
-                        # ACTUALIZAR ESTADO
-                        producto_resultado['estado'] = 'actualizado'
-                        producto_resultado['mensaje'] = 'Producto actualizado correctamente'
-                        
                         resultados['actualizados'] += 1
-                        print(f"✅ Actualizado: {codigo} - {descripcion}")
-                    else:
-                        # Si no se permite actualizar, contar como error
-                        producto_resultado['estado'] = 'error'
-                        producto_resultado['mensaje'] = 'Producto ya existe (actualización deshabilitada)'
-                        
-                        resultados['errores'] += 1
-                        resultados['detalles_errores'].append({
-                            'error': f'Producto {codigo} ya existe (actualización deshabilitada)',
-                            'codigo': codigo
+                        resultados['productos_procesados'].append({
+                            'codigo': codigo,
+                            'estado': 'actualizado'
                         })
-                        
+                        print(f"Actualizado: {codigo}")
+                    else:
+                        resultados['productos_procesados'].append({
+                            'codigo': codigo,
+                            'estado': 'existente'
+                        })
+                
                 else:
-                    # Producto nuevo - crear si está permitido
+                    # Producto no existe - crear nuevo
                     if crear_nuevos:
-                        # Calcular costo con margen por defecto del 30%
-                        margen_defecto = 30.0
-                        costo_calculado = precio / (1 + (margen_defecto / 100))
-                        
-                        # Detectar categoría básica desde la descripción
-                        categoria = detectar_categoria(descripcion)
-                        
                         nuevo_producto = Producto(
                             codigo=codigo,
                             nombre=descripcion,
                             descripcion=descripcion,
-                            precio=Decimal(str(precio)),                    # <- Del Excel
-                            costo=Decimal(str(float(producto_data.get('costo', 0)))),   # <- Del Excel
-                            margen=Decimal(str(float(producto_data.get('margen', 30)))), # <- Del Excel
-                            stock=0,  # Stock inicial en 0
-                            categoria=categoria,
-                            iva=Decimal('21.0'),  # IVA por defecto 21%
-                            activo=True,
-                            es_combo=False,
-                            fecha_creacion=datetime.now(),
-                            fecha_modificacion=datetime.now()
+                            precio=Decimal(str(precio)),
+                            costo=Decimal(str(costo)) if incluir_costo_margen else Decimal('0'),
+                            margen=Decimal(str(margen)) if incluir_costo_margen else Decimal('0'),
+                            stock=0,
+                            categoria='Importado',
+                            iva=Decimal('21.00'),
+                            activo=True
                         )
                         
                         db.session.add(nuevo_producto)
                         
-                        # ACTUALIZAR ESTADO
-                        producto_resultado['estado'] = 'nuevo'
-                        producto_resultado['mensaje'] = 'Producto creado correctamente'
-                        
                         resultados['nuevos'] += 1
-                        print(f"🆕 Creado: {codigo} - {descripcion}")
+                        resultados['productos_procesados'].append({
+                            'codigo': codigo,
+                            'estado': 'nuevo'
+                        })
+                        print(f"Creado: {codigo}")
                     else:
-                        # Si no se permite crear nuevos, contar como error
-                        producto_resultado['estado'] = 'error'
-                        producto_resultado['mensaje'] = 'Producto no existe (creación deshabilitada)'
-                        
-                        resultados['errores'] += 1
-                        resultados['detalles_errores'].append({
-                            'error': f'Producto {codigo} no existe (creación deshabilitada)',
-                            'codigo': codigo
+                        resultados['productos_procesados'].append({
+                            'codigo': codigo,
+                            'estado': 'no_creado'
                         })
                 
             except Exception as e:
-                producto_resultado['estado'] = 'error'
-                producto_resultado['mensaje'] = f'Error: {str(e)}'
-                
                 resultados['errores'] += 1
                 resultados['detalles_errores'].append({
-                    'error': f'Error procesando {producto_data.get("codigo", "UNKNOWN")}: {str(e)}',
-                    'codigo': producto_data.get('codigo', 'UNKNOWN')
+                    'codigo': producto_data.get('codigo', 'N/A'),
+                    'error': str(e)
                 })
-                print(f"❌ Error en producto {producto_data.get('codigo', 'UNKNOWN')}: {str(e)}")
-            
-            # SIEMPRE agregar el resultado del producto al array
-            resultados['productos_procesados'].append(producto_resultado)
+                print(f"Error procesando producto {producto_data.get('codigo')}: {e}")
         
-        # Confirmar cambios en la base de datos
+        # Guardar todos los cambios
         db.session.commit()
         
-        print(f"✅ Lote completado: {resultados['nuevos']} nuevos, {resultados['actualizados']} actualizados, {resultados['errores']} errores")
+        print(f"Importación completada: {resultados['nuevos']} nuevos, "
+              f"{resultados['actualizados']} actualizados, {resultados['errores']} errores")
         
         return jsonify({
             'success': True,
-            'message': 'Lote procesado correctamente',
             'nuevos': resultados['nuevos'],
             'actualizados': resultados['actualizados'],
             'errores': resultados['errores'],
-            'detalles_errores': resultados['detalles_errores'],
-            'productos_procesados': resultados['productos_procesados']  # NUEVO: Estados detallados
+            'productos_procesados': resultados['productos_procesados'],
+            'detalles_errores': resultados['detalles_errores']
         })
         
     except Exception as e:
         db.session.rollback()
-        print(f"❌ Error en importación de lote: {str(e)}")
+        print(f"Error general en importar_productos_lote: {e}")
         return jsonify({
             'success': False,
-            'error': f'Error al procesar lote: {str(e)}'
+            'error': f'Error interno del servidor: {str(e)}'
         }), 500
-
+        
+                
 
 def detectar_categoria(descripcion):
     """Detectar categoría básica desde la descripción del producto"""
@@ -4905,6 +5375,12 @@ def reintentar_afip(factura_id):
             'doc_nro': 0
         }
         
+        # Agregar condición IVA del receptor
+        if cliente and cliente.condicion_iva:
+            datos_comprobante['condicion_iva'] = obtener_codigo_condicion_iva(cliente.condicion_iva)
+        else:
+            datos_comprobante['condicion_iva'] = 5  # Consumidor Final
+
         # Agregar datos del cliente si existen
         if cliente and cliente.documento:
             if cliente.tipo_documento == 'CUIT' and len(cliente.documento) == 11:
@@ -5111,7 +5587,7 @@ def obtener_productos_acceso_rapido():
                 'codigo': producto.codigo,
                 'nombre': producto.nombre,
                 'precio': float(producto.precio),
-                'stock': producto.stock,
+                'stock': producto.stock_dinamico,
                 'iva': float(producto.iva),
                 'orden': producto.orden_acceso_rapido
             })
@@ -5197,73 +5673,39 @@ def reporte_ventas_parcial():
 
 @app.route('/api/gastos', methods=['GET'])
 def obtener_gastos():
-    """Obtener gastos filtrados por fechas"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'No autorizado'}), 401
-        
     try:
-        fecha_desde = request.args.get('desde')
-        fecha_hasta = request.args.get('hasta')
+        fecha_desde = request.args.get('fecha_desde')
+        fecha_hasta = request.args.get('fecha_hasta')
         
-        # Validar parámetros
         if not fecha_desde or not fecha_hasta:
-            return jsonify({
-                'success': False,
-                'error': 'Debe proporcionar fecha_desde y fecha_hasta'
-            }), 400
+            return jsonify({'success': False, 'error': 'Fechas requeridas'})
         
-        # Validar formato de fechas
-        try:
-            fecha_desde_dt = datetime.strptime(fecha_desde, '%Y-%m-%d').date()
-            fecha_hasta_dt = datetime.strptime(fecha_hasta, '%Y-%m-%d').date()
-        except ValueError:
-            return jsonify({
-                'success': False,
-                'error': 'Formato de fecha inválido. Use YYYY-MM-DD'
-            }), 400
+        # AGREGA ESTA IMPORTACIÓN
+        from sqlalchemy import text
         
-        print(f"📋 Obteniendo gastos del {fecha_desde} al {fecha_hasta}")
+        query = """
+        SELECT g.*, 
+               c.estado as estado_caja,
+               CASE WHEN c.estado = 'cerrada' THEN 1 ELSE 0 END as caja_cerrada
+        FROM gastos g
+        LEFT JOIN cajas c ON g.caja_id = c.id
+        WHERE DATE(g.fecha) BETWEEN :fecha_desde AND :fecha_hasta
+        ORDER BY g.fecha DESC
+        """
         
-        # Consulta principal
-        gastos = Gasto.query.filter(
-            and_(
-                Gasto.fecha >= fecha_desde_dt,
-                Gasto.fecha <= fecha_hasta_dt,
-                Gasto.activo == True
-            )
-        ).order_by(Gasto.fecha.desc(), Gasto.fecha_creacion.desc()).all()
+        # CAMBIA ESTA PARTE
+        result = db.session.execute(text(query), {'fecha_desde': fecha_desde, 'fecha_hasta': fecha_hasta})
+        gastos = [dict(row._mapping) for row in result]
         
-        # Convertir a lista de diccionarios
-        gastos_list = [gasto.to_dict() for gasto in gastos]
-        
-        # Calcular totales por categoría usando el método del modelo
-        estadisticas = Gasto.calcular_gastos_por_fecha(fecha_desde_dt, fecha_hasta_dt)
-        categorias_dict = estadisticas['gastos_por_categoria'] if estadisticas else {}
-        
-        # Calcular total general
-        total_gastos = sum(gasto['monto'] for gasto in gastos_list)
-        
-        print(f"✅ Gastos obtenidos: {len(gastos_list)} gastos (${total_gastos:.2f})")
-        
+        # El resto de tu código sigue igual
         return jsonify({
             'success': True,
-            'gastos': gastos_list,
-            'categorias': categorias_dict,
-            'resumen': {
-                'total_gastos': total_gastos,
-                'cantidad_gastos': len(gastos_list),
-                'fecha_desde': fecha_desde,
-                'fecha_hasta': fecha_hasta,
-                'promedio_por_gasto': total_gastos / len(gastos_list) if gastos_list else 0
-            }
+            'gastos': gastos
         })
         
     except Exception as e:
-        print(f"❌ Error al obtener gastos: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Error interno del servidor: {str(e)}'
-        }), 500
+        print(f"Error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/gastos', methods=['POST'])
@@ -5320,6 +5762,16 @@ def crear_gasto():
                 'error': 'La descripción no puede exceder 200 caracteres'
             }), 400
         
+        # Obtener caja abierta actual - CORREGIDO
+        caja_abierta_query = db.session.execute(text("""
+            SELECT id FROM cajas 
+            WHERE estado = 'abierta' 
+            ORDER BY fecha_apertura DESC 
+            LIMIT 1
+        """)).fetchone()
+        
+        caja_abierta_id = caja_abierta_query[0] if caja_abierta_query else None
+
         # Crear nuevo gasto
         gasto = Gasto(
             fecha=fecha_obj,
@@ -5328,7 +5780,8 @@ def crear_gasto():
             categoria=categoria,
             metodo_pago=metodo_pago,
             notas=notas if notas else None,
-            usuario_id=session['user_id']
+            usuario_id=session['user_id'],
+            caja_id=caja_abierta_id  # LÍNEA CORREGIDA
         )
         
         db.session.add(gasto)
@@ -5351,41 +5804,70 @@ def crear_gasto():
         }), 500
 
 
-@app.route('/api/gastos/<int:gasto_id>', methods=['DELETE'])
-def eliminar_gasto(gasto_id):
-    """Eliminar un gasto (soft delete)"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'No autorizado'}), 401
-    
+@app.route('/api/gastos/<int:gasto_id>/estado', methods=['GET'])
+def verificar_estado_gasto(gasto_id):
     try:
-        gasto = Gasto.query.get_or_404(gasto_id)
+        # Consultar gasto con información de la caja
+        query = """
+        SELECT g.*, c.estado as estado_caja, c.fecha_cierre 
+        FROM gastos g
+        LEFT JOIN cajas c ON g.caja_id = c.id
+        WHERE g.id = %s
+        """
+        resultado = db.execute(query, (gasto_id,))
         
-        if not gasto.activo:
-            return jsonify({
-                'success': False,
-                'error': 'El gasto ya está eliminado'
-            }), 404
+        if not resultado:
+            return jsonify({'success': False, 'error': 'Gasto no encontrado'})
         
-        # Hacer soft delete
-        gasto.activo = False
-        gasto.fecha_modificacion = datetime.now()
+        gasto = resultado[0]
         
-        db.session.commit()
-        
-        print(f"✅ Gasto eliminado: ID {gasto_id} - {gasto.descripcion}")
-        
-        return jsonify({
+        response = {
             'success': True,
-            'message': 'Gasto eliminado exitosamente'
-        })
+            'caja_cerrada': gasto['estado_caja'] == 'cerrada',
+            'caja_id': gasto['caja_id'],
+            'estado_caja': gasto['estado_caja'],
+            'puede_eliminar': gasto['estado_caja'] != 'cerrada',
+            'monto': gasto['monto'],
+            'fecha': gasto['fecha']
+        }
+        
+        if gasto['estado_caja'] == 'cerrada':
+            response['razon'] = 'El gasto pertenece a una caja cerrada'
+            
+        return jsonify(response)
         
     except Exception as e:
-        db.session.rollback()
-        print(f"❌ Error al eliminar gasto: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Error interno del servidor: {str(e)}'
-        }), 500
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/gastos/<int:gasto_id>', methods=['DELETE'])
+def eliminar_gasto(gasto_id):
+    try:
+        # Verificar estado de la caja ANTES de eliminar
+        query_verificacion = """
+        SELECT g.*, c.estado as estado_caja 
+        FROM gastos g
+        LEFT JOIN cajas c ON g.caja_id = c.id
+        WHERE g.id = %s
+        """
+        gasto = db.execute(query_verificacion, (gasto_id,))
+        
+        if not gasto:
+            return jsonify({'success': False, 'error': 'Gasto no encontrado'}), 404
+            
+        if gasto[0]['estado_caja'] == 'cerrada':
+            return jsonify({
+                'success': False, 
+                'error': 'No se puede eliminar gastos de cajas cerradas'
+            }), 403
+        
+        # Proceder con la eliminación
+        db.execute("DELETE FROM gastos WHERE id = %s", (gasto_id,))
+        
+        return jsonify({'success': True, 'message': 'Gasto eliminado exitosamente'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/gastos/<int:gasto_id>', methods=['PUT'])
@@ -6074,7 +6556,7 @@ def obtener_productos_sin_ofertas():
                 'codigo': producto.codigo,
                 'nombre': producto.nombre,
                 'precio': float(producto.precio),
-                'stock': producto.stock,
+                'stock': producto.stock_dinamico,
                 'categoria': producto.categoria
             })
         
@@ -6287,5 +6769,522 @@ def obtener_descuento_factura(factura_id):
     except Exception as e:
        # print(f"❌ DEBUG API: Error: {e}")
         return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/test_afip_debug')
+def test_afip_debug():
+    """Test público para debug AFIP (sin autenticación)"""
+    try:
+        # CORREGIR LA URL - NO DUPLICAR ?wsdl
+        wsaa_base_url = ARCA_CONFIG.WSAA_URL
+        if wsaa_base_url.endswith('?wsdl'):
+            wsaa_url = wsaa_base_url
+        else:
+            wsaa_url = wsaa_base_url + '?wsdl'
+        
+        print(f"URL corregida: {wsaa_url}")
+        
+        # Crear sesión igual que el diagnóstico
+        session_afip = crear_session_afip()
+        
+        # Hacer petición HTTP directa
+        response = session_afip.get(wsaa_url, timeout=15)
+        
+        print(f"Status Code: {response.status_code}")
+        print(f"Content-Type: {response.headers.get('content-type')}")
+        print(f"Primeros 200 caracteres:")
+        print(response.text[:200])
+        
+        # Verificar tipo de contenido
+        content_lower = response.text.lower()
+        is_html = '<h1>' in content_lower or 'axis service' in content_lower
+        is_xml = '<?xml' in response.text[:100] or 'wsdl:definitions' in response.text[:500]
+        
+        return jsonify({
+            'success': is_xml and not is_html,
+            'status_code': response.status_code,
+            'content_type': response.headers.get('content-type'),
+            'is_html': is_html,
+            'is_xml': is_xml,
+            'content_preview': response.text[:300],
+            'mensaje': 'AFIP devolviendo HTML - Servicio no disponible' if is_html else ('WSDL XML válido' if is_xml else 'Contenido inesperado'),
+            'url_corregida': wsaa_url,
+            'problema_url_duplicada': '?wsdl?wsdl' in wsaa_url
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'config_url': ARCA_CONFIG.WSAA_URL
+        })
+
+
+@app.route('/debug_certificados')
+def debug_certificados():
+    """Debug de certificados - TEMPORAL"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        resultado = arca_client.debug_certificados()
+        
+        return jsonify({
+            'success': resultado,
+            'mensaje': 'Debug completado - revisar logs del servidor'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+###### ruta de debug oara comparar stock
+@app.route('/api/comparar_stocks')
+def comparar_stocks():
+    """Comparar stock actual vs stock dinámico"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Solo combos para comparar
+        combos = Producto.query.filter_by(es_combo=True, activo=True).all()
+        
+        comparaciones = []
+        for combo in combos:
+            comparaciones.append({
+                'codigo': combo.codigo,
+                'nombre': combo.nombre,
+                'stock_actual': float(combo.stock),
+                'stock_dinamico': combo.stock_dinamico,
+                'diferencia': combo.stock_dinamico - float(combo.stock),
+                'necesita_ajuste': combo.stock_dinamico != float(combo.stock)
+            })
+        
+        return jsonify({
+            'success': True,
+            'comparaciones': comparaciones,
+            'combos_con_diferencias': len([c for c in comparaciones if c['necesita_ajuste']])
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/carteles_precios')
+def carteles_precios():
+    """Vista principal para imprimir carteles de precios"""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    return render_template('carteles_precios.html')
+
+@app.route('/api/productos_para_carteles')
+def api_productos_para_carteles():
+    """API para obtener productos con información para carteles"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Obtener parámetros de filtro
+        buscar = request.args.get('buscar', '').strip()
+        categoria = request.args.get('categoria', '').strip()
+        estado = request.args.get('estado', 'activo')
+        ofertas = request.args.get('ofertas', 'todos')
+        
+        # Construir query base
+        query = Producto.query
+        
+        # Aplicar filtros
+        if buscar:
+            query = query.filter(
+                or_(
+                    Producto.codigo.ilike(f'%{buscar}%'),
+                    Producto.nombre.ilike(f'%{buscar}%'),
+                    Producto.descripcion.ilike(f'%{buscar}%')
+                )
+            )
+        
+        if categoria:
+            query = query.filter(Producto.categoria == categoria)
+        
+        if estado == 'activo':
+            query = query.filter(Producto.activo == True)
+        
+        # Filtro de ofertas
+        if ofertas == 'con_ofertas':
+            # Productos con ofertas por volumen O combos
+            query = query.filter(
+                or_(
+                    Producto.es_combo == True,
+                    Producto.id.in_(
+                        db.session.query(OfertaVolumen.producto_id).filter(
+                            OfertaVolumen.activo == True
+                        ).distinct()
+                    )
+                )
+            )
+        elif ofertas == 'sin_ofertas':
+            # Productos SIN ofertas y que NO sean combos
+            query = query.filter(
+                and_(
+                    Producto.es_combo == False,
+                    ~Producto.id.in_(
+                        db.session.query(OfertaVolumen.producto_id).filter(
+                            OfertaVolumen.activo == True
+                        ).distinct()
+                    )
+                )
+            )
+        
+        # Obtener resultados
+        productos = query.order_by(Producto.codigo).all()
+        
+        # Formatear respuesta
+        resultado = []
+        for producto in productos:
+            # Verificar si tiene ofertas
+            tiene_ofertas = producto.tiene_ofertas_volumen()
+            
+            producto_dict = {
+                'id': producto.id,
+                'codigo': producto.codigo,
+                'nombre': producto.nombre,
+                'descripcion': producto.descripcion,
+                'precio': float(producto.precio),
+                'stock_dinamico': producto.stock_dinamico,
+                'categoria': producto.categoria,
+                'activo': producto.activo,
+                'es_combo': producto.es_combo,
+                'tiene_ofertas': tiene_ofertas,
+                'ahorro_combo': producto.calcular_ahorro_combo() if producto.es_combo else 0
+            }
+            
+            resultado.append(producto_dict)
+        
+        return jsonify({
+            'success': True,
+            'productos': resultado,
+            'total': len(resultado)
+        })
+        
+    except Exception as e:
+        print(f"Error en productos_para_carteles: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/imprimir_carteles', methods=['POST'])
+def imprimir_carteles():
+    """Imprimir carteles de precios en impresora térmica"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        data = request.json
+        productos_ids = data.get('productos_ids', [])
+        
+        if not productos_ids:
+            return jsonify({
+                'success': False,
+                'error': 'No se especificaron productos'
+            }), 400
+        
+        # Obtener productos
+        productos = Producto.query.filter(Producto.id.in_(productos_ids)).all()
+        
+        if not productos:
+            return jsonify({
+                'success': False,
+                'error': 'No se encontraron productos'
+            }), 400
+        
+        # Generar e imprimir carteles
+        carteles_impresos = 0
+        
+        for producto in productos:
+            try:
+                # Verificar si tiene ofertas
+                tiene_ofertas = producto.tiene_ofertas_volumen() or producto.es_combo
+                
+                # Generar cartel
+                resultado = impresora_termica.imprimir_cartel_precio(producto, tiene_ofertas)
+                
+                if resultado:
+                    carteles_impresos += 1
+                    print(f"Cartel impreso: {producto.codigo} - {producto.nombre}")
+                else:
+                    print(f"Error imprimiendo cartel: {producto.codigo}")
+                    
+            except Exception as e:
+                print(f"Error imprimiendo producto {producto.codigo}: {e}")
+        
+        return jsonify({
+            'success': True,
+            'carteles_impresos': carteles_impresos,
+            'total_solicitados': len(productos),
+            'mensaje': f'Se imprimieron {carteles_impresos} de {len(productos)} carteles solicitados'
+        })
+        
+    except Exception as e:
+        print(f"Error en imprimir_carteles: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# Agregar esta función temporal en app.py para debug
+@app.route('/debug_certificado_detallado')
+def debug_certificado_detallado():
+    """Debug detallado del certificado"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        import os
+        from datetime import datetime
+        
+        resultado = {
+            'timestamp': datetime.now().isoformat(),
+            'certificado': {},
+            'clave_privada': {},
+            'configuracion': {}
+        }
+        
+        # Verificar archivos
+        cert_path = ARCA_CONFIG.CERT_PATH
+        key_path = ARCA_CONFIG.KEY_PATH
+        
+        resultado['configuracion'] = {
+            'cert_path': cert_path,
+            'key_path': key_path,
+            'cert_existe': os.path.exists(cert_path),
+            'key_existe': os.path.exists(key_path),
+            'ambiente': 'HOMOLOGACION' if ARCA_CONFIG.USE_HOMOLOGACION else 'PRODUCCION',
+            'cuit': ARCA_CONFIG.CUIT,
+            'punto_venta': ARCA_CONFIG.PUNTO_VENTA
+        }
+        
+        # Analizar certificado
+        if os.path.exists(cert_path):
+            with open(cert_path, 'rb') as f:
+                cert_content = f.read()
+            
+            resultado['certificado'] = {
+                'tamaño': len(cert_content),
+                'formato': 'PEM' if b'-----BEGIN CERTIFICATE-----' in cert_content else 'DER',
+                'primeros_100_chars': cert_content[:100].decode('utf-8', errors='ignore'),
+                'contiene_begin_cert': b'-----BEGIN CERTIFICATE-----' in cert_content,
+                'contiene_end_cert': b'-----END CERTIFICATE-----' in cert_content
+            }
+        
+        # Analizar clave privada
+        if os.path.exists(key_path):
+            with open(key_path, 'rb') as f:
+                key_content = f.read()
+            
+            resultado['clave_privada'] = {
+                'tamaño': len(key_content),
+                'formato': 'PEM' if b'-----BEGIN' in key_content else 'DER',
+                'primeros_50_chars': key_content[:50].decode('utf-8', errors='ignore'),
+                'contiene_begin_private': b'-----BEGIN PRIVATE KEY-----' in key_content,
+                'contiene_begin_rsa': b'-----BEGIN RSA PRIVATE KEY-----' in key_content
+            }
+        
+        return jsonify(resultado)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/verificar_coincidencia_certificado')
+def verificar_coincidencia_certificado():
+    """Verificar que el certificado y clave privada coincidan"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        import subprocess
+        import tempfile
+        
+        # Obtener hash del certificado
+        cmd_cert = [
+            arca_client.openssl_path, 'x509', '-noout', '-modulus', 
+            '-in', ARCA_CONFIG.CERT_PATH
+        ]
+        result_cert = subprocess.run(cmd_cert, capture_output=True, text=True)
+        
+        if result_cert.returncode != 0:
+            return jsonify({
+                'error': f'Error verificando certificado: {result_cert.stderr}'
+            })
+        
+        # Obtener hash de la clave privada
+        cmd_key = [
+            arca_client.openssl_path, 'rsa', '-noout', '-modulus',
+            '-in', ARCA_CONFIG.KEY_PATH
+        ]
+        result_key = subprocess.run(cmd_key, capture_output=True, text=True)
+        
+        if result_key.returncode != 0:
+            return jsonify({
+                'error': f'Error verificando clave privada: {result_key.stderr}'
+            })
+        
+        # Comparar hashes
+        cert_modulus = result_cert.stdout.strip()
+        key_modulus = result_key.stdout.strip()
+        
+        coinciden = cert_modulus == key_modulus
+        
+        return jsonify({
+            'success': True,
+            'certificado_y_clave_coinciden': coinciden,
+            'cert_modulus': cert_modulus[:100] + '...' if len(cert_modulus) > 100 else cert_modulus,
+            'key_modulus': key_modulus[:100] + '...' if len(key_modulus) > 100 else key_modulus,
+            'mensaje': 'Certificado y clave privada coinciden correctamente' if coinciden else 'ERROR: El certificado y la clave privada NO coinciden'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error en verificación: {str(e)}'})
+@app.route('/verificar_config_afip')
+def verificar_config_afip():
+    """Verificar configuración específica del certificado"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        import subprocess
+        
+        # Extraer información del certificado
+        cmd = [
+            arca_client.openssl_path, 'x509', '-in', ARCA_CONFIG.CERT_PATH, 
+            '-noout', '-subject', '-issuer', '-dates'
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            return jsonify({'error': f'Error leyendo certificado: {result.stderr}'})
+        
+        cert_info = result.stdout
+        
+        # Extraer CN (Common Name) que debería contener el CUIT
+        import re
+        cn_match = re.search(r'CN\s*=\s*([^,]+)', cert_info)
+        cn = cn_match.group(1) if cn_match else 'No encontrado'
+        
+        # Verificar si es certificado de homologación o producción
+        is_homo = 'HOMO' in cert_info.upper() or 'TEST' in cert_info.upper()
+        
+        return jsonify({
+            'success': True,
+            'certificado_info': cert_info,
+            'common_name': cn,
+            'es_homologacion': is_homo,
+            'cuit_configurado': ARCA_CONFIG.CUIT,
+            'ambiente_configurado': 'HOMOLOGACION' if ARCA_CONFIG.USE_HOMOLOGACION else 'PRODUCCION',
+            'coincide_ambiente': is_homo == ARCA_CONFIG.USE_HOMOLOGACION,
+            'punto_venta': ARCA_CONFIG.PUNTO_VENTA
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error verificando configuración: {str(e)}'})
+
+
+@app.route('/probar_puntos_venta')
+def probar_puntos_venta():
+    """Probar qué puntos de venta están disponibles"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        resultados = []
+        
+        # Probar puntos de venta del 1 al 5
+        for punto in range(1, 6):
+            try:
+                print(f"Probando punto de venta: {punto}")
+                
+                # Obtener ticket de acceso
+                if not arca_client.get_ticket_access():
+                    resultados.append({
+                        'punto_venta': punto,
+                        'disponible': False,
+                        'error': 'No se pudo obtener ticket de acceso'
+                    })
+                    continue
+                
+                # Crear cliente temporal con el punto de venta
+                from zeep import Client
+                from zeep.transports import Transport
+                
+                session_afip = crear_session_afip()
+                transport = Transport(session=session_afip, timeout=30)
+                client = Client(ARCA_CONFIG.WSFEv1_URL, transport=transport)
+                
+                # Probar FECompUltimoAutorizado con este punto
+                response = client.service.FECompUltimoAutorizado(
+                    Auth={
+                        'Token': arca_client.token,
+                        'Sign': arca_client.sign,
+                        'Cuit': ARCA_CONFIG.CUIT
+                    },
+                    PtoVta=punto,
+                    CbteTipo=6  # Factura B
+                )
+                
+                # Verificar errores
+                if hasattr(response, 'Errors') and response.Errors:
+                    errores = []
+                    if hasattr(response.Errors, 'Err'):
+                        errors = response.Errors.Err
+                        if isinstance(errors, list):
+                            for error in errors:
+                                errores.append(f"[{error.Code}] {error.Msg}")
+                        else:
+                            errores.append(f"[{errors.Code}] {errors.Msg}")
+                    
+                    resultados.append({
+                        'punto_venta': punto,
+                        'disponible': False,
+                        'errores': errores
+                    })
+                else:
+                    ultimo_num = getattr(response, 'CbteNro', 0)
+                    resultados.append({
+                        'punto_venta': punto,
+                        'disponible': True,
+                        'ultimo_comprobante': ultimo_num,
+                        'proximo_numero': ultimo_num + 1
+                    })
+                
+            except Exception as e:
+                resultados.append({
+                    'punto_venta': punto,
+                    'disponible': False,
+                    'error': str(e)
+                })
+        
+        return jsonify({
+            'success': True,
+            'cuit': ARCA_CONFIG.CUIT,
+            'ambiente': 'HOMOLOGACION',
+            'resultados': resultados,
+            'puntos_disponibles': [r for r in resultados if r.get('disponible', False)]
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+
+
+
+
+
 
 app.run(debug=True, host='0.0.0.0', port=5080)

@@ -1,0 +1,554 @@
+<!-- templates/facturas.html -->
+{% extends "base.html" %}
+
+{% block title %}Facturas - POS Argentina{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-file-invoice"></i> Gestión de Facturas</h1>
+    <a href="{{ url_for('nueva_venta') }}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Nueva Venta
+    </a>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <label class="form-label">Número de factura</label>
+                <input type="text" class="form-control" id="filtroNumero" placeholder="0001-00000001">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Cliente</label>
+                <input type="text" class="form-control" id="filtroCliente" placeholder="Nombre del cliente">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Estado</label>
+                <select class="form-select" id="filtroEstado">
+                    <option value="">Todos</option>
+                    <option value="autorizada">Autorizada</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="error_afip">Error AFIP</option>
+                    <option value="anulada">Anulada</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Fecha desde</label>
+                <input type="date" class="form-control" id="fechaDesde">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Fecha hasta</label>
+                <input type="date" class="form-control" id="fechaHasta">
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-12 text-end">
+                <button class="btn btn-secondary" onclick="limpiarFiltrosFacturas()">
+                    <i class="fas fa-eraser"></i> Limpiar
+                </button>
+                <button class="btn btn-primary" onclick="aplicarFiltros()">
+                    <i class="fas fa-search"></i> Buscar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de facturas -->
+<div class="card">
+    <div class="card-header">
+        <h5><i class="fas fa-list"></i> Listado de Facturas</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Número</th>
+                        <th>Fecha</th>
+                        <th>Cliente</th>
+                        <th>Tipo</th>
+                        <th>Total</th>
+                        <th>Estado</th>
+                        <th>CAE</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for factura in facturas %}
+                    <tr>
+                        <td><code>{{ factura.numero }}</code></td>
+                        <td>{{ factura.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ factura.cliente.nombre }}</td>
+                        <td>
+                            {% if factura.tipo_comprobante == '01' %}
+                                <span class="badge bg-primary">Factura A</span>
+                            {% elif factura.tipo_comprobante == '06' %}
+                                <span class="badge bg-info">Factura B</span>
+                            {% elif factura.tipo_comprobante == '11' %}
+                                <span class="badge bg-secondary">Factura C</span>
+                            {% else %}
+                                <span class="badge bg-dark">{{ factura.tipo_comprobante }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <strong>${{ "%.2f"|format(factura.total) }}</strong>
+                        </td>
+                        <td>
+                            {% if factura.estado == 'autorizada' %}
+                                <span class="badge bg-success">Autorizada</span>
+                            {% elif factura.estado == 'error_afip' %}
+                                <span class="badge bg-warning text-dark">Error AFIP</span>
+                            {% elif factura.estado == 'anulada' %}
+                                <span class="badge bg-danger">Anulada</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ factura.estado.title() }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if factura.cae %}
+                                <small><code>{{ factura.cae }}</code></small>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('ver_factura', factura_id=factura.id) }}" class="btn btn-info" title="Ver Detalle">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <button class="btn btn-secondary" onclick="imprimirFactura({{ factura.id }})" title="Imprimir">
+                                    <i class="fas fa-print"></i>
+                                </button>
+                                {% if factura.estado == 'pendiente' %}
+                                <button class="btn btn-warning" onclick="reintentarAFIP({{ factura.id }})" title="Reintentar AFIP">
+                                    <i class="fas fa-redo"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+
+// REEMPLAZAR todo el script en facturas.html con esto:
+
+<script>
+// Variables globales
+let facturasActuales = [];
+
+// ===== FUNCIONES DE FILTRADO =====
+
+function aplicarFiltros() {
+    const numero = document.getElementById('filtroNumero').value.trim();
+    const cliente = document.getElementById('filtroCliente').value.trim();
+    const estado = document.getElementById('filtroEstado').value;
+    const fechaDesde = document.getElementById('fechaDesde').value;
+    const fechaHasta = document.getElementById('fechaHasta').value;
+    
+    console.log('🔍 Aplicando filtros de facturas:');
+    console.log('   Número:', numero);
+    console.log('   Cliente:', cliente);
+    console.log('   Estado:', estado);
+    console.log('   Fecha desde:', fechaDesde);
+    console.log('   Fecha hasta:', fechaHasta);
+    
+    // Construir URL con parámetros
+    const params = new URLSearchParams();
+    if (numero) params.append('numero', numero);
+    if (cliente) params.append('cliente', cliente);
+    if (estado) params.append('estado', estado);
+    if (fechaDesde) params.append('fecha_desde', fechaDesde);
+    if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+    params.append('limite', '200'); // Límite de resultados
+    
+    console.log('📤 URL de búsqueda:', `/api/buscar_facturas?${params.toString()}`);
+    
+    // Mostrar indicador de carga
+    mostrarCargandoFacturas();
+    
+    fetch(`/api/buscar_facturas?${params.toString()}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('📥 Respuesta recibida:', data);
+            
+            if (data.success) {
+                facturasActuales = data.facturas;
+                actualizarTablaFacturas(data.facturas);
+                
+                // Mostrar mensaje si se aplicó límite
+                if (data.limite_aplicado) {
+                    mostrarMensajeLimite();
+                }
+                
+                console.log(`✅ Filtros aplicados: ${data.total} facturas encontradas`);
+            } else {
+                console.error('❌ Error en respuesta:', data.error);
+                mostrarErrorTabla('Error en la búsqueda: ' + (data.error || 'Error desconocido'));
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error de conexión:', error);
+            mostrarErrorTabla('Error de conexión: ' + error.message);
+        });
+}
+
+function limpiarFiltrosFacturas() {
+    console.log('🧹 Limpiando filtros de facturas');
+    
+    document.getElementById('filtroNumero').value = '';
+    document.getElementById('filtroCliente').value = '';
+    document.getElementById('filtroEstado').value = '';
+    document.getElementById('fechaDesde').value = '';
+    document.getElementById('fechaHasta').value = '';
+    
+    // Cargar todas las facturas (sin filtros)
+    aplicarFiltros();
+}
+
+function mostrarCargandoFacturas() {
+    const tbody = document.querySelector('table tbody');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="8" class="text-center py-4">
+                <i class="fas fa-spinner fa-spin fa-2x"></i><br>
+                <span class="text-muted">Buscando facturas...</span>
+            </td>
+        </tr>
+    `;
+}
+
+function mostrarErrorTabla(mensaje) {
+    const tbody = document.querySelector('table tbody');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="8" class="text-center text-danger py-4">
+                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i><br>
+                ${mensaje}
+            </td>
+        </tr>
+    `;
+}
+
+function mostrarMensajeLimite() {
+    // Agregar mensaje sobre el límite de resultados
+    const cardBody = document.querySelector('.card-body');
+    const existeMensaje = document.getElementById('mensajeLimite');
+    
+    if (!existeMensaje) {
+        const alerta = document.createElement('div');
+        alerta.id = 'mensajeLimite';
+        alerta.className = 'alert alert-warning alert-dismissible fade show mt-2';
+        alerta.innerHTML = `
+            <i class="fas fa-info-circle"></i> 
+            <strong>Límite alcanzado:</strong> Se muestran solo las primeras 200 facturas. 
+            Use filtros más específicos para refinar la búsqueda.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        cardBody.insertBefore(alerta, cardBody.querySelector('.table-responsive'));
+    }
+}
+
+function actualizarTablaFacturas(facturas) {
+    const tbody = document.querySelector('table tbody');
+    
+    console.log(`Actualizando tabla con ${facturas.length} facturas`);
+    
+    if (facturas.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center text-muted py-4">
+                    <i class="fas fa-search fa-2x mb-2"></i><br>
+                    No se encontraron facturas con los criterios especificados
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = facturas.map(factura => {
+        // Badge del tipo de comprobante
+        const tipoBadge = obtenerBadgeTipo(factura.tipo_comprobante);
+        
+        // Badge del estado
+        const estadoBadge = obtenerBadgeEstado(factura.estado);
+        
+        // CAE
+        const caeHtml = factura.cae ? 
+            `<small><code>${factura.cae}</code></small>` : 
+            '<span class="text-muted">-</span>';
+        
+        // ✅ MOSTRAR TOTAL CON DESCUENTO SI EXISTE
+        let totalHtml = `<strong>$${factura.total.toFixed(2)}</strong>`;
+        
+        if (factura.tiene_descuento) {
+            totalHtml = `
+                <strong class="text-success">$${factura.total.toFixed(2)}</strong>
+                <br><small class="text-success">
+                    <i class="fas fa-tag"></i> Desc. ${factura.descuento_porcentaje.toFixed(1)}% 
+                    (-$${factura.descuento_monto.toFixed(2)})
+                </small>
+                <br><small class="text-muted">Orig: $${factura.total_original.toFixed(2)}</small>
+            `;
+        } else {
+            totalHtml += `
+                <br><small class="text-muted">Subtotal: $${factura.subtotal.toFixed(2)}</small>
+                <br><small class="text-muted">IVA: $${factura.iva.toFixed(2)}</small>
+            `;
+        }
+        
+        // Botones de acción
+        const botones = generarBotonesAccion(factura);
+        
+        return `
+            <tr>
+                <td><code>${factura.numero}</code></td>
+                <td>
+                    ${factura.fecha}
+                    <br><small class="text-muted">por ${factura.usuario}</small>
+                </td>
+                <td>
+                    <strong>${factura.cliente.nombre}</strong>
+                    ${factura.cliente.documento ? 
+                        `<br><small class="text-muted">${factura.cliente.tipo_documento}: ${factura.cliente.documento}</small>` : 
+                        ''
+                    }
+                </td>
+                <td>${tipoBadge}</td>
+                <td class="text-end">
+                    ${totalHtml}
+                </td>
+                <td>${estadoBadge}</td>
+                <td>${caeHtml}</td>
+                <td>${botones}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    console.log('Tabla de facturas actualizada correctamente');
+}
+
+function obtenerBadgeTipo(tipo) {
+    // Asegurar que el tipo sea string y tenga el formato correcto
+    const tipoStr = String(tipo).padStart(2, '0');
+    const tipos = {
+        '01': '<span class="badge bg-primary">Factura A</span>',
+        '06': '<span class="badge bg-info">Factura B</span>',
+        '11': '<span class="badge bg-secondary">Factura C</span>',
+        '51': '<span class="badge bg-warning text-dark">Factura M</span>',
+         // También mapear los valores sin ceros por si acaso
+        '1': '<span class="badge bg-primary">Factura A</span>',
+        '6': '<span class="badge bg-info">Factura B</span>',
+        '11': '<span class="badge bg-secondary">Factura C</span>',
+        '51': '<span class="badge bg-warning text-dark">Factura M</span>'
+    };
+    return tipos[tipo] || `<span class="badge bg-dark">Tipo ${tipo}</span>`;
+}
+
+function obtenerBadgeEstado(estado) {
+    const estados = {
+        'autorizada': '<span class="badge bg-success">Autorizada</span>',
+        'error_afip': '<span class="badge bg-warning text-dark">Error AFIP</span>',
+        'anulada': '<span class="badge bg-danger">Anulada</span>',
+        'pendiente': '<span class="badge bg-secondary">Pendiente</span>'
+    };
+    return estados[estado] || `<span class="badge bg-light text-dark">${estado.charAt(0).toUpperCase() + estado.slice(1)}</span>`;
+}
+
+function generarBotonesAccion(factura) {
+    let botones = `
+        <div class="btn-group btn-group-sm">
+            <a href="/factura/${factura.id}" class="btn btn-info" title="Ver Detalle">
+                <i class="fas fa-eye"></i>
+            </a>
+            <button class="btn btn-secondary" onclick="imprimirFactura(${factura.id})" title="Imprimir">
+                <i class="fas fa-print"></i>
+            </button>
+            <button class="btn btn-success" onclick="reimprimirTermica(${factura.id})" title="Reimprimir Ticket Térmico">
+                <i class="fas fa-receipt"></i>
+            </button>
+    `;
+    
+    // Botón de reintentar AFIP solo para pendientes o error
+    if (factura.estado === 'pendiente' || factura.estado === 'error_afip') {
+        botones += `
+            <button class="btn btn-warning" onclick="reintentarAFIP(${factura.id})" title="Reintentar AFIP">
+                <i class="fas fa-redo"></i>
+            </button>
+        `;
+    }
+    
+    // Botón de anular solo para autorizadas
+    if (factura.estado === 'autorizada') {
+        botones += `
+            <button class="btn btn-outline-danger" onclick="anularFactura(${factura.id})" title="Anular Factura">
+                <i class="fas fa-ban"></i>
+            </button>
+        `;
+    }
+    
+    botones += '</div>';
+    return botones;
+}
+// ===== FUNCIONES DE ACCIÓN =====
+
+function imprimirFactura(facturaId) {
+    console.log(`🖨️ Imprimiendo factura ID: ${facturaId}`);
+    
+    // Abrir en nueva ventana para imprimir
+    window.open(`/factura/${facturaId}`, '_blank');
+}
+
+function reintentarAFIP(facturaId) {
+    console.log(`🔄 Reintentando AFIP para factura ID: ${facturaId}`);
+    
+    if (confirm('¿Reintentar autorización en AFIP?\n\nEsto intentará obtener un nuevo CAE para la factura.')) {
+        
+        const boton = event.target.closest('button');
+        const textoOriginal = boton.innerHTML;
+        boton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        boton.disabled = true;
+        
+        fetch(`/api/reintentar_afip/${facturaId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`✅ ${data.message}\n\nCAE: ${data.cae}`);
+                
+                // Recargar la tabla para mostrar el nuevo estado
+                aplicarFiltros();
+            } else {
+                alert(`❌ ${data.error}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('❌ Error de conexión al reintentar AFIP');
+        })
+        .finally(() => {
+            boton.innerHTML = textoOriginal;
+            boton.disabled = false;
+        });
+    }
+}
+
+function anularFactura(facturaId) {
+    console.log(`❌ Anulando factura ID: ${facturaId}`);
+    
+    const motivo = prompt('Ingrese el motivo de anulación:');
+    
+    if (motivo !== null && motivo.trim()) {
+        if (confirm(`¿Está seguro de anular esta factura?\n\nMotivo: ${motivo}\n\n⚠️ Esta acción no se puede deshacer.`)) {
+            
+            fetch(`/api/anular_factura/${facturaId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    motivo: motivo.trim()
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✅ ${data.message}`);
+                    
+                    // Recargar la tabla para mostrar el nuevo estado
+                    aplicarFiltros();
+                } else {
+                    alert(`❌ ${data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Error de conexión al anular factura');
+            });
+        }
+    } else if (motivo !== null) {
+        alert('Debe ingresar un motivo para anular la factura');
+    }
+}
+
+
+function reimprimirTermica(facturaId) {
+    const boton = event.target.closest('button');
+    const textoOriginal = boton.innerHTML;
+    boton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    boton.disabled = true;
+    
+    fetch(`/imprimir_factura/${facturaId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Factura reimpresa correctamente');
+            } else {
+                alert('Error al reimprimir: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error de conexión: ' + error.message);
+        })
+        .finally(() => {
+            boton.innerHTML = textoOriginal;
+            boton.disabled = false;
+        });
+}
+
+
+// ===== INICIALIZACIÓN =====
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Inicializando página de facturas...');
+    
+    // Cargar facturas iniciales (sin filtros)
+    aplicarFiltros();
+    
+    // Búsqueda en tiempo real para número y cliente
+    const inputNumero = document.getElementById('filtroNumero');
+    const inputCliente = document.getElementById('filtroCliente');
+    let timeoutBusqueda;
+    
+    [inputNumero, inputCliente].forEach(input => {
+        input.addEventListener('input', function() {
+            clearTimeout(timeoutBusqueda);
+            timeoutBusqueda = setTimeout(() => {
+                console.log('🔍 Búsqueda en tiempo real activada');
+                aplicarFiltros();
+            }, 800); // Delay más largo para facturas
+        });
+    });
+    
+    // Aplicar filtros cuando cambien los selects y fechas
+    document.getElementById('filtroEstado').addEventListener('change', aplicarFiltros);
+    document.getElementById('fechaDesde').addEventListener('change', aplicarFiltros);
+    document.getElementById('fechaHasta').addEventListener('change', aplicarFiltros);
+    
+    // Configurar fecha máxima como hoy
+    const hoy = new Date().toISOString().split('T')[0];
+    document.getElementById('fechaDesde').max = hoy;
+    document.getElementById('fechaHasta').max = hoy;
+    
+    console.log('✅ Página de facturas inicializada correctamente');
+});
+</script>
+
+{% endblock %}

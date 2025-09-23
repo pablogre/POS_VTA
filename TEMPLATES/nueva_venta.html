@@ -1,7 +1,7 @@
 <!-- templates/nueva_venta.html - VERSIÓN CON IMPRESIÓN TÉRMICA -->
 {% extends "base.html" %}
 
-{% block title %}Nueva Venta - POS Argentina{% endblock %}
+{% block title %}Nueva Venta - FactuFacil{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -669,46 +669,53 @@ function cargarOfertasProducto(productoId) {
 }
 
 // Función mejorada para obtener precio con ofertas
+// Función mejorada para obtener precio con ofertas (SIN IVA)
+// Función mejorada para obtener precio con ofertas (SIN IVA) - VERSIÓN CORREGIDA
 function obtenerPrecioConOferta(productoId, cantidad) {
     const datosProducto = productosConOfertas[productoId];
     
     if (!datosProducto || !datosProducto.ofertas || datosProducto.ofertas.length === 0) {
-        // Fallback a API si no hay ofertas en cache
-        fetch(`/api/producto_precio_oferta/${productoId}/${cantidad}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.precio_final !== data.precio_base) {
-                    const item = itemsVenta.find(i => i.producto_id === productoId);
-                    if (item) {
-                        item.precio_unitario = data.precio_final;
-                        item.subtotal = item.cantidad * item.precio_unitario;
-                        actualizarTablaVenta();
-                        calcularTotales();
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Error consultando ofertas:', error);
-            });
-        
+        // Si no hay ofertas en cache, usar precio base del producto original
         const item = itemsVenta.find(i => i.producto_id === productoId);
-        return item ? (item.precio_base || item.precio_unitario) : 0;
+        
+        if (item && item.precio_unitario && !isNaN(item.precio_unitario)) {
+            // Ya tenemos el precio sin IVA
+            return item.precio_unitario;
+        }
+        
+        // Fallback: buscar el producto en la respuesta original
+        if (productoSeleccionado && productoSeleccionado.id === productoId) {
+            const precioConIva = productoSeleccionado.precio;
+            const ivaDecimal = productoSeleccionado.iva / 100;
+            return precioConIva / (1 + ivaDecimal);
+        }
+        
+        // Último fallback: hacer una llamada API síncrona (no recomendado pero funcional)
+        console.warn(`No hay precio disponible para producto ${productoId}, usando fallback`);
+        return 0;
     }
     
-    const precioBase = datosProducto.producto.precio_base || datosProducto.producto.precio;
-    let mejorPrecio = precioBase;
+    // Obtener precio base CON IVA desde las ofertas
+    const precioBaseConIva = datosProducto.producto.precio_base || datosProducto.producto.precio;
+    let mejorPrecioConIva = precioBaseConIva;
     
-    // Buscar la mejor oferta aplicable (ordenada por cantidad mínima descendente)
+    // Buscar la mejor oferta aplicable
     const ofertasAplicables = datosProducto.ofertas
         .filter(oferta => oferta.activo && cantidad >= oferta.cantidad_minima)
         .sort((a, b) => b.cantidad_minima - a.cantidad_minima);
     
     if (ofertasAplicables.length > 0) {
-        mejorPrecio = ofertasAplicables[0].precio_oferta;
+        mejorPrecioConIva = ofertasAplicables[0].precio_oferta;
     }
     
-    return mejorPrecio;
+    // CONVERTIR: precio con IVA → precio sin IVA
+    const item = itemsVenta.find(i => i.producto_id === productoId);
+    const ivaDecimal = item ? item.iva / 100 : (datosProducto.producto.iva || 21) / 100;
+    const precioSinIva = mejorPrecioConIva / (1 + ivaDecimal);
+    
+    return precioSinIva;
 }
+
 
 function forzarCargaOfertas(productoId) {
     console.log(`🔄 Forzando carga de ofertas para producto ${productoId}...`);
@@ -791,20 +798,30 @@ function agregarProductoSeleccionado(producto, cantidad) {
 function procesarAgregarProducto(producto, cantidad) {
     // Verificar si el producto ya está en la venta
     const existente = itemsVenta.find(item => item.producto_id === producto.id);
+    
     if (existente) {
         // Actualizar cantidad
         existente.cantidad += cantidad;
         
-        // Recalcular precio con ofertas
+        // Obtener precio SIN IVA
         const nuevoPrecio = obtenerPrecioConOferta(producto.id, existente.cantidad);
-        existente.precio_unitario = nuevoPrecio;
+        
+        // Validar que el precio no sea NaN
+        if (!isNaN(nuevoPrecio) && nuevoPrecio > 0) {
+            existente.precio_unitario = nuevoPrecio;
+        }
+        
         existente.subtotal = existente.cantidad * existente.precio_unitario;
         
-        console.log(`📦 Cantidad actualizada: ${existente.cantidad} x ${producto.codigo} = $${nuevoPrecio}`);
+        console.log(`📦 Cantidad actualizada: ${existente.cantidad} x ${producto.codigo}`);
         mostrarMensajeExito(`Cantidad aumentada: ${existente.cantidad} unidades de ${producto.nombre}`);
     } else {
-        // Obtener precio con ofertas desde el inicio
-        const precioFinal = obtenerPrecioConOferta(producto.id, cantidad);
+        // CALCULAR precio sin IVA desde el precio con IVA del producto
+        const precioConIva = producto.precio;
+        const ivaDecimal = producto.iva / 100;
+        const precioSinIva = precioConIva / (1 + ivaDecimal);
+        
+        console.log(`💰 Conversión inicial: $${precioConIva} (con IVA) → $${precioSinIva.toFixed(2)} (sin IVA)`);
         
         const item = {
             id: contadorItems++,
@@ -812,18 +829,27 @@ function procesarAgregarProducto(producto, cantidad) {
             codigo: producto.codigo,
             nombre: producto.nombre,
             cantidad: parseFloat(cantidad.toFixed(3)),
-            precio_unitario: precioFinal,
-            precio_base: producto.precio, // Guardar precio base para referencia
-            subtotal: parseFloat(cantidad.toFixed(3)) * precioFinal,
+            precio_unitario: precioSinIva, // SIN IVA calculado desde el producto
+            precio_base: precioSinIva,
+            subtotal: parseFloat(cantidad.toFixed(3)) * precioSinIva,
             iva: producto.iva
         };
+        
         itemsVenta.push(item);
 
-        // Forzar cálculo inicial
-        actualizarCantidad(item.id, item.cantidad.toString());
-
-        console.log(`✅ Producto agregado: ${cantidad} x ${producto.codigo} = $${precioFinal} (base: $${producto.precio})`);
+        console.log(`✅ Producto agregado: ${cantidad} x ${producto.codigo}`);
+        console.log(`💰 Precio sin IVA: $${precioSinIva.toFixed(2)}`);
         mostrarMensajeExito(`Producto agregado: ${cantidad} x ${producto.nombre}`);
+        
+        // DESPUÉS de agregar, verificar si hay ofertas y actualizar precio si es necesario
+        if (producto.tiene_ofertas || productosConOfertas[producto.id]) {
+            const precioConOferta = obtenerPrecioConOferta(producto.id, cantidad);
+            if (!isNaN(precioConOferta) && precioConOferta > 0 && precioConOferta !== precioSinIva) {
+                item.precio_unitario = precioConOferta;
+                item.subtotal = item.cantidad * item.precio_unitario;
+                console.log(`🏷️ Precio actualizado con oferta: $${precioConOferta.toFixed(2)}`);
+            }
+        }
     }
     
     actualizarTablaVenta();
@@ -834,6 +860,17 @@ function procesarAgregarProducto(producto, cantidad) {
     document.getElementById('buscar_producto').focus();
     productoSeleccionado = null;
 }
+
+
+// Función auxiliar para validar precios
+function validarPrecio(precio, contexto = '') {
+    if (isNaN(precio) || precio <= 0) {
+        console.error(`❌ Precio inválido en ${contexto}: ${precio}`);
+        return false;
+    }
+    return true;
+}
+
 
 // NUEVA función auxiliar que decide el precio
 function obtenerPrecioFinal(producto, cantidad) {
@@ -931,16 +968,20 @@ function actualizarTablaVenta() {
         // Asegurar que el subtotal esté calculado
         item.subtotal = item.cantidad * item.precio_unitario;
         
+        // CONVERTIR: precio sin IVA → precio con IVA para mostrar
+        const ivaDecimal = item.iva / 100;
+        const precio_con_iva = item.precio_unitario * (1 + ivaDecimal);
+        
         // Verificar si tiene oferta activa
         const datosProducto = productosConOfertas[item.producto_id];
         let indicadorOferta = '';
         let clasePrecio = '';
         
         if (datosProducto && datosProducto.ofertas.length > 0) {
-            const precioBase = item.precio_base || datosProducto.producto.precio_base || datosProducto.producto.precio;
+            const precioBaseConIva = datosProducto.producto.precio_base || datosProducto.producto.precio;
             
-            if (item.precio_unitario < precioBase) {
-                const descuento = ((precioBase - item.precio_unitario) / precioBase) * 100;
+            if (precio_con_iva < precioBaseConIva) {
+                const descuento = ((precioBaseConIva - precio_con_iva) / precioBaseConIva) * 100;
                 indicadorOferta = `<br><small class="text-success">🏷️ Oferta activa (-${descuento.toFixed(1)}%)</small>`;
                 clasePrecio = 'text-success fw-bold';
             }
@@ -954,14 +995,16 @@ function actualizarTablaVenta() {
                 ${indicadorOferta}
             </td>
             <td>
-                <input type="number" class="form-control" value="${item.cantidad.toFixed(3)}"
-                       <input type="number" class="form-control cantidad-input" value="${item.cantidad.toFixed(3)}"
+                <input type="number" class="form-control cantidad-input" value="${item.cantidad.toFixed(3)}"
                        min="0.001" step="0.001"
                        onblur="actualizarCantidad(${item.id}, this.value)"
                        onkeypress="manejarEnterCantidad(event, ${item.id})"
                        style="width: 100px;">
             </td>
-            <td class="text-end ${clasePrecio}">$${item.precio_unitario.toFixed(2)}</td>
+            <td class="text-end ${clasePrecio}">
+                $${precio_con_iva.toFixed(2)}<br>
+                <small class="text-muted">(Sin IVA: $${item.precio_unitario.toFixed(2)})</small>
+            </td>
             <td class="text-end"><strong>$${item.subtotal.toFixed(2)}</strong></td>
             <td>
                 <button type="button" class="btn btn-danger btn-sm" onclick="eliminarItem(${item.id})">
@@ -972,6 +1015,7 @@ function actualizarTablaVenta() {
         `;
     }).join('');
 }
+
 
 
 function manejarEnterCantidad(event, itemId) {
@@ -1008,17 +1052,16 @@ function actualizarCantidad(itemId, nuevaCantidadStr) {
     // Convertir a número y asegurar mínimo 0.001
     let nuevaCantidad = parseFloat(nuevaCantidadStr);
     
-    // Si no es un número válido o es 0, usar 0.001
     if (isNaN(nuevaCantidad) || nuevaCantidad <= 0) {
         nuevaCantidad = 0.001;
     }
     
-    // Redondear a 3 decimales para evitar problemas de precisión
     nuevaCantidad = Math.round(nuevaCantidad * 1000) / 1000;
     
     // Si no hay ofertas cargadas, cargarlas primero
     if (!productosConOfertas[item.producto_id]) {
         cargarOfertasProducto(item.producto_id).then(() => {
+            // Obtener precio SIN IVA (la función ya hace la conversión)
             const nuevoPrecio = obtenerPrecioConOferta(item.producto_id, nuevaCantidad);
             item.cantidad = nuevaCantidad;
             item.precio_unitario = nuevoPrecio;
@@ -1027,6 +1070,7 @@ function actualizarCantidad(itemId, nuevaCantidadStr) {
             calcularTotales();
         });
     } else {
+        // Obtener precio SIN IVA (la función ya hace la conversión)
         const nuevoPrecio = obtenerPrecioConOferta(item.producto_id, nuevaCantidad);
         item.cantidad = nuevaCantidad;
         item.precio_unitario = nuevoPrecio;

@@ -1,7 +1,7 @@
 <!-- templates/combos.html -->
 {% extends "base.html" %}
 
-{% block title %}Combos y Ofertas - POS Argentina{% endblock %}
+{% block title %}Combos y Ofertas - FactuFacil{% endblock %}
 
 {% block head %}
     <style>
@@ -92,12 +92,19 @@
 {% endblock %}
 
 {% block content %}
+
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2"><i class="fas fa-tags"></i> Gestión de Combos y Ofertas</h1>
-    <button class="btn btn-success" onclick="mostrarModalCrearCombo()">
-        <i class="fas fa-plus"></i> Crear Nueva Oferta
-    </button>
+    <div class="btn-group">
+        <button class="btn btn-info me-2" onclick="mostrarAyudaCombos()">
+            <i class="fas fa-question-circle"></i> ¿Cómo funcionan?
+        </button>
+        <button class="btn btn-success" onclick="mostrarModalCrearCombo()">
+            <i class="fas fa-plus"></i> Crear Nueva Oferta
+        </button>
+    </div>
 </div>
+
 
 <!-- Estadísticas rápidas -->
 <!-- Estadísticas rápidas CORREGIDAS - Compatible Jinja2 - VERSIÓN SEGURA -->
@@ -389,9 +396,9 @@
     </div>
 </div>
 
-<!-- Modal para crear/editar combo -->
+<!-- Modal para crear/editar combo MULTI-PRODUCTO -->
 <div class="modal fade" id="modalCrearCombo" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="tituloModalCombo">
@@ -403,54 +410,152 @@
                 <form id="formCrearCombo">
                     <input type="hidden" id="combo_id_edit">
                     
-                    <div class="row">
-                        <!-- Selección de producto base -->
-                        <!-- Búsqueda de producto base MEJORADA -->
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Producto Base *</label>
-                                <div class="producto-search-container">
-                                    <input 
-                                        type="text" 
-                                        class="form-control producto-search-input" 
-                                        id="buscar_producto_base" 
-                                        placeholder="Escribe para buscar producto..."
-                                        autocomplete="off"
-                                        required>
-                                    <i class="fas fa-search search-icon"></i>
-                                    
-                                    <!-- Hidden input para guardar el ID seleccionado -->
-                                    <input type="hidden" id="producto_base_combo" required>
-                                    
-                                    <!-- Dropdown de resultados -->
-                                    <div class="producto-search-dropdown" id="dropdown_productos" style="display: none;">
-                                        <!-- Los resultados se cargan dinámicamente aquí -->
+                    <!-- Información inicial -->
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-lightbulb"></i> Combo Multi-Producto</h6>
+                        <p class="mb-0">Puedes crear combos con 1, 2 o 3 productos diferentes. El <strong>Producto 1 es obligatorio</strong>, los otros son opcionales.</p>
+                    </div>
+                    
+                    <!-- PRODUCTO 1 (OBLIGATORIO) -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0"><i class="fas fa-star"></i> Producto 1 (Obligatorio)</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label class="form-label">Buscar Producto *</label>
+                                        <div class="producto-search-container">
+                                            <input 
+                                                type="text" 
+                                                class="form-control producto-search-input" 
+                                                id="buscar_producto_1" 
+                                                placeholder="Escribe para buscar producto..."
+                                                autocomplete="off"
+                                                required>
+                                            <i class="fas fa-search search-icon"></i>
+                                            <input type="hidden" id="producto_base_1" required>
+                                            <div class="producto-search-dropdown" id="dropdown_productos_1" style="display: none;"></div>
+                                        </div>
+                                    </div>
+                                    <div id="info_producto_1" class="alert alert-light" style="display: none;">
+                                        <!-- Información del producto seleccionado -->
                                     </div>
                                 </div>
-                                <small class="form-text text-muted">
-                                    <i class="fas fa-info-circle"></i> Escribe al menos 2 caracteres para buscar
-                                </small>
-                            </div>
-                        </div>
-                        
-                        <!-- Cantidad del combo -->
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Cantidad en el Combo *</label>
-                                <input type="number" class="form-control" id="cantidad_combo" 
-                                       step="0.001" min="0.001" required onchange="calcularPrecioCombo()">
-                                <small class="form-text text-muted">Cuántas unidades incluye la oferta</small>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Cantidad *</label>
+                                        <input type="number" class="form-control" id="cantidad_1" 
+                                               step="0.001" min="0.001" required 
+                                               onchange="calcularPrecioComboMulti()">
+                                        <small class="form-text text-muted">Cantidad del producto 1</small>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- Información del producto base -->
-                    <div id="info_producto_base" class="alert alert-info" style="display: none;">
-                        <!-- Se llena dinámicamente -->
+                    <!-- PRODUCTO 2 (OPCIONAL) -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-secondary text-white">
+                            <h6 class="mb-0">
+                                <i class="fas fa-plus-circle"></i> Producto 2 (Opcional)
+                                <button type="button" class="btn btn-sm btn-outline-light float-end" onclick="limpiarProducto(2)">
+                                    <i class="fas fa-times"></i> Quitar
+                                </button>
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label class="form-label">Buscar Producto</label>
+                                        <div class="producto-search-container">
+                                            <input 
+                                                type="text" 
+                                                class="form-control producto-search-input" 
+                                                id="buscar_producto_2" 
+                                                placeholder="Escribe para buscar segundo producto..."
+                                                autocomplete="off">
+                                            <i class="fas fa-search search-icon"></i>
+                                            <input type="hidden" id="producto_base_2">
+                                            <div class="producto-search-dropdown" id="dropdown_productos_2" style="display: none;"></div>
+                                        </div>
+                                    </div>
+                                    <div id="info_producto_2" class="alert alert-light" style="display: none;">
+                                        <!-- Información del producto seleccionado -->
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Cantidad</label>
+                                        <input type="number" class="form-control" id="cantidad_2" 
+                                               step="0.001" min="0.001" 
+                                               onchange="calcularPrecioComboMulti()">
+                                        <small class="form-text text-muted">Cantidad del producto 2</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
+                    <!-- PRODUCTO 3 (OPCIONAL) -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-secondary text-white">
+                            <h6 class="mb-0">
+                                <i class="fas fa-plus-circle"></i> Producto 3 (Opcional)
+                                <button type="button" class="btn btn-sm btn-outline-light float-end" onclick="limpiarProducto(3)">
+                                    <i class="fas fa-times"></i> Quitar
+                                </button>
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label class="form-label">Buscar Producto</label>
+                                        <div class="producto-search-container">
+                                            <input 
+                                                type="text" 
+                                                class="form-control producto-search-input" 
+                                                id="buscar_producto_3" 
+                                                placeholder="Escribe para buscar tercer producto..."
+                                                autocomplete="off">
+                                            <i class="fas fa-search search-icon"></i>
+                                            <input type="hidden" id="producto_base_3">
+                                            <div class="producto-search-dropdown" id="dropdown_productos_3" style="display: none;"></div>
+                                        </div>
+                                    </div>
+                                    <div id="info_producto_3" class="alert alert-light" style="display: none;">
+                                        <!-- Información del producto seleccionado -->
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Cantidad</label>
+                                        <input type="number" class="form-control" id="cantidad_3" 
+                                               step="0.001" min="0.001" 
+                                               onchange="calcularPrecioComboMulti()">
+                                        <small class="form-text text-muted">Cantidad del producto 3</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- RESUMEN DEL COMBO -->
+                    <div class="card mb-3" id="resumen_combo" style="display: none;">
+                        <div class="card-header bg-success text-white">
+                            <h6 class="mb-0"><i class="fas fa-calculator"></i> Resumen del Combo</h6>
+                        </div>
+                        <div class="card-body" id="contenido_resumen">
+                            <!-- Se llena dinámicamente -->
+                        </div>
+                    </div>
+                    
+                    <!-- INFORMACIÓN BÁSICA DEL COMBO -->
                     <div class="row">
-                        <!-- Código del combo -->
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">Código del Combo</label>
@@ -458,8 +563,6 @@
                                 <small class="form-text text-muted">Dejar vacío para generar automáticamente</small>
                             </div>
                         </div>
-                        
-                        <!-- Nombre del combo -->
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">Nombre del Combo</label>
@@ -469,31 +572,30 @@
                         </div>
                     </div>
                     
-                    <!-- Precios -->
+                    <!-- PRECIOS -->
                     <div class="row">
                         <div class="col-md-4">
                             <div class="mb-3">
-                                <label class="form-label">Precio Normal</label>
+                                <label class="form-label">Precio Normal Total</label>
                                 <div class="input-group">
                                     <span class="input-group-text">$</span>
                                     <input type="text" class="form-control" id="precio_normal_combo" readonly>
                                 </div>
-                                <small class="form-text text-muted">Precio sin descuento</small>
+                                <small class="form-text text-muted">Suma de precios normales</small>
                             </div>
                         </div>
-                        
                         <div class="col-md-4">
                             <div class="mb-3">
                                 <label class="form-label">Precio de Oferta *</label>
                                 <div class="input-group">
                                     <span class="input-group-text">$</span>
-                                    <<input type="number" class="form-control" id="precio_combo" 
-                                        step="0.01" min="0.01" max="99999999.99" required onchange="calcularDescuento()">
+                                    <input type="number" class="form-control" id="precio_combo" 
+                                           step="0.01" min="0.01" max="99999999.99" required 
+                                           onchange="calcularDescuentoMulti()">
                                 </div>
                                 <small class="form-text text-muted">Precio final del combo</small>
                             </div>
                         </div>
-                        
                         <div class="col-md-4">
                             <div class="mb-3">
                                 <label class="form-label">Descuento</label>
@@ -506,12 +608,12 @@
                         </div>
                     </div>
                     
-                    <!-- Información del descuento -->
+                    <!-- INFORMACIÓN DEL DESCUENTO -->
                     <div id="info_descuento" class="alert alert-success" style="display: none;">
                         <!-- Se llena dinámicamente -->
                     </div>
                     
-                    <!-- Descripción opcional -->
+                    <!-- DESCRIPCIÓN -->
                     <div class="mb-3">
                         <label class="form-label">Descripción</label>
                         <textarea class="form-control" id="descripcion_combo" rows="3" 
@@ -523,13 +625,16 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                     <i class="fas fa-times"></i> Cancelar
                 </button>
-                <button type="button" class="btn btn-warning" onclick="crearCombo()">
+                <button type="button" class="btn btn-warning" onclick="crearComboMulti()">
                     <i class="fas fa-save"></i> <span id="btnComboTexto">Crear Oferta</span>
                 </button>
             </div>
         </div>
     </div>
 </div>
+
+
+
 
 <!-- Modal Ajustar Stock -->
 <div class="modal fade" id="modalStock" tabindex="-1">
@@ -573,6 +678,317 @@
         </div>
     </div>
 </div>
+
+
+<!-- Modal de Ayuda/Explicación de Combos Multi-Producto -->
+<div class="modal fade" id="modalAyudaCombos" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-lightbulb"></i> ¿Cómo Funcionan los Combos Multi-Producto?
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Introducción -->
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle"></i> ¿Qué es un Combo Multi-Producto?</h6>
+                    <p class="mb-0">Un combo es una <strong>oferta especial</strong> que permite combinar <strong>1, 2 o 3 productos diferentes</strong> en una sola oferta con un <strong>precio con descuento</strong>. Ideal para promociones, packs temáticos o ofertas por volumen.</p>
+                </div>
+
+                <!-- NUEVO: Sistema de Stock Dinámico -->
+                <div class="alert alert-success">
+                    <h6><i class="fas fa-sync-alt"></i> NUEVO: Sistema de Stock Dinámico</h6>
+                    <p class="mb-0">Los combos ahora usan <strong>stock calculado automáticamente</strong> basado en la disponibilidad de los productos base. No necesitas gestionar stock de combos manualmente.</p>
+                </div>
+
+                <!-- Proceso paso a paso -->
+                <h6><i class="fas fa-list-ol"></i> Proceso de Creación (Paso a Paso)</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <strong>1. Seleccionar Productos Base</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li><strong>Producto 1:</strong> Obligatorio</li>
+                                    <li><strong>Producto 2:</strong> Opcional</li>
+                                    <li><strong>Producto 3:</strong> Opcional</li>
+                                    <li>Solo productos activos y NO combos</li>
+                                    <li>Pueden ser productos completamente diferentes</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <strong>2. Definir Cantidades</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li>Cantidad independiente para cada producto</li>
+                                    <li>Acepta decimales (ej: 2.5kg)</li>
+                                    <li>Ejemplo: 3 x Arroz + 1 x Aceite + 2 x Azúcar</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <strong>3. Generación Automática</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li><strong>Código:</strong> ARR001-ACE002-AZU003-COMBO</li>
+                                    <li><strong>Nombre:</strong> Pack: 3x Arroz + 1x Aceite + 2x Azúcar (Oferta)</li>
+                                    <li><strong>Precio Normal:</strong> $1,500 + $300 + $400 = $2,200</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <strong>4. Definir Precio de Oferta</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li>Precio especial (menor al normal total)</li>
+                                    <li>Ejemplo: $1,800</li>
+                                    <li><strong>Ahorro:</strong> $400 (18.2% descuento)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NUEVO: Cómo Funciona el Stock Dinámico -->
+                <h6><i class="fas fa-sync-alt text-success"></i> Sistema de Stock Dinámico</h6>
+                <div class="alert alert-primary">
+                    <h6><i class="fas fa-calculator"></i> ¿Cómo se Calcula el Stock?</h6>
+                    <p>El stock de combos se calcula automáticamente basado en la disponibilidad de los productos base:</p>
+                    <div class="bg-light p-3 rounded">
+                        <strong>Ejemplo:</strong> Combo "Pack Asado" (3kg carne + 2 chorizos)<br>
+                        • <strong>Carne disponible:</strong> 15kg<br>
+                        • <strong>Chorizos disponibles:</strong> 8 unidades<br>
+                        • <strong>Stock del combo:</strong> 4 (limitado por: 8 ÷ 2 = 4)<br>
+                        <small class="text-muted">El stock siempre está limitado por el producto que menos stock tiene</small>
+                    </div>
+                </div>
+
+                <!-- NUEVO: Descuento de Stock al Vender -->
+                <h6><i class="fas fa-shopping-cart text-primary"></i> Al Realizar una Venta</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="alert alert-danger">
+                            <h6><i class="fas fa-times"></i> Antes (Sistema Anterior)</h6>
+                            <ul class="mb-0">
+                                <li>Se descontaba stock del combo únicamente</li>
+                                <li>Productos base no se actualizaban</li>
+                                <li>Discrepancias entre stock real y mostrado</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert alert-success">
+                            <h6><i class="fas fa-check"></i> Ahora (Sistema Dinámico)</h6>
+                            <ol class="mb-0">
+                                <li><strong>Al vender 1 combo</strong> se descuenta automáticamente de productos base</li>
+                                <li><strong>El stock del combo se recalcula</strong> automáticamente</li>
+                                <li><strong>No se toca el stock físico del combo</strong></li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ejemplos prácticos actualizados -->
+                <h6><i class="fas fa-chart-line"></i> Ejemplos Prácticos Multi-Producto</h6>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-primary">
+                            <tr>
+                                <th>Tipo de Combo</th>
+                                <th>Productos</th>
+                                <th>Precio Normal</th>
+                                <th>Precio Oferta</th>
+                                <th>Ahorro</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Simple</strong><br><small>1 producto</small></td>
+                                <td>3 x Detergente 1L</td>
+                                <td>$900</td>
+                                <td>$750</td>
+                                <td class="text-success"><strong>$150 (16.7%)</strong></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Doble</strong><br><small>2 productos</small></td>
+                                <td>2 x Arroz 1kg + 1 x Aceite 1L</td>
+                                <td>$1,000 + $300 = $1,300</td>
+                                <td>$1,100</td>
+                                <td class="text-success"><strong>$200 (15.4%)</strong></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Triple</strong><br><small>3 productos</small></td>
+                                <td>2 x Shampoo + 1 x Jabón + 3 x Papel</td>
+                                <td>$1,600 + $200 + $600 = $2,400</td>
+                                <td>$2,000</td>
+                                <td class="text-success"><strong>$400 (16.7%)</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Características importantes -->
+                <h6><i class="fas fa-star"></i> Características del Sistema Multi-Producto</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="alert alert-success">
+                            <h6><i class="fas fa-check-circle"></i> Ventajas</h6>
+                            <ul class="mb-0">
+                                <li><strong>Flexibilidad:</strong> 1, 2 o 3 productos diferentes</li>
+                                <li><strong>Automatización:</strong> Códigos y nombres automáticos</li>
+                                <li><strong>Stock Dinámico:</strong> Cálculo automático en tiempo real</li>
+                                <li><strong>Cantidades Flexibles:</strong> Decimales permitidos</li>
+                                <li><strong>Validaciones:</strong> Impide ofertas sin descuento real</li>
+                                <li><strong>Packs Temáticos:</strong> Combina productos relacionados</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-exclamation-triangle"></i> Consideraciones</h6>
+                            <ul class="mb-0">
+                                <li><strong>Producto 1:</strong> Siempre obligatorio</li>
+                                <li><strong>Stock:</strong> Calculado automáticamente desde productos base</li>
+                                <li><strong>Precio:</strong> Debe ser menor al precio normal total</li>
+                                <li><strong>Eliminación:</strong> Solo si no tiene ventas</li>
+                                <li><strong>Productos Base:</strong> Deben existir y estar activos</li>
+                                <li><strong>No Duplicados:</strong> No repetir productos en el mismo combo</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Casos de uso -->
+                <h6><i class="fas fa-lightbulb"></i> Casos de Uso Ideales</h6>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card text-center mb-2">
+                            <div class="card-body py-2">
+                                <h6 class="card-title text-primary">Pack Limpieza</h6>
+                                <small>Detergente + Lavandina + Jabón</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card text-center mb-2">
+                            <div class="card-body py-2">
+                                <h6 class="card-title text-primary">Pack Desayuno</h6>
+                                <small>Pan + Mermelada + Manteca</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card text-center mb-2">
+                            <div class="card-body py-2">
+                                <h6 class="card-title text-primary">Pack Asado</h6>
+                                <small>3kg Carne + 2x Chorizos</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ACTUALIZADO: Gestión de Stock Simplificada -->
+                <h6><i class="fas fa-boxes"></i> Gestión de Stock Simplificada</h6>
+                <div class="alert alert-info">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <strong><i class="fas fa-box text-success"></i> Para Productos Base:</strong><br>
+                            <small>• <strong>Entrada:</strong> Agregar stock (compras)<br>
+                            • <strong>Salida:</strong> Se descuenta automáticamente al vender combos<br>
+                            • <strong>Ajuste:</strong> Inventario manual</small>
+                        </div>
+                        <div class="col-md-4">
+                            <strong><i class="fas fa-layer-group text-primary"></i> Para Combos:</strong><br>
+                            <small>• <strong>Stock:</strong> Calculado automáticamente<br>
+                            • <strong>No requiere gestión manual</strong><br>
+                            • <strong>Se actualiza en tiempo real</strong></small>
+                        </div>
+                        <div class="col-md-4">
+                            <strong><i class="fas fa-sync-alt text-info"></i> Ventajas:</strong><br>
+                            <small>• <strong>Stock siempre preciso</strong><br>
+                            • <strong>Gestión automática</strong><br>
+                            • <strong>Consistencia total</strong></small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Código de colores -->
+                <h6><i class="fas fa-palette"></i> Códigos de Estado</h6>
+                <div class="d-flex justify-content-around text-center">
+                    <div>
+                        <span class="badge bg-danger fs-6">0</span><br>
+                        <small>Sin Stock</small>
+                    </div>
+                    <div>
+                        <span class="badge bg-warning text-dark fs-6">1-5</span><br>
+                        <small>Stock Bajo</small>
+                    </div>
+                    <div>
+                        <span class="badge bg-success fs-6">6+</span><br>
+                        <small>Stock Bueno</small>
+                    </div>
+                    <div>
+                        <span class="badge bg-success">Activo</span><br>
+                        <small>Disponible</small>
+                    </div>
+                    <div>
+                        <span class="badge bg-secondary">Inactivo</span><br>
+                        <small>Oculto</small>
+                    </div>
+                </div>
+
+                <!-- ACTUALIZADO: Tips adicionales -->
+                <div class="alert alert-primary mt-3">
+                    <h6><i class="fas fa-lightbulb"></i> Consejos Prácticos</h6>
+                    <ul class="mb-0">
+                        <li><strong>Productos Relacionados:</strong> Combina productos que se compran juntos habitualmente</li>
+                        <li><strong>Márgenes Equilibrados:</strong> Asegúrate de mantener rentabilidad en el descuento</li>
+                        <li><strong>Stock de Productos Base:</strong> Mantén stock suficiente de todos los productos base</li>
+                        <li><strong>Monitoreo:</strong> El sistema te alertará automáticamente cuando algún producto base esté bajo</li>
+                        <li><strong>Nombres Claros:</strong> Los nombres automáticos son descriptivos pero puedes personalizarlos</li>
+                    </ul>
+                </div>
+
+                <!-- NUEVO: Diferencia entre Stock Físico y Dinámico -->
+                <div class="alert alert-warning">
+                    <h6><i class="fas fa-info-circle"></i> Importante: Stock Dinámico vs Stock Físico</h6>
+                    <ul class="mb-0">
+                        <li><strong>Stock Físico del Combo:</strong> Permanece sin cambios en la base de datos</li>
+                        <li><strong>Stock Dinámico:</strong> Se calcula y muestra en tiempo real</li>
+                        <li><strong>Ventas:</strong> Descontarán automáticamente de los productos base correctos</li>
+                        <li><strong>Reportes:</strong> Reflejarán movimientos reales de productos base</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+                <button type="button" class="btn btn-success" data-bs-dismiss="modal" onclick="mostrarModalCrearCombo()">
+                    <i class="fas fa-plus"></i> Crear Mi Primer Combo Multi-Producto
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
 {% endblock %}
 
 {% block scripts %}
@@ -1130,71 +1546,133 @@ function crearCombo() {
 
 
 function editarCombo(comboId) {
-   console.log(`✏️ Editando combo ID: ${comboId}`);
-   
-   fetch(`/api/producto_detalle/${comboId}`)
-       .then(response => response.json())
-       .then(data => {
-           if (data.error) {
-               alert('Error: ' + data.error);
-               return;
-           }
-           
-           if (!data.es_combo) {
-               alert('Este producto no es un combo');
-               return;
-           }
-           
-           // Cargar datos básicos
-           document.getElementById('combo_id_edit').value = comboId;
-           document.getElementById('cantidad_combo').value = data.cantidad_combo;
-           document.getElementById('codigo_combo').value = data.codigo;
-           document.getElementById('nombre_combo').value = data.nombre;
-           document.getElementById('descripcion_combo').value = data.descripcion || '';
-           
-           // NUEVO: Cargar producto base en el sistema de búsqueda
-           if (data.producto_base) {
-               const inputBusqueda = document.getElementById('buscar_producto_base');
-               const hiddenInput = document.getElementById('producto_base_combo');
-               
-               inputBusqueda.value = `${data.producto_base.codigo} - ${data.producto_base.nombre}`;
-               inputBusqueda.classList.add('producto-seleccionado');
-               hiddenInput.value = data.producto_base_id;
-               
-               // Actualizar info del producto base
-               actualizarInfoProductoBase(
-                   data.producto_base.id,
-                   data.producto_base.codigo,
-                   data.producto_base.nombre,
-                   data.producto_base.precio
-               );
-           }
-           
-           // Calcular precio normal y cargar precio de oferta
-           const precioNormal = data.precio_unitario_base * data.cantidad_combo;
-           document.getElementById('precio_normal_combo').value = precioNormal.toFixed(2);
-           document.getElementById('precio_combo').value = data.precio;
-           
-           calcularDescuento();
-           
-           // Cambiar título del modal
-           document.getElementById('tituloModalCombo').innerHTML = '<i class="fas fa-edit"></i> Editar Oferta/Combo';
-           document.getElementById('btnComboTexto').textContent = 'Actualizar Oferta';
-           
-           // Mostrar modal e inicializar búsqueda
-           const modal = new bootstrap.Modal(document.getElementById('modalCrearCombo'));
-           modal.show();
-           
-           setTimeout(() => {
-               inicializarBusquedaProductos();
-           }, 100);
-       })
-       .catch(error => {
-           console.error('Error:', error);
-           alert('Error al cargar los datos del combo');
-       });
+    console.log(`✏️ Editando combo ID: ${comboId}`);
+    
+    fetch(`/api/producto_detalle/${comboId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            
+            if (!data.es_combo) {
+                alert('Este producto no es un combo');
+                return;
+            }
+            
+            // Cargar datos básicos
+            document.getElementById('combo_id_edit').value = comboId;
+            document.getElementById('codigo_combo').value = data.codigo;
+            document.getElementById('nombre_combo').value = data.nombre;
+            document.getElementById('descripcion_combo').value = data.descripcion || '';
+            document.getElementById('precio_combo').value = data.precio;
+            
+            // CORREGIDO: Cargar producto 1 (obligatorio)
+            if (data.producto_base_id) {
+                const input1 = document.getElementById('buscar_producto_1');
+                const hidden1 = document.getElementById('producto_base_1');
+                const cantidad1 = document.getElementById('cantidad_1');
+                
+                if (data.producto_base) {
+                    input1.value = `${data.producto_base.codigo} - ${data.producto_base.nombre}`;
+                    input1.classList.add('producto-seleccionado');
+                    hidden1.value = data.producto_base_id;
+                    cantidad1.value = data.cantidad_combo || 1;
+                    
+                    // Actualizar info del producto
+                    actualizarInfoProductoEspecifico(1, 
+                        data.producto_base.id,
+                        data.producto_base.codigo,
+                        data.producto_base.nombre,
+                        data.producto_base.precio
+                    );
+                    
+                    // Guardar en variable global
+                    productosSeleccionados[1] = {
+                        id: data.producto_base.id,
+                        codigo: data.producto_base.codigo,
+                        nombre: data.producto_base.nombre,
+                        precio: data.producto_base.precio
+                    };
+                }
+            }
+            
+            // Cargar producto 2 (opcional)
+            if (data.producto_base_2_id && data.producto_base_2) {
+                const input2 = document.getElementById('buscar_producto_2');
+                const hidden2 = document.getElementById('producto_base_2');
+                const cantidad2 = document.getElementById('cantidad_2');
+                
+                input2.value = `${data.producto_base_2.codigo} - ${data.producto_base_2.nombre}`;
+                input2.classList.add('producto-seleccionado');
+                hidden2.value = data.producto_base_2_id;
+                cantidad2.value = data.cantidad_combo_2 || 0;
+                
+                actualizarInfoProductoEspecifico(2,
+                    data.producto_base_2.id,
+                    data.producto_base_2.codigo,
+                    data.producto_base_2.nombre,
+                    data.producto_base_2.precio
+                );
+                
+                productosSeleccionados[2] = {
+                    id: data.producto_base_2.id,
+                    codigo: data.producto_base_2.codigo,
+                    nombre: data.producto_base_2.nombre,
+                    precio: data.producto_base_2.precio
+                };
+            }
+            
+            // Cargar producto 3 (opcional)
+            if (data.producto_base_3_id && data.producto_base_3) {
+                const input3 = document.getElementById('buscar_producto_3');
+                const hidden3 = document.getElementById('producto_base_3');
+                const cantidad3 = document.getElementById('cantidad_3');
+                
+                input3.value = `${data.producto_base_3.codigo} - ${data.producto_base_3.nombre}`;
+                input3.classList.add('producto-seleccionado');
+                hidden3.value = data.producto_base_3_id;
+                cantidad3.value = data.cantidad_combo_3 || 0;
+                
+                actualizarInfoProductoEspecifico(3,
+                    data.producto_base_3.id,
+                    data.producto_base_3.codigo,
+                    data.producto_base_3.nombre,
+                    data.producto_base_3.precio
+                );
+                
+                productosSeleccionados[3] = {
+                    id: data.producto_base_3.id,
+                    codigo: data.producto_base_3.codigo,
+                    nombre: data.producto_base_3.nombre,
+                    precio: data.producto_base_3.precio
+                };
+            }
+            
+            // Recalcular precios
+            calcularPrecioComboMulti();
+            calcularDescuentoMulti();
+            
+            // Cambiar título del modal
+            document.getElementById('tituloModalCombo').innerHTML = '<i class="fas fa-edit"></i> Editar Oferta/Combo';
+            document.getElementById('btnComboTexto').textContent = 'Actualizar Oferta';
+            
+            // Mostrar modal
+            const modal = new bootstrap.Modal(document.getElementById('modalCrearCombo'));
+            modal.show();
+            
+            // Inicializar búsqueda después de mostrar el modal
+            modal._element.addEventListener('shown.bs.modal', function() {
+                inicializarBusquedaMultiProducto();
+            }, { once: true });
+            
+        })
+        .catch(error => {
+            console.error('❌ Error:', error);
+            alert('Error al cargar los datos del combo');
+        });
 }
-
 
 function toggleCombo(id) {
     if (confirm('¿Cambiar el estado del combo?')) {
@@ -1692,6 +2170,555 @@ function ejecutarEliminacionCombo(comboId, data) {
         alert('❌ Error de conexión al eliminar combo');
     });
 }
+
+// Función para mostrar el modal de ayuda
+function mostrarAyudaCombos() {
+    console.log('📚 Mostrando ayuda de combos...');
+    const modal = new bootstrap.Modal(document.getElementById('modalAyudaCombos'));
+    modal.show();
+}
+
+
+// ===== FUNCIONES PARA COMBOS MULTI-PRODUCTO =====
+
+// Variables globales para cada producto
+let productosSeleccionados = {
+    1: null,
+    2: null,
+    3: null
+};
+
+let timeoutsBusqueda = {
+    1: null,
+    2: null,
+    3: null
+};
+
+// Inicializar sistema de búsqueda multi-producto
+function inicializarBusquedaMultiProducto() {
+    console.log('🔧 Inicializando búsqueda multi-producto...');
+    
+    // Inicializar para cada producto (1, 2, 3)
+    for (let i = 1; i <= 3; i++) {
+        const inputBusqueda = document.getElementById(`buscar_producto_${i}`);
+        const dropdown = document.getElementById(`dropdown_productos_${i}`);
+        
+        if (inputBusqueda && dropdown) {
+            // Limpiar eventos anteriores
+            inputBusqueda.removeEventListener('input', inputBusqueda._buscarHandler);
+            inputBusqueda.removeEventListener('keydown', inputBusqueda._teclasHandler);
+            
+            // Crear handlers específicos para este producto
+            inputBusqueda._buscarHandler = crearBuscarHandler(i);
+            inputBusqueda._teclasHandler = crearTeclasHandler(i);
+            
+            // Agregar eventos
+            inputBusqueda.addEventListener('input', inputBusqueda._buscarHandler);
+            inputBusqueda.addEventListener('keydown', inputBusqueda._teclasHandler);
+            
+            console.log(`✅ Producto ${i} inicializado`);
+        }
+    }
+}
+
+// Crear handler específico para búsqueda de cada producto
+function crearBuscarHandler(numeroProducto) {
+    return function() {
+        const termino = this.value.trim();
+        
+        console.log(`🔍 Producto ${numeroProducto} - Escribiendo:`, termino);
+        
+        // Limpiar timeout anterior
+        clearTimeout(timeoutsBusqueda[numeroProducto]);
+        
+        if (termino.length < 2) {
+            ocultarDropdownProducto(numeroProducto);
+            if (termino.length === 0) {
+                limpiarSeleccionProducto(numeroProducto);
+            }
+            return;
+        }
+        
+        // Buscar con debounce
+        timeoutsBusqueda[numeroProducto] = setTimeout(() => {
+            buscarProductoEspecifico(numeroProducto, termino);
+        }, 300);
+    };
+}
+
+// Crear handler específico para teclas de cada producto
+function crearTeclasHandler(numeroProducto) {
+    return function(e) {
+        const dropdown = document.getElementById(`dropdown_productos_${numeroProducto}`);
+        if (!dropdown || dropdown.style.display === 'none') return;
+        
+        const items = dropdown.querySelectorAll('.producto-search-item');
+        
+        switch(e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                // Lógica de navegación
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                // Lógica de navegación
+                break;
+            case 'Enter':
+                e.preventDefault();
+                // Seleccionar item activo
+                break;
+            case 'Escape':
+                e.preventDefault();
+                ocultarDropdownProducto(numeroProducto);
+                break;
+        }
+    };
+}
+
+// Buscar productos para un número específico de producto
+function buscarProductoEspecifico(numeroProducto, termino) {
+    const dropdown = document.getElementById(`dropdown_productos_${numeroProducto}`);
+    
+    dropdown.innerHTML = `
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i> Buscando productos...
+        </div>
+    `;
+    dropdown.style.display = 'block';
+    
+    console.log(`🔍 Buscando para producto ${numeroProducto}: "${termino}"`);
+    
+    // Obtener productos ya seleccionados para excluirlos
+    const productosExcluir = [];
+    for (let i = 1; i <= 3; i++) {
+        if (i !== numeroProducto && productosSeleccionados[i]) {
+            productosExcluir.push(productosSeleccionados[i].id);
+        }
+    }
+    
+    const params = new URLSearchParams({
+        buscar: termino,
+        solo_combos: 'false',
+        excluir: productosExcluir.join(',')
+    });
+    
+    fetch(`/buscar_productos_admin?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const productos = data.productos.filter(p => p.activo && !p.es_combo);
+                mostrarResultadosProducto(numeroProducto, productos, termino);
+            } else {
+                mostrarErrorProducto(numeroProducto, 'Error: ' + (data.error || 'Error desconocido'));
+            }
+        })
+        .catch(error => {
+            console.error(`❌ Error en búsqueda producto ${numeroProducto}:`, error);
+            mostrarErrorProducto(numeroProducto, 'Error de conexión');
+        });
+}
+
+// Mostrar resultados para un producto específico
+function mostrarResultadosProducto(numeroProducto, productos, termino) {
+    const dropdown = document.getElementById(`dropdown_productos_${numeroProducto}`);
+    
+    if (productos.length === 0) {
+        dropdown.innerHTML = `
+            <div class="no-results">
+                <i class="fas fa-search"></i> No se encontraron productos para "${termino}"
+            </div>
+        `;
+        return;
+    }
+    
+    console.log(`📦 Producto ${numeroProducto} - Mostrando ${productos.length} productos`);
+    
+    const html = productos.map((producto) => {
+        const codigoResaltado = resaltarTexto(producto.codigo, termino);
+        const nombreResaltado = resaltarTexto(producto.nombre, termino);
+        
+        return `
+            <div class="producto-search-item" 
+                 onclick="seleccionarProductoEspecifico(${numeroProducto}, ${producto.id}, '${producto.codigo}', '${escapeHtml(producto.nombre)}', ${producto.precio})">
+                <div class="producto-codigo">${codigoResaltado}</div>
+                <div class="producto-nombre">${nombreResaltado}</div>
+                <div class="producto-precio">$${producto.precio.toFixed(2)}</div>
+            </div>
+        `;
+    }).join('');
+    
+    dropdown.innerHTML = html;
+}
+
+// Seleccionar un producto específico
+function seleccionarProductoEspecifico(numeroProducto, id, codigo, nombre, precio) {
+    console.log(`✅ Producto ${numeroProducto} seleccionado: ${codigo} - ${nombre} ($${precio})`);
+    
+    // Guardar información del producto
+    productosSeleccionados[numeroProducto] = { id, codigo, nombre, precio };
+    
+    // Actualizar interfaz
+    document.getElementById(`buscar_producto_${numeroProducto}`).value = `${codigo} - ${nombre}`;
+    document.getElementById(`producto_base_${numeroProducto}`).value = id;
+    
+    // Agregar clase visual
+    const input = document.getElementById(`buscar_producto_${numeroProducto}`);
+    input.classList.add('producto-seleccionado');
+    
+    // Ocultar dropdown
+    ocultarDropdownProducto(numeroProducto);
+    
+    // Actualizar información del producto
+    actualizarInfoProductoEspecifico(numeroProducto, id, codigo, nombre, precio);
+    
+    // Recalcular precio combo
+    calcularPrecioComboMulti();
+}
+
+// Actualizar información de un producto específico
+function actualizarInfoProductoEspecifico(numeroProducto, id, codigo, nombre, precio) {
+    const infoDiv = document.getElementById(`info_producto_${numeroProducto}`);
+    
+    infoDiv.innerHTML = `
+        <div class="row">
+            <div class="col-md-4"><strong>Código:</strong> ${codigo}</div>
+            <div class="col-md-4"><strong>Producto:</strong> ${nombre}</div>
+            <div class="col-md-4"><strong>Precio unit:</strong> $${precio.toFixed(2)}</div>
+        </div>
+    `;
+    infoDiv.style.display = 'block';
+}
+
+// Ocultar dropdown de un producto específico
+function ocultarDropdownProducto(numeroProducto) {
+    const dropdown = document.getElementById(`dropdown_productos_${numeroProducto}`);
+    if (dropdown) {
+        dropdown.style.display = 'none';
+    }
+}
+
+// Mostrar error para un producto específico
+function mostrarErrorProducto(numeroProducto, mensaje) {
+    const dropdown = document.getElementById(`dropdown_productos_${numeroProducto}`);
+    dropdown.innerHTML = `
+        <div class="no-results text-danger">
+            <i class="fas fa-exclamation-triangle"></i> ${mensaje}
+        </div>
+    `;
+}
+
+// Limpiar selección de un producto específico
+function limpiarSeleccionProducto(numeroProducto) {
+    productosSeleccionados[numeroProducto] = null;
+    
+    document.getElementById(`producto_base_${numeroProducto}`).value = '';
+    document.getElementById(`cantidad_${numeroProducto}`).value = '';
+    
+    const input = document.getElementById(`buscar_producto_${numeroProducto}`);
+    if (input) {
+        input.value = '';
+        input.classList.remove('producto-seleccionado');
+    }
+    
+    const infoDiv = document.getElementById(`info_producto_${numeroProducto}`);
+    if (infoDiv) {
+        infoDiv.style.display = 'none';
+    }
+    
+    calcularPrecioComboMulti();
+}
+
+// Función para limpiar un producto completo (llamada desde el botón)
+function limpiarProducto(numeroProducto) {
+    console.log(`🧹 Limpiando producto ${numeroProducto}`);
+    limpiarSeleccionProducto(numeroProducto);
+    ocultarDropdownProducto(numeroProducto);
+}
+
+// Calcular precio total del combo multi-producto
+function calcularPrecioComboMulti() {
+    console.log('💰 Calculando precio combo multi-producto...');
+    
+    let precioTotal = 0;
+    let productosEnCombo = [];
+    let hayProductos = false;
+    
+    // Calcular precio para cada producto
+    for (let i = 1; i <= 3; i++) {
+        const producto = productosSeleccionados[i];
+        const cantidad = parseFloat(document.getElementById(`cantidad_${i}`).value) || 0;
+        
+        if (producto && cantidad > 0) {
+            const subtotal = producto.precio * cantidad;
+            precioTotal += subtotal;
+            
+            productosEnCombo.push({
+                numero: i,
+                producto: producto,
+                cantidad: cantidad,
+                subtotal: subtotal
+            });
+            
+            hayProductos = true;
+        }
+    }
+    
+    console.log(`   Precio total calculado: $${precioTotal}`);
+    console.log(`   Productos en combo: ${productosEnCombo.length}`);
+    
+    // Actualizar campo precio normal
+    if (hayProductos) {
+        document.getElementById('precio_normal_combo').value = formatearPrecio(precioTotal);
+        mostrarResumenCombo(productosEnCombo, precioTotal);
+        generarCodigoNombreMulti(productosEnCombo);
+    } else {
+        document.getElementById('precio_normal_combo').value = '';
+        ocultarResumenCombo();
+    }
+    
+    calcularDescuentoMulti();
+}
+
+// Mostrar resumen del combo
+function mostrarResumenCombo(productosEnCombo, precioTotal) {
+    const resumenDiv = document.getElementById('resumen_combo');
+    const contenidoDiv = document.getElementById('contenido_resumen');
+    
+    let html = '<div class="row">';
+    
+    productosEnCombo.forEach((item, index) => {
+        html += `
+            <div class="col-md-4 mb-2">
+                <div class="border p-2 rounded">
+                    <strong>${item.producto.codigo}</strong><br>
+                    <small>${item.producto.nombre}</small><br>
+                    <span class="text-primary">${item.cantidad}x $${item.producto.precio.toFixed(2)} = $${item.subtotal.toFixed(2)}</span>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    html += `<div class="row mt-2">
+                <div class="col-md-12 text-end">
+                    <h5>Total Normal: <span class="text-success">$${formatearPrecio(precioTotal)}</span></h5>
+                </div>
+             </div>`;
+    
+    contenidoDiv.innerHTML = html;
+    resumenDiv.style.display = 'block';
+}
+
+// Ocultar resumen del combo
+function ocultarResumenCombo() {
+    const resumenDiv = document.getElementById('resumen_combo');
+    resumenDiv.style.display = 'none';
+}
+
+// Generar código y nombre automático para multi-producto
+function generarCodigoNombreMulti(productosEnCombo) {
+    if (productosEnCombo.length === 0) return;
+    
+    console.log('🏷️ Generando código y nombre automático multi-producto...');
+    
+    // Generar código (ej: ARR001-ACE002-AZU003-COMBO)
+    const codigosBase = productosEnCombo.map(item => item.producto.codigo).join('-');
+    const codigoCombo = `${codigosBase}-COMBO`;
+    
+    // Generar nombre (ej: "Pack: Arroz + Aceite + Azúcar (Oferta)")
+    const nombresBase = productosEnCombo.map(item => {
+        const cantidadFormat = item.cantidad % 1 === 0 ? 
+            item.cantidad.toString() : 
+            item.cantidad.toFixed(3).replace(/\.?0+$/, '');
+        return `${cantidadFormat}x ${item.producto.nombre}`;
+    }).join(' + ');
+    
+    const nombreCombo = `Pack: ${nombresBase} (Oferta)`;
+    
+    // Aplicar solo si los campos están vacíos
+    const campoCodigo = document.getElementById('codigo_combo');
+    const campoNombre = document.getElementById('nombre_combo');
+    
+    if (!campoCodigo.value.trim()) {
+        campoCodigo.value = codigoCombo;
+        console.log(`   ✅ Código generado: ${codigoCombo}`);
+    }
+    
+    if (!campoNombre.value.trim()) {
+        campoNombre.value = nombreCombo;
+        console.log(`   ✅ Nombre generado: ${nombreCombo}`);
+    }
+}
+
+// Calcular descuento para multi-producto
+function calcularDescuentoMulti() {
+    const precioNormalTexto = document.getElementById('precio_normal_combo').value;
+    const precioOferta = parseFloat(document.getElementById('precio_combo').value);
+    const infoDiv = document.getElementById('info_descuento');
+    
+    const precioNormal = limpiarFormatoPrecio(precioNormalTexto);
+    
+    if (!precioNormal || !precioOferta || precioOferta <= 0) {
+        document.getElementById('descuento_combo').value = '';
+        infoDiv.style.display = 'none';
+        return;
+    }
+    
+    if (precioOferta >= precioNormal) {
+        document.getElementById('descuento_combo').value = '0.00';
+        infoDiv.innerHTML = '<i class="fas fa-exclamation-triangle"></i> <strong>¡Atención!</strong> El precio de oferta es igual o mayor al precio normal.';
+        infoDiv.className = 'alert alert-warning';
+        infoDiv.style.display = 'block';
+        return;
+    }
+    
+    const descuento = ((precioNormal - precioOferta) / precioNormal) * 100;
+    const ahorro = precioNormal - precioOferta;
+    
+    document.getElementById('descuento_combo').value = descuento.toFixed(2);
+    
+    infoDiv.innerHTML = `
+        <i class="fas fa-check-circle"></i> <strong>¡Excelente oferta multi-producto!</strong><br>
+        <div class="row mt-2">
+            <div class="col-md-4"><strong>Precio normal:</strong> $${formatearPrecio(precioNormal)}</div>
+            <div class="col-md-4"><strong>Precio oferta:</strong> $${formatearPrecio(precioOferta)}</div>
+            <div class="col-md-4"><strong>Ahorro:</strong> $${formatearPrecio(ahorro)} (${descuento.toFixed(1)}%)</div>
+        </div>
+    `;
+    infoDiv.className = 'alert alert-success';
+    infoDiv.style.display = 'block';
+}
+
+// Crear combo multi-producto
+function crearComboMulti() {
+    console.log('🚀 Creando combo multi-producto...');
+    const form = document.getElementById('formCrearCombo');
+    
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    // Validar que al menos el producto 1 esté seleccionado
+    if (!productosSeleccionados[1] || !document.getElementById('cantidad_1').value) {
+        alert('❌ El Producto 1 es obligatorio para crear el combo');
+        return;
+    }
+    
+    const comboId = document.getElementById('combo_id_edit').value;
+    const esEdicion = !!comboId;
+    
+    const datos = {
+        // Producto 1 (obligatorio)
+        producto_base_id: parseInt(document.getElementById('producto_base_1').value),
+        cantidad_combo: parseFloat(document.getElementById('cantidad_1').value),
+        
+        // Producto 2 (opcional)
+        producto_base_2_id: document.getElementById('producto_base_2').value ? 
+            parseInt(document.getElementById('producto_base_2').value) : null,
+        cantidad_combo_2: document.getElementById('cantidad_2').value ? 
+            parseFloat(document.getElementById('cantidad_2').value) : 0,
+        
+        // Producto 3 (opcional)
+        producto_base_3_id: document.getElementById('producto_base_3').value ? 
+            parseInt(document.getElementById('producto_base_3').value) : null,
+        cantidad_combo_3: document.getElementById('cantidad_3').value ? 
+            parseFloat(document.getElementById('cantidad_3').value) : 0,
+        
+        // Información general
+        precio_combo: limpiarFormatoPrecio(document.getElementById('precio_combo').value),
+        codigo_combo: document.getElementById('codigo_combo').value.trim(),
+        nombre_combo: document.getElementById('nombre_combo').value.trim(),
+        descripcion_combo: document.getElementById('descripcion_combo').value.trim()
+    };
+    
+    if (esEdicion) {
+        datos.id = parseInt(comboId);
+    }
+    
+    // Validaciones adicionales
+    if (datos.cantidad_combo <= 0) {
+        alert('❌ La cantidad del Producto 1 debe ser mayor a 0');
+        return;
+    }
+    
+    if (datos.precio_combo <= 0) {
+        alert('❌ El precio de oferta debe ser mayor a 0');
+        return;
+    }
+    
+    console.log('📤 Enviando datos:', datos);
+    
+    const btnCrear = document.querySelector('#modalCrearCombo .btn-warning');
+    const textoOriginal = btnCrear.innerHTML;
+    btnCrear.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${esEdicion ? 'Actualizando' : 'Creando'}...`;
+    btnCrear.disabled = true;
+    
+    // Usar el mismo endpoint que antes
+    fetch('/api/crear_combo', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(datos)
+    })
+    .then(response => response.json())
+    .then(result => {
+        console.log('📥 Respuesta del servidor:', result);
+        
+        if (result.success) {
+            alert(`✅ Combo multi-producto ${esEdicion ? 'actualizado' : 'creado'} exitosamente: ${datos.codigo_combo}`);
+            
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalCrearCombo'));
+            modal.hide();
+            
+            window.location.reload();
+        } else {
+            alert(`❌ Error al ${esEdicion ? 'actualizar' : 'crear'} combo: ${result.error}`);
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error:', error);
+        alert(`❌ Error de conexión al ${esEdicion ? 'actualizar' : 'crear'} el combo`);
+    })
+    .finally(() => {
+        btnCrear.innerHTML = textoOriginal;
+        btnCrear.disabled = false;
+    });
+}
+
+// Mostrar modal crear combo multi-producto (versión actualizada)
+function mostrarModalCrearCombo() {
+    console.log('🎯 Abriendo modal crear combo multi-producto...');
+    
+    // Limpiar estado
+    productosSeleccionados = { 1: null, 2: null, 3: null };
+    
+    document.getElementById('formCrearCombo').reset();
+    document.getElementById('combo_id_edit').value = '';
+    
+    // Limpiar todas las selecciones
+    for (let i = 1; i <= 3; i++) {
+        limpiarSeleccionProducto(i);
+    }
+    
+    ocultarResumenCombo();
+    
+    // Resetear título
+    document.getElementById('tituloModalCombo').innerHTML = '<i class="fas fa-tags"></i> Crear Nueva Oferta/Combo';
+    document.getElementById('btnComboTexto').textContent = 'Crear Oferta';
+    
+    const modal = new bootstrap.Modal(document.getElementById('modalCrearCombo'));
+    modal.show();
+    
+    // Inicializar búsqueda después de que el modal esté visible
+    modal._element.addEventListener('shown.bs.modal', function() {
+        inicializarBusquedaMultiProducto();
+    }, { once: true });
+    
+    console.log('✅ Modal combo multi-producto abierto');
+}
+
 
 
 </script>

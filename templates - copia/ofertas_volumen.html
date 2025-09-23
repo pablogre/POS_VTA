@@ -1,0 +1,1185 @@
+<!-- templates/ofertas_volumen.html -->
+{% extends "base.html" %}
+
+{% block title %}Ofertas por Volumen - POS Argentina{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-tags"></i> Gestión de Ofertas por Volumen</h1>
+    <div class="btn-group">
+        <button class="btn btn-info me-2" onclick="mostrarAyudaOfertasVolumen()">
+            <i class="fas fa-question-circle"></i> ¿Cómo funcionan?
+        </button>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalOferta" onclick="limpiarFormOferta()">
+            <i class="fas fa-plus"></i> Nueva Oferta
+        </button>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <label class="form-label">Buscar productos</label>
+                <input type="text" class="form-control" id="buscarProducto" placeholder="Código o nombre de producto...">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Estado</label>
+                <select class="form-select" id="filtroEstado">
+                    <option value="">Todas las ofertas</option>
+                    <option value="activa">Solo activas</option>
+                    <option value="inactiva">Solo inactivas</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" onclick="aplicarFiltrosOfertas()">
+                        <i class="fas fa-search"></i> Buscar
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <div class="d-grid gap-2">
+                    <button class="btn btn-secondary" onclick="limpiarFiltrosOfertas()">
+                        <i class="fas fa-eraser"></i> Limpiar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estadísticas rápidas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 id="total_ofertas">0</h4>
+                        <small>Total Ofertas</small>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-tags fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 id="ofertas_activas">0</h4>
+                        <small>Ofertas Activas</small>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-check-circle fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 id="productos_con_ofertas">0</h4>
+                        <small>Productos con Ofertas</small>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-box fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 id="descuento_promedio">0%</h4>
+                        <small>Descuento Promedio</small>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-percentage fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de ofertas -->
+<div class="card">
+    <div class="card-header">
+        <h5><i class="fas fa-list"></i> Listado de Ofertas por Volumen</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover" id="tablaOfertas">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Producto</th>
+                        <th>Código</th>
+                        <th>Precio Normal</th>
+                        <th>Cantidad Mínima</th>
+                        <th>Precio Oferta</th>
+                        <th>Descuento</th>
+                        <th>Ahorro Total</th>
+                        <th>Estado</th>
+                        <th>Fecha Creación</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaOfertasBody">
+                    <tr>
+                        <td colspan="10" class="text-center text-muted">
+                            <i class="fas fa-spinner fa-spin"></i> Cargando ofertas...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nueva/Editar Oferta -->
+<div class="modal fade" id="modalOferta" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="tituloModalOferta">
+                    <i class="fas fa-plus"></i> Nueva Oferta por Volumen
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formOferta">
+                    <input type="hidden" id="ofertaId">
+                    
+                    <!-- Selección de producto -->
+                    <div class="mb-3">
+                        <label for="buscarProductoOferta" class="form-label">Producto *</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="buscarProductoOferta" 
+                                   placeholder="Buscar por código o nombre..." 
+                                   autocomplete="off">
+                            <button type="button" class="btn btn-outline-secondary" onclick="limpiarSeleccionProducto()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <input type="hidden" id="productoSeleccionadoId">
+                        <div id="resultadosBusquedaOferta" class="list-group mt-2" style="display: none;"></div>
+                        <div id="productoSeleccionadoInfo" class="alert alert-info mt-2" style="display: none;"></div>
+                    </div>
+
+                    <!-- Configuración de la oferta -->
+                    <div class="card bg-light">
+                        <div class="card-header bg-warning text-dark">
+                            <h6 class="mb-0"><i class="fas fa-calculator"></i> Configuración de la Oferta</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="cantidadMinima" class="form-label">Cantidad Mínima *</label>
+                                        <input type="number" class="form-control" id="cantidadMinima" 
+                                               min="1" step="0.001" required>
+                                        <small class="form-text text-muted">Cantidad mínima para aplicar la oferta</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="precioOferta" class="form-label">Precio Unitario Oferta *</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">$</span>
+                                            <input type="number" class="form-control" id="precioOferta" 
+                                                   step="0.01" min="0.01" required>
+                                        </div>
+                                        <small class="form-text text-muted">Precio por unidad con la oferta</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Descuento</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control bg-warning" id="porcentajeDescuento" readonly>
+                                            <span class="input-group-text">%</span>
+                                        </div>
+                                        <small class="form-text text-primary">Calculado automáticamente</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Simulador de ahorro -->
+                            <div class="alert alert-success" id="simuladorAhorro" style="display: none;">
+                                <h6><i class="fas fa-calculator"></i> Simulación de Ahorro</h6>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <strong>Precio Normal:</strong><br>
+                                        <span id="precioNormalSim">$0.00</span> × <span id="cantidadSim">0</span> = 
+                                        <span class="text-danger" id="totalNormalSim">$0.00</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong>Precio con Oferta:</strong><br>
+                                        <span id="precioOfertaSim">$0.00</span> × <span id="cantidadOfertaSim">0</span> = 
+                                        <span class="text-success" id="totalOfertaSim">$0.00</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong>Ahorro Total:</strong><br>
+                                        <span class="text-primary fs-5" id="ahorroTotalSim">$0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Descripción opcional -->
+                    <div class="mt-3">
+                        <label for="descripcionOferta" class="form-label">Descripción de la Oferta</label>
+                        <textarea class="form-control" id="descripcionOferta" rows="3" 
+                                  placeholder="Ej: Oferta especial por volumen, válida hasta fin de mes..."></textarea>
+                        <small class="form-text text-muted">Descripción opcional para identificar la oferta</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="guardarOferta()" id="btnGuardarOferta">
+                    <i class="fas fa-save"></i> Crear Oferta
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Ver Ofertas del Producto -->
+<div class="modal fade" id="modalOfertasProducto" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-list"></i> Ofertas del Producto
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="infoProductoOfertas"></div>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Cantidad Mínima</th>
+                                <th>Precio Oferta</th>
+                                <th>Descuento</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaOfertasProducto">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Ayuda/Explicación de Ofertas por Volumen -->
+<div class="modal fade" id="modalAyudaOfertasVolumen" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-lightbulb"></i> ¿Cómo Funcionan las Ofertas por Volumen?
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Introducción -->
+                <div class="alert alert-primary">
+                    <h6><i class="fas fa-info-circle"></i> ¿Qué son las Ofertas por Volumen?</h6>
+                    <p class="mb-0">Las ofertas por volumen son <strong>descuentos automáticos</strong> que se aplican cuando un cliente compra <strong>una cantidad mínima</strong> de un mismo producto. Son ideales para incentivar compras por mayor y premiar la fidelidad del cliente.</p>
+                </div>
+
+                <!-- Diferencia con Combos -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <strong><i class="fas fa-percentage"></i> Ofertas por Volumen</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li><strong>Mismo producto</strong> en cantidad</li>
+                                    <li><strong>Descuento automático</strong> al superar mínimo</li>
+                                    <li><strong>Sin stock separado</strong> - usa el stock del producto</li>
+                                    <li><strong>Precio por unidad reducido</strong></li>
+                                </ul>
+                                <div class="mt-2 p-2 bg-light rounded">
+                                    <small><strong>Ejemplo:</strong> Detergente $300 c/u<br>
+                                    Si compras 5 o más → $250 c/u</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <strong><i class="fas fa-tags"></i> Combos/Ofertas</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li><strong>Producto especial</strong> con cantidad fija</li>
+                                    <li><strong>Precio fijo total</strong> del paquete</li>
+                                    <li><strong>Stock independiente</strong> del producto base</li>
+                                    <li><strong>Código y nombre únicos</strong></li>
+                                </ul>
+                                <div class="mt-2 p-2 bg-light rounded">
+                                    <small><strong>Ejemplo:</strong> "3 x Detergente (Oferta)"<br>
+                                    Precio fijo: $750 por el combo completo</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Proceso paso a paso -->
+                <h6><i class="fas fa-list-ol"></i> Proceso de Creación (Paso a Paso)</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <strong>1. Seleccionar Producto</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li>Busca el producto existente</li>
+                                    <li>Puede ser cualquier producto activo</li>
+                                    <li>Ejemplo: "Detergente 1L - $300"</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <strong>2. Definir Cantidad Mínima</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li>Cantidad mínima para el descuento</li>
+                                    <li>Acepta decimales si es necesario</li>
+                                    <li>Ejemplo: 5 unidades mínimas</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <strong>3. Definir Precio con Descuento</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li>Precio unitario con descuento</li>
+                                    <li>Debe ser menor al precio normal</li>
+                                    <li>Ejemplo: $250 por unidad</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <strong>4. El Sistema Calcula Automáticamente</strong>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">
+                                    <li><strong>Descuento %:</strong> 16.7%</li>
+                                    <li><strong>Ahorro total:</strong> $250</li>
+                                    <li><strong>Simulación en tiempo real</strong></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ejemplos prácticos -->
+                <h6><i class="fas fa-calculator"></i> Ejemplos Prácticos de Funcionamiento</h6>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-primary">
+                            <tr>
+                                <th>Producto</th>
+                                <th>Precio Normal</th>
+                                <th>Cantidad Mínima</th>
+                                <th>Precio c/Descuento</th>
+                                <th>Descuento</th>
+                                <th>Ejemplo de Compra</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Detergente 1L</td>
+                                <td>$300</td>
+                                <td>5 unidades</td>
+                                <td>$250</td>
+                                <td class="text-success"><strong>16.7%</strong></td>
+                                <td>
+                                    <small>
+                                        <strong>Compra 6 unidades:</strong><br>
+                                        Normal: 6 × $300 = $1,800<br>
+                                        Con oferta: 6 × $250 = $1,500<br>
+                                        <span class="text-success">Ahorro: $300</span>
+                                    </small>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Shampoo 400ml</td>
+                                <td>$800</td>
+                                <td>3 unidades</td>
+                                <td>$650</td>
+                                <td class="text-success"><strong>18.8%</strong></td>
+                                <td>
+                                    <small>
+                                        <strong>Compra 4 unidades:</strong><br>
+                                        Normal: 4 × $800 = $3,200<br>
+                                        Con oferta: 4 × $650 = $2,600<br>
+                                        <span class="text-success">Ahorro: $600</span>
+                                    </small>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Aceite 900ml</td>
+                                <td>$450</td>
+                                <td>10 unidades</td>
+                                <td>$400</td>
+                                <td class="text-success"><strong>11.1%</strong></td>
+                                <td>
+                                    <small>
+                                        <strong>Compra 12 unidades:</strong><br>
+                                        Normal: 12 × $450 = $5,400<br>
+                                        Con oferta: 12 × $400 = $4,800<br>
+                                        <span class="text-success">Ahorro: $600</span>
+                                    </small>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Cómo se aplica en la venta -->
+                <h6><i class="fas fa-cash-register"></i> ¿Cómo se Aplica en la Venta?</h6>
+                <div class="alert alert-success">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-1"></i> Cliente Agrega Productos</h6>
+                            <p class="mb-0">El cliente va agregando productos al carrito normalmente.</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-2"></i> Sistema Detecta Cantidad</h6>
+                            <p class="mb-0">Cuando la cantidad supera el mínimo, el sistema aplica automáticamente el precio con descuento.</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-3"></i> Descuento Automático</h6>
+                            <p class="mb-0">El cliente ve inmediatamente el precio reducido y el ahorro obtenido.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Casos especiales -->
+                <h6><i class="fas fa-exclamation-triangle"></i> Casos Especiales</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-layer-group"></i> Múltiples Ofertas</h6>
+                            <p class="mb-2">Un mismo producto puede tener varias ofertas:</p>
+                            <ul class="mb-0">
+                                <li><strong>3-4 unidades:</strong> $280 c/u (6.7% desc.)</li>
+                                <li><strong>5-9 unidades:</strong> $250 c/u (16.7% desc.)</li>
+                                <li><strong>10+ unidades:</strong> $220 c/u (26.7% desc.)</li>
+                            </ul>
+                            <small class="text-muted">Se aplica la mejor oferta disponible.</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-shopping-cart"></i> En el Carrito</h6>
+                            <p class="mb-2">El descuento se aplica línea por línea:</p>
+                            <ul class="mb-0">
+                                <li><strong>2 Detergentes:</strong> $300 c/u (sin descuento)</li>
+                                <li><strong>6 Shampoos:</strong> $650 c/u (con descuento)</li>
+                                <li><strong>1 Aceite:</strong> $450 c/u (sin descuento)</li>
+                            </ul>
+                            <small class="text-muted">Cada producto se evalúa independientemente.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ventajas del sistema -->
+                <h6><i class="fas fa-star"></i> Ventajas del Sistema</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="alert alert-success">
+                            <h6><i class="fas fa-check-circle"></i> Para el Negocio</h6>
+                            <ul class="mb-0">
+                                <li><strong>Aumenta volumen de ventas</strong></li>
+                                <li><strong>Fideliza clientes mayoristas</strong></li>
+                                <li><strong>Gestión automática</strong> - sin intervención manual</li>
+                                <li><strong>Múltiples niveles</strong> de descuento posibles</li>
+                                <li><strong>Reportes detallados</strong> de efectividad</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert alert-primary">
+                            <h6><i class="fas fa-heart"></i> Para el Cliente</h6>
+                            <ul class="mb-0">
+                                <li><strong>Ahorro transparente</strong> y automático</li>
+                                <li><strong>Incentivo a comprar más</strong></li>
+                                <li><strong>Sin códigos ni cupones</strong> complicados</li>
+                                <li><strong>Descuento inmediato</strong> visible</li>
+                                <li><strong>Precios justos</strong> por volumen</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Consejos de uso -->
+                <h6><i class="fas fa-lightbulb"></i> Consejos para Configurar Ofertas Efectivas</h6>
+                <div class="alert alert-warning">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-target"></i> Cantidad Mínima</h6>
+                            <ul class="mb-0">
+                                <li>Analiza tu rotación de stock</li>
+                                <li>Considera el comportamiento de compra</li>
+                                <li>Productos de alta rotación: cantidad más baja</li>
+                                <li>Productos especiales: cantidad más alta</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-percentage"></i> Descuento</h6>
+                            <ul class="mb-0">
+                                <li>Descuentos atractivos pero sostenibles</li>
+                                <li>Entre 10-25% suele ser efectivo</li>
+                                <li>Considera tu margen de ganancia</li>
+                                <li>Prueba y ajusta según resultados</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-chart-line"></i> Monitoreo</h6>
+                            <ul class="mb-0">
+                                <li>Revisa regularmente la efectividad</li>
+                                <li>Analiza el impacto en ventas</li>
+                                <li>Ajusta según temporadas</li>
+                                <li>Desactiva ofertas no efectivas</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Estados y gestión -->
+                <h6><i class="fas fa-cogs"></i> Gestión y Estados</h6>
+                <div class="d-flex justify-content-around text-center mb-3">
+                    <div>
+                        <span class="badge bg-success fs-6">Activa</span><br>
+                        <small>Se aplica automáticamente</small>
+                    </div>
+                    <div>
+                        <span class="badge bg-secondary fs-6">Inactiva</span><br>
+                        <small>Temporalmente deshabilitada</small>
+                    </div>
+                    <div>
+                        <span class="badge bg-warning text-dark fs-6">16.7%</span><br>
+                        <small>Porcentaje de descuento</small>
+                    </div>
+                    <div>
+                        <span class="badge bg-primary fs-6">5 unidades</span><br>
+                        <small>Cantidad mínima</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="document.querySelector('[data-bs-target=\'#modalOferta\']').click()">
+                    <i class="fas fa-plus"></i> Crear Mi Primera Oferta
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Variables globales
+let ofertas = [];
+let productos = [];
+let productoSeleccionado = null;
+let timeoutBusqueda = null;
+
+// ===== INICIALIZACIÓN =====
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Inicializando gestión de ofertas por volumen...');
+    
+    cargarOfertas();
+    configurarEventListeners();
+    
+    console.log('✅ Gestión de ofertas inicializada');
+});
+
+function configurarEventListeners() {
+    // Búsqueda de productos en el modal
+    const buscarInput = document.getElementById('buscarProductoOferta');
+    buscarInput.addEventListener('input', function() {
+        clearTimeout(timeoutBusqueda);
+        const termino = this.value.trim();
+        
+        if (termino.length >= 2) {
+            timeoutBusqueda = setTimeout(() => {
+                buscarProductosParaOferta(termino);
+            }, 300);
+        } else {
+            ocultarResultadosBusqueda();
+        }
+    });
+
+    // Cálculos automáticos
+    document.getElementById('cantidadMinima').addEventListener('input', calcularDescuentoOferta);
+    document.getElementById('precioOferta').addEventListener('input', calcularDescuentoOferta);
+
+    // Filtros
+    document.getElementById('buscarProducto').addEventListener('input', function() {
+        clearTimeout(timeoutBusqueda);
+        timeoutBusqueda = setTimeout(aplicarFiltrosOfertas, 500);
+    });
+    
+    document.getElementById('filtroEstado').addEventListener('change', aplicarFiltrosOfertas);
+}
+
+// ===== GESTIÓN DE OFERTAS =====
+
+function cargarOfertas() {
+    fetch('/api/ofertas_volumen_todas')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                ofertas = data.ofertas;
+                actualizarTablaOfertas(ofertas);
+                actualizarEstadisticas(ofertas);
+            } else {
+                console.error('Error cargando ofertas:', data.error);
+                mostrarError('Error al cargar ofertas: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarError('Error de conexión al cargar ofertas');
+        });
+}
+
+function actualizarTablaOfertas(ofertasList) {
+    const tbody = document.getElementById('tablaOfertasBody');
+    
+    if (!ofertasList || ofertasList.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="10" class="text-center text-muted">
+                    <i class="fas fa-tags"></i> No hay ofertas registradas
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = ofertasList.map(oferta => {
+        const precioNormal = parseFloat(oferta.producto?.precio || 0);
+        const precioOferta = parseFloat(oferta.precio_oferta);
+        const cantidadMinima = parseFloat(oferta.cantidad_minima);
+        
+        const descuentoPorcentaje = precioNormal > 0 ? 
+            (((precioNormal - precioOferta) / precioNormal) * 100) : 0;
+        
+        const ahorroTotal = (precioNormal - precioOferta) * cantidadMinima;
+        
+        const estadoBadge = oferta.activo ?
+            '<span class="badge bg-success">Activa</span>' :
+            '<span class="badge bg-secondary">Inactiva</span>';
+
+        const fechaCreacion = oferta.fecha_creacion ? 
+            new Date(oferta.fecha_creacion).toLocaleDateString('es-AR') : 'N/A';
+
+        return `
+            <tr>
+                <td>
+                    <strong>${oferta.producto?.nombre || 'Producto no encontrado'}</strong>
+                    ${oferta.descripcion ? `<br><small class="text-muted">${oferta.descripcion}</small>` : ''}
+                </td>
+                <td><code>${oferta.producto?.codigo || 'N/A'}</code></td>
+                <td class="text-end">$${precioNormal.toFixed(2)}</td>
+                <td class="text-center">
+                    <span class="badge bg-primary">${cantidadMinima} unidades</span>
+                </td>
+                <td class="text-end text-success">
+                    <strong>$${precioOferta.toFixed(2)}</strong>
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-warning text-dark">${descuentoPorcentaje.toFixed(1)}%</span>
+                </td>
+                <td class="text-end text-primary">
+                    <strong>$${ahorroTotal.toFixed(2)}</strong>
+                </td>
+                <td class="text-center">${estadoBadge}</td>
+                <td class="text-center">${fechaCreacion}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-info" onclick="verOfertasProducto(${oferta.producto_id})" 
+                                title="Ver todas las ofertas del producto">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-warning" onclick="editarOferta(${oferta.id})" title="Editar">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-danger" onclick="eliminarOferta(${oferta.id})" title="Eliminar">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function actualizarEstadisticas(ofertasList) {
+    const totalOfertas = ofertasList.length;
+    const ofertasActivas = ofertasList.filter(o => o.activo).length;
+    const productosUnicos = new Set(ofertasList.map(o => o.producto_id)).size;
+    
+    // Calcular descuento promedio
+    let descuentoPromedio = 0;
+    if (ofertasList.length > 0) {
+        const descuentos = ofertasList.map(oferta => {
+            const precioNormal = parseFloat(oferta.producto?.precio || 0);
+            const precioOferta = parseFloat(oferta.precio_oferta);
+            return precioNormal > 0 ? ((precioNormal - precioOferta) / precioNormal) * 100 : 0;
+        });
+        descuentoPromedio = descuentos.reduce((a, b) => a + b, 0) / descuentos.length;
+    }
+
+    document.getElementById('total_ofertas').textContent = totalOfertas;
+    document.getElementById('ofertas_activas').textContent = ofertasActivas;
+    document.getElementById('productos_con_ofertas').textContent = productosUnicos;
+    document.getElementById('descuento_promedio').textContent = `${descuentoPromedio.toFixed(1)}%`;
+}
+
+// ===== BÚSQUEDA DE PRODUCTOS =====
+
+function buscarProductosParaOferta(termino) {
+    fetch(`/api/buscar_productos/${encodeURIComponent(termino)}`)
+        .then(response => response.json())
+        .then(productos => {
+            if (productos && productos.length > 0) {
+                mostrarResultadosBusqueda(productos.slice(0, 8)); // Máximo 8 resultados
+            } else {
+                mostrarResultadosBusqueda([]);
+            }
+        })
+        .catch(error => {
+            console.error('Error buscando productos:', error);
+            ocultarResultadosBusqueda();
+        });
+}
+
+function mostrarResultadosBusqueda(productos) {
+    const container = document.getElementById('resultadosBusquedaOferta');
+    
+    if (productos.length === 0) {
+        container.innerHTML = `
+            <div class="list-group-item text-muted">
+                <i class="fas fa-search"></i> No se encontraron productos
+            </div>
+        `;
+    } else {
+        container.innerHTML = productos.map(producto => `
+            <button type="button" class="list-group-item list-group-item-action" 
+                    onclick="seleccionarProductoOferta(${JSON.stringify(producto).replace(/"/g, '&quot;')})">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <strong>${producto.codigo}</strong> - ${producto.nombre}
+                        ${producto.es_combo ? '<span class="badge bg-warning text-dark ms-2">OFERTA</span>' : ''}
+                    </div>
+                    <span class="text-success">$${producto.precio.toFixed(2)}</span>
+                </div>
+                ${producto.descripcion ? `<small class="text-muted">${producto.descripcion.substring(0, 60)}...</small>` : ''}
+            </button>
+        `).join('');
+    }
+    
+    container.style.display = 'block';
+}
+
+function ocultarResultadosBusqueda() {
+    document.getElementById('resultadosBusquedaOferta').style.display = 'none';
+}
+
+function seleccionarProductoOferta(producto) {
+    productoSeleccionado = producto;
+    
+    // Actualizar campos
+    document.getElementById('buscarProductoOferta').value = `${producto.codigo} - ${producto.nombre}`;
+    document.getElementById('productoSeleccionadoId').value = producto.id;
+    
+    // Mostrar información del producto seleccionado
+    const infoDiv = document.getElementById('productoSeleccionadoInfo');
+    infoDiv.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <strong>Producto seleccionado:</strong> ${producto.codigo} - ${producto.nombre}<br>
+                <strong>Precio actual:</strong> <span class="text-success">$${producto.precio.toFixed(2)}</span>
+                <strong>Stock:</strong> <span class="badge bg-${producto.stock > 10 ? 'success' : producto.stock > 0 ? 'warning' : 'danger'}">${producto.stock}</span>
+            </div>
+            <button class="btn btn-link text-danger" onclick="limpiarSeleccionProducto()" title="Quitar selección">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    infoDiv.style.display = 'block';
+    
+    ocultarResultadosBusqueda();
+    calcularDescuentoOferta();
+}
+
+function limpiarSeleccionProducto() {
+    productoSeleccionado = null;
+    document.getElementById('buscarProductoOferta').value = '';
+    document.getElementById('productoSeleccionadoId').value = '';
+    document.getElementById('productoSeleccionadoInfo').style.display = 'none';
+    document.getElementById('simuladorAhorro').style.display = 'none';
+    ocultarResultadosBusqueda();
+}
+
+// ===== CÁLCULOS =====
+
+function calcularDescuentoOferta() {
+    if (!productoSeleccionado) return;
+    
+    const precioNormal = parseFloat(productoSeleccionado.precio);
+    const precioOferta = parseFloat(document.getElementById('precioOferta').value) || 0;
+    const cantidadMinima = parseFloat(document.getElementById('cantidadMinima').value) || 0;
+    
+    if (precioOferta > 0 && cantidadMinima > 0) {
+        // Calcular descuento
+        const descuentoPorcentaje = ((precioNormal - precioOferta) / precioNormal) * 100;
+        document.getElementById('porcentajeDescuento').value = descuentoPorcentaje.toFixed(1);
+        
+        // Mostrar simulador
+        mostrarSimuladorAhorro(precioNormal, precioOferta, cantidadMinima);
+        
+        // Validar que el precio de oferta sea menor
+        const inputPrecioOferta = document.getElementById('precioOferta');
+        if (precioOferta >= precioNormal) {
+            inputPrecioOferta.setCustomValidity(`El precio debe ser menor a $${precioNormal.toFixed(2)}`);
+            inputPrecioOferta.classList.add('is-invalid');
+        } else {
+            inputPrecioOferta.setCustomValidity('');
+            inputPrecioOferta.classList.remove('is-invalid');
+            inputPrecioOferta.classList.add('is-valid');
+        }
+    } else {
+        document.getElementById('porcentajeDescuento').value = '0.0';
+        document.getElementById('simuladorAhorro').style.display = 'none';
+    }
+}
+
+function mostrarSimuladorAhorro(precioNormal, precioOferta, cantidad) {
+    const totalNormal = precioNormal * cantidad;
+    const totalOferta = precioOferta * cantidad;
+    const ahorroTotal = totalNormal - totalOferta;
+    
+    document.getElementById('precioNormalSim').textContent = `$${precioNormal.toFixed(2)}`;
+    document.getElementById('cantidadSim').textContent = cantidad;
+    document.getElementById('totalNormalSim').textContent = `$${totalNormal.toFixed(2)}`;
+    
+    document.getElementById('precioOfertaSim').textContent = `$${precioOferta.toFixed(2)}`;
+    document.getElementById('cantidadOfertaSim').textContent = cantidad;
+    document.getElementById('totalOfertaSim').textContent = `$${totalOferta.toFixed(2)}`;
+    
+    document.getElementById('ahorroTotalSim').textContent = `$${ahorroTotal.toFixed(2)}`;
+    
+    document.getElementById('simuladorAhorro').style.display = 'block';
+}
+
+// ===== CRUD OFERTAS =====
+
+function limpiarFormOferta() {
+    document.getElementById('formOferta').reset();
+    document.getElementById('ofertaId').value = '';
+    document.getElementById('tituloModalOferta').innerHTML = '<i class="fas fa-plus"></i> Nueva Oferta por Volumen';
+    document.getElementById('btnGuardarOferta').innerHTML = '<i class="fas fa-save"></i> Crear Oferta';
+    
+    limpiarSeleccionProducto();
+    
+    // Limpiar validaciones
+    const inputs = document.querySelectorAll('#formOferta input, #formOferta textarea');
+    inputs.forEach(input => {
+        input.setCustomValidity('');
+        input.classList.remove('is-invalid', 'is-valid');
+    });
+}
+
+function guardarOferta() {
+    const form = document.getElementById('formOferta');
+    
+    // Validar formulario
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    if (!productoSeleccionado) {
+        alert('Debe seleccionar un producto');
+        document.getElementById('buscarProductoOferta').focus();
+        return;
+    }
+    
+    const cantidadMinima = parseFloat(document.getElementById('cantidadMinima').value);
+    const precioOferta = parseFloat(document.getElementById('precioOferta').value);
+    
+    if (precioOferta >= productoSeleccionado.precio) {
+        alert(`El precio de oferta debe ser menor al precio normal ($${productoSeleccionado.precio.toFixed(2)})`);
+        document.getElementById('precioOferta').focus();
+        return;
+    }
+    
+    const datosOferta = {
+        id: document.getElementById('ofertaId').value || null,
+        producto_id: productoSeleccionado.id,
+        cantidad_minima: cantidadMinima,
+        precio_oferta: precioOferta,
+        descripcion: document.getElementById('descripcionOferta').value.trim()
+    };
+    
+    // Mostrar loading
+    const btn = document.getElementById('btnGuardarOferta');
+    const textoOriginal = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+    btn.disabled = true;
+    
+    const url = datosOferta.id ? `/api/actualizar_oferta_volumen/${datosOferta.id}` : '/api/crear_oferta_volumen';
+    const method = datosOferta.id ? 'PUT' : 'POST';
+    
+    fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(datosOferta)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalOferta'));
+            modal.hide();
+            
+            // Recargar ofertas
+            cargarOfertas();
+        } else {
+            alert('Error: ' + (data.error || 'Error desconocido'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error de conexión al guardar la oferta');
+    })
+    .finally(() => {
+        btn.innerHTML = textoOriginal;
+        btn.disabled = false;
+    });
+}
+
+function editarOferta(id) {
+    const oferta = ofertas.find(o => o.id === id);
+    if (!oferta) {
+        alert('Oferta no encontrada');
+        return;
+    }
+    
+    // Llenar formulario con datos de la oferta
+    document.getElementById('ofertaId').value = oferta.id;
+    document.getElementById('cantidadMinima').value = oferta.cantidad_minima;
+    document.getElementById('precioOferta').value = oferta.precio_oferta;
+    document.getElementById('descripcionOferta').value = oferta.descripcion || '';
+    
+    // Seleccionar producto
+    if (oferta.producto) {
+        seleccionarProductoOferta(oferta.producto);
+    }
+    
+    // Cambiar título del modal
+    document.getElementById('tituloModalOferta').innerHTML = '<i class="fas fa-edit"></i> Editar Oferta por Volumen';
+    document.getElementById('btnGuardarOferta').innerHTML = '<i class="fas fa-save"></i> Actualizar Oferta';
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('modalOferta'));
+    modal.show();
+}
+
+function eliminarOferta(id) {
+    if (confirm('¿Está seguro de que desea eliminar esta oferta?')) {
+        fetch(`/api/eliminar_oferta_volumen/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                cargarOfertas();
+            } else {
+                alert('Error: ' + (data.error || 'Error desconocido'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error de conexión al eliminar la oferta');
+        });
+    }
+}
+
+function verOfertasProducto(productoId) {
+    fetch(`/api/ofertas_producto/${productoId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarModalOfertasProducto(data);
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error de conexión');
+        });
+}
+
+function mostrarModalOfertasProducto(data) {
+    const infoDiv = document.getElementById('infoProductoOfertas');
+    infoDiv.innerHTML = `
+        <div class="alert alert-info">
+            <strong>Producto:</strong> ${data.producto.codigo} - ${data.producto.nombre}<br>
+            <strong>Precio base:</strong> $${data.producto.precio_base.toFixed(2)}<br>
+            <strong>Total de ofertas:</strong> ${data.ofertas.length}
+        </div>
+    `;
+    
+    const tbody = document.getElementById('tablaOfertasProducto');
+    
+    if (data.ofertas.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted">
+                    Este producto no tiene ofertas por volumen
+                </td>
+            </tr>
+        `;
+    } else {
+        tbody.innerHTML = data.ofertas.map(oferta => {
+            const descuento = ((data.producto.precio_base - oferta.precio_oferta) / data.producto.precio_base) * 100;
+            
+            return `
+                <tr>
+                    <td>${oferta.cantidad_minima} unidades</td>
+                    <td class="text-success">$${oferta.precio_oferta.toFixed(2)}</td>
+                    <td><span class="badge bg-warning text-dark">${descuento.toFixed(1)}%</span></td>
+                    <td>${oferta.activo ? '<span class="badge bg-success">Activa</span>' : '<span class="badge bg-secondary">Inactiva</span>'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning" onclick="editarOferta(${oferta.id})">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="eliminarOferta(${oferta.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('modalOfertasProducto'));
+    modal.show();
+}
+
+// ===== FILTROS =====
+
+function aplicarFiltrosOfertas() {
+    const busqueda = document.getElementById('buscarProducto').value.toLowerCase().trim();
+    const estado = document.getElementById('filtroEstado').value;
+    
+    let ofertasFiltradas = ofertas;
+    
+    // Filtrar por búsqueda
+    if (busqueda) {
+        ofertasFiltradas = ofertasFiltradas.filter(oferta => 
+            (oferta.producto?.nombre || '').toLowerCase().includes(busqueda) ||
+            (oferta.producto?.codigo || '').toLowerCase().includes(busqueda) ||
+            (oferta.descripcion || '').toLowerCase().includes(busqueda)
+        );
+    }
+    
+    // Filtrar por estado
+    if (estado === 'activa') {
+        ofertasFiltradas = ofertasFiltradas.filter(oferta => oferta.activo);
+    } else if (estado === 'inactiva') {
+        ofertasFiltradas = ofertasFiltradas.filter(oferta => !oferta.activo);
+    }
+    
+    actualizarTablaOfertas(ofertasFiltradas);
+}
+
+function limpiarFiltrosOfertas() {
+    document.getElementById('buscarProducto').value = '';
+    document.getElementById('filtroEstado').value = '';
+    actualizarTablaOfertas(ofertas);
+}
+
+// ===== UTILIDADES =====
+
+function mostrarError(mensaje) {
+    const tbody = document.getElementById('tablaOfertasBody');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="10" class="text-center text-danger">
+                <i class="fas fa-exclamation-triangle"></i> ${mensaje}
+            </td>
+        </tr>
+    `;
+}
+
+// Función para mostrar el modal de ayuda de ofertas por volumen
+function mostrarAyudaOfertasVolumen() {
+    console.log('📚 Mostrando ayuda de ofertas por volumen...');
+    const modal = new bootstrap.Modal(document.getElementById('modalAyudaOfertasVolumen'));
+    modal.show();
+}
+
+</script>
+{% endblock %}

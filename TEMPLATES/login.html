@@ -39,4 +39,201 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de Bienvenida -->
+<div class="modal fade" id="modalBienvenida" tabindex="-1" aria-labelledby="modalBienvenidaLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div class="modal-header border-0 text-white">
+                <h4 class="modal-title w-100 text-center" id="modalBienvenidaLabel">
+                    <i class="fas fa-rocket me-2"></i>
+                    <strong>¡Bienvenido a FactuFacil!</strong>
+                </h4>
+            </div>
+            <div class="modal-body text-white p-4">
+                <div class="text-center mb-4">
+                    <div class="welcome-icon mb-3">
+                        <i class="fas fa-file-invoice-dollar fa-4x text-warning"></i>
+                    </div>
+                    
+                    <h5 class="mb-3">
+                        <i class="fas fa-star text-warning"></i>
+                        El sistema más ágil, rápido y sencillo de Facturación Electrónica
+                        <i class="fas fa-star text-warning"></i>
+                    </h5>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6 mb-3">
+                            <div class="feature-card p-3 rounded bg-white text-dark shadow-sm">
+                                <i class="fas fa-boxes fa-2x text-primary mb-2"></i>
+                                <h6><strong>Gestión de Stock</strong></h6>
+                                <p class="small mb-0">Excelente control y seguimiento de inventario</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="feature-card p-3 rounded bg-white text-dark shadow-sm">
+                                <i class="fas fa-tags fa-2x text-success mb-2"></i>
+                                <h6><strong>Combos y Ofertas</strong></h6>
+                                <p class="small mb-0">Manejo inteligente de ofertas por volumen</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="feature-card p-3 rounded bg-white text-dark shadow-sm">
+                                <i class="fas fa-bolt fa-2x text-warning mb-2"></i>
+                                <h6><strong>Operaciones Rápidas</strong></h6>
+                                <p class="small mb-0">Agiliza tu día a día con procesos optimizados</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="feature-card p-3 rounded bg-white text-dark shadow-sm">
+                                <i class="fas fa-check-circle fa-2x text-info mb-2"></i>
+                                <h6><strong>Fácil de Usar</strong></h6>
+                                <p class="small mb-0">Interfaz intuitiva y sencilla para todos</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-light mt-4 border-0" style="background-color: rgba(255,255,255,0.9);">
+                        <i class="fas fa-lightbulb text-warning me-2"></i>
+                        <strong class="text-dark">FactuFacil te permite hacer las operaciones rutinarias del día a día más rápido y sencillo.</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 justify-content-center">
+                <div class="text-center w-100">
+                    <button type="button" class="btn btn-light btn-lg px-4 me-3" data-bs-dismiss="modal" id="btnComenzar">
+                        <i class="fas fa-play me-2"></i>
+                        ¡Comenzar!
+                    </button>
+                    <div class="form-check form-check-inline mt-3">
+                        <input class="form-check-input" type="checkbox" id="noMostrarBienvenida">
+                        <label class="form-check-label text-white-50 small" for="noMostrarBienvenida">
+                            No mostrar este mensaje nuevamente
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Estilos para el modal de bienvenida */
+#modalBienvenida .modal-content {
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+#modalBienvenida .feature-card {
+    transition: transform 0.2s ease-in-out;
+    height: 100%;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+
+#modalBienvenida .feature-card:hover {
+    transform: translateY(-2px);
+}
+
+#modalBienvenida .welcome-icon {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Animación de entrada del modal */
+#modalBienvenida.fade .modal-dialog {
+    transform: scale(0.8);
+    transition: transform 0.3s ease-out;
+}
+
+#modalBienvenida.show .modal-dialog {
+    transform: scale(1);
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('=== DEBUG MODAL BIENVENIDA ===');
+    console.log('1. Página cargada:', window.location.href);
+    console.log('2. Bootstrap disponible:', typeof bootstrap !== 'undefined');
+    console.log('3. jQuery disponible:', typeof $ !== 'undefined');
+    
+    const modalElement = document.getElementById('modalBienvenida');
+    console.log('4. Modal encontrado:', modalElement ? 'SÍ' : 'NO');
+    
+    const noMostrarBienvenida = localStorage.getItem('factufacil_no_mostrar_bienvenida');
+    console.log('5. Preferencia localStorage:', noMostrarBienvenida);
+    
+    if (!noMostrarBienvenida || noMostrarBienvenida !== 'true') {
+        console.log('6. Debería mostrar modal...');
+        
+        setTimeout(function() {
+            console.log('7. Ejecutando setTimeout...');
+            
+            if (modalElement) {
+                try {
+                    // Usar Bootstrap 5 (vanilla JavaScript)
+                    if (typeof bootstrap !== 'undefined') {
+                        console.log('8. Usando Bootstrap 5');
+                        const modal = new bootstrap.Modal(modalElement);
+                        modal.show();
+                        console.log('9. Modal.show() ejecutado');
+                    }
+                    // Fallback a jQuery si está disponible
+                    else if (typeof $ !== 'undefined') {
+                        console.log('8. Usando jQuery fallback');
+                        $('#modalBienvenida').modal('show');
+                        console.log('9. jQuery modal show ejecutado');
+                    }
+                    else {
+                        console.log('8. ERROR: Ni Bootstrap 5 ni jQuery disponibles');
+                    }
+                } catch (error) {
+                    console.log('8. ERROR al mostrar modal:', error);
+                }
+            } else {
+                console.log('8. ERROR: Modal no encontrado en DOM');
+            }
+        }, 1000);
+    } else {
+        console.log('6. NO mostrar modal (preferencia guardada)');
+    }
+    
+    // Manejar cierre del modal (Bootstrap 5)
+    if (modalElement) {
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            console.log('Modal cerrado');
+            const noMostrarCheck = document.getElementById('noMostrarBienvenida');
+            if (noMostrarCheck && noMostrarCheck.checked) {
+                localStorage.setItem('factufacil_no_mostrar_bienvenida', 'true');
+                console.log('Preferencia guardada: no mostrar modal');
+            }
+        });
+    }
+});
+
+function resetearModalBienvenida() {
+    localStorage.removeItem('factufacil_no_mostrar_bienvenida');
+    console.log('Modal reseteado - se mostrará en próxima visita');
+}
+
+function mostrarModalManualmente() {
+    const modalElement = document.getElementById('modalBienvenida');
+    if (modalElement && typeof bootstrap !== 'undefined') {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    }
+}
+</script>
+
 {% endblock %}

@@ -1,7 +1,7 @@
 <!-- templates/reporte_ventas.html -->
 {% extends "base.html" %}
 
-{% block title %}Reporte de Ventas - POS Argentina{% endblock %}
+{% block title %}Reporte de Ventas - FactuFacil{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -230,7 +230,7 @@ function generarReporte() {
     console.log('📊 Generando reporte de ventas...');
     console.log(`📅 Período: ${fechaDesde} a ${fechaHasta}`);
     console.log(`📂 Categoría: ${document.getElementById('filtroCategoria').value || 'Todas'}`);
-    console.log(`🔄 Orden: ${document.getElementById('filtroOrden').value}`);
+    console.log(`📄 Orden: ${document.getElementById('filtroOrden').value}`);
     console.log(`✅ Incluye TODAS las facturas (no solo autorizadas)`);
     
     // Mostrar loading
@@ -252,6 +252,12 @@ function generarReporte() {
     fetch(`/api/reporte_ventas_productos?${params.toString()}`)
         .then(response => {
             console.log('📡 Respuesta del servidor:', response.status);
+            
+            // Verificar si la respuesta es exitosa
+            if (!response.ok) {
+                throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
+            }
+            
             return response.json();
         })
         .then(data => {
@@ -259,24 +265,141 @@ function generarReporte() {
             
             if (data.success) {
                 datosReporte = data.productos;
-                mostrarReporte(data);
                 
-                console.log('✅ Reporte generado exitosamente');
-                console.log(`📦 Productos: ${data.resumen.total_productos}`);
-                console.log(`📊 Unidades: ${data.resumen.total_unidades}`);
-                console.log(`💰 Total: $${data.resumen.total_ventas.toFixed(2)}`);
+                // Verificar si hay datos
+                if (data.productos.length === 0) {
+                    console.log('⚠️ No se encontraron datos para los criterios seleccionados');
+                    mostrarReporteSinDatos();
+                } else {
+                    mostrarReporte(data);
+                    console.log('✅ Reporte generado exitosamente');
+                    console.log(`📦 Productos: ${data.resumen.total_productos}`);
+                    console.log(`📊 Unidades: ${data.resumen.total_unidades}`);
+                    console.log(`💰 Total: $${data.resumen.total_ventas.toFixed(2)}`);
+                }
             } else {
-                mostrarError(data.error || 'Error al generar el reporte');
+                // Error reportado por el servidor
+                const mensajeError = data.error || 'Error al generar el reporte';
+                console.error('❌ Error del servidor:', mensajeError);
+                mostrarError(mensajeError);
             }
         })
         .catch(error => {
             console.error('❌ Error:', error);
-            mostrarError('Error de conexión al generar el reporte');
+            
+            // Distinguir entre diferentes tipos de errores
+            if (error.message.includes('Error del servidor')) {
+                mostrarError('Error en el servidor al procesar la solicitud. Por favor, inténtelo nuevamente.');
+            } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                mostrarError('Error de conexión. Verifique su conexión a internet e inténtelo nuevamente.');
+            } else {
+                mostrarError('Ocurrió un error inesperado al generar el reporte. Por favor, inténtelo nuevamente.');
+            }
         })
         .finally(() => {
             mostrarLoading(false);
         });
 }
+
+function mostrarReporteSinDatos() {
+    // Mostrar resumen con valores en cero
+    document.getElementById('totalProductos').textContent = '0';
+    document.getElementById('totalUnidades').textContent = '0';
+    document.getElementById('totalVentas').textContent = '$0.00';
+    document.getElementById('promedioVenta').textContent = '$0.00';
+    
+    // Mostrar tabla vacía con mensaje específico
+    const tbody = document.getElementById('tablaReporteBody');
+    tbody.innerHTML = '';
+    
+    // Construir mensaje específico según los filtros aplicados
+    let mensaje = 'No se encontraron ventas';
+    const criterios = [];
+    
+    if (parametrosBusqueda.fecha_desde && parametrosBusqueda.fecha_hasta) {
+        const fechaDesdeFormateada = new Date(parametrosBusqueda.fecha_desde).toLocaleDateString('es-AR');
+        const fechaHastaFormateada = new Date(parametrosBusqueda.fecha_hasta).toLocaleDateString('es-AR');
+        criterios.push(`en el período del ${fechaDesdeFormateada} al ${fechaHastaFormateada}`);
+    }
+    
+    if (parametrosBusqueda.categoria) {
+        criterios.push(`para la categoría "${parametrosBusqueda.categoria}"`);
+    }
+    
+    if (parametrosBusqueda.solo_con_ventas) {
+        criterios.push('con los filtros aplicados');
+    }
+    
+    if (criterios.length > 0) {
+        mensaje += ' ' + criterios.join(' ');
+    }
+    
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="9" class="text-center py-5">
+                <div class="d-flex flex-column align-items-center">
+                    <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted mb-2">Sin resultados</h5>
+                    <p class="text-muted mb-3">${mensaje}</p>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-outline-primary btn-sm me-2" onclick="modificarBusqueda()">
+                            <i class="fas fa-edit"></i> Modificar búsqueda
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="limpiarFiltros()">
+                            <i class="fas fa-times"></i> Limpiar filtros
+                        </button>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    `;
+    
+    // Mostrar cards
+    document.getElementById('cardResumen').style.display = 'block';
+    document.getElementById('cardResultados').style.display = 'block';
+    
+    // Deshabilitar botones de exportación
+    document.getElementById('btnExportarExcel').disabled = true;
+    document.getElementById('btnExportarCSV').disabled = true;
+    
+    // Mostrar notificación informativa
+    mostrarNotificacion(mensaje, 'warning');
+    
+    console.log('⚠️ Mostrando reporte sin datos');
+    console.log(`📋 Mensaje: ${mensaje}`);
+}
+
+// Función para ayudar al usuario a modificar la búsqueda
+function modificarBusqueda() {
+    // Enfocar el primer campo de filtro
+    document.getElementById('fechaDesde').focus();
+    
+    // Mostrar sugerencia
+    mostrarNotificacion('Modifique los criterios de búsqueda y presione "Generar Reporte" nuevamente', 'info');
+}
+
+// Función para limpiar todos los filtros
+function limpiarFiltros() {
+    // Resetear fechas al último mes
+    const hoy = new Date();
+    const haceUnMes = new Date();
+    haceUnMes.setMonth(haceUnMes.getMonth() - 1);
+    
+    document.getElementById('fechaHasta').value = formatearFechaLocal(hoy);
+    document.getElementById('fechaDesde').value = formatearFechaLocal(haceUnMes);
+    
+    // Resetear otros filtros
+    document.getElementById('filtroCategoria').value = '';
+    document.getElementById('filtroOrden').value = 'cantidad_desc';
+    document.getElementById('soloConVentas').checked = true;
+    
+    // Limpiar vista
+    limpiarVista();
+    
+    mostrarNotificacion('Filtros restablecidos', 'success');
+}
+
+
 
 // Función para mostrar el reporte
 function mostrarReporte(data) {

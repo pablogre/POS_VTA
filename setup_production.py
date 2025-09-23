@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # setup_production.py - Configurar sistema para producción
+#http://localhost:5080/api/comparar_stocks
 
 import os
 import sys
